@@ -26,11 +26,10 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: var(--font); background: var(--black-mid); color: var(--white); min-height: 100vh; }
 
-  /* Header */
   .app-header {
     background: var(--black);
     padding: 0 20px;
-    height: 64px;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -39,82 +38,56 @@
     z-index: 100;
     border-bottom: 2px solid var(--gold-dim);
   }
-  .header-logo { height: 52px; display: block; }
+  .header-title { color: var(--gold); font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+  .header-sub   { color: var(--gray-3); font-size: 12px; margin-left: 8px; }
+  .header-left  { display: flex; align-items: baseline; }
   .auth-btn {
-    background: var(--gold);
-    color: var(--black);
-    border: none;
-    padding: 8px 18px;
-    border-radius: 4px;
-    font-weight: 700;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.15s;
+    background: var(--gold); color: var(--black); border: none;
+    padding: 8px 18px; border-radius: 4px; font-weight: 700;
+    font-size: 13px; cursor: pointer;
   }
   .auth-btn:hover { background: var(--gold-dark); }
-  .user-info { color: var(--gray-4); font-size: 12px; display: flex; align-items: center; gap: 10px; }
-  .sign-out { color: var(--gold); font-size: 12px; cursor: pointer; text-decoration: underline; }
+  .user-info  { color: var(--gray-4); font-size: 12px; display: flex; align-items: center; gap: 10px; }
+  .sign-out   { color: var(--gold); font-size: 12px; cursor: pointer; text-decoration: underline; }
 
-  /* Screens */
   .screen { display: none; }
   .screen.active { display: block; }
 
-  /* Landing */
   .landing { max-width: 440px; margin: 80px auto; text-align: center; padding: 0 24px; }
-  .landing-logo { height: 100px; margin: 0 auto 28px; display: block; }
-  .landing h2 { font-size: 24px; color: var(--gold); margin-bottom: 8px; }
+  .landing-icon { font-size: 48px; margin-bottom: 16px; }
+  .landing h2 { font-size: 26px; color: var(--gold); margin-bottom: 8px; }
   .landing p  { color: var(--gray-3); font-size: 14px; margin-bottom: 32px; }
 
   select, input[type=text], input[type=date], textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1.5px solid var(--gray-2);
-    border-radius: 6px;
-    font-size: 14px;
-    font-family: var(--font);
-    background: var(--gray-1);
-    color: var(--white);
-    outline: none;
+    width: 100%; padding: 10px 12px;
+    border: 1.5px solid var(--gray-2); border-radius: 6px;
+    font-size: 14px; font-family: var(--font);
+    background: var(--gray-1); color: var(--white); outline: none;
     transition: border-color 0.2s;
   }
   select:focus, input:focus, textarea:focus { border-color: var(--gold); }
   select option { background: var(--gray-1); }
 
-  .territory-select-wrap { margin-bottom: 20px; text-align: left; }
-  .territory-select-wrap label {
-    display: block; font-size: 12px; font-weight: 700;
-    color: var(--gold); text-transform: uppercase;
-    letter-spacing: 0.5px; margin-bottom: 6px;
-  }
+  .field-wrap { margin-bottom: 20px; text-align: left; }
+  .field-wrap label { display: block; font-size: 12px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
 
-  .btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 10px 20px; border-radius: 6px; border: none;
-    font-size: 14px; font-weight: 700; cursor: pointer;
-    transition: opacity 0.15s;
-  }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 6px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
   .btn:hover { opacity: 0.85; }
   .btn-gold      { background: var(--gold); color: var(--black); }
   .btn-primary   { background: var(--gray-2); color: var(--white); border: 1px solid var(--gray-3); }
   .btn-secondary { background: var(--gray-1); color: var(--gray-4); border: 1px solid var(--gray-2); }
   .btn-danger    { background: var(--red); color: var(--white); }
   .btn-success   { background: var(--green); color: var(--white); }
-  .btn-sm { padding: 6px 14px; font-size: 12px; }
+  .btn-sm   { padding: 6px 14px; font-size: 12px; }
   .btn-full { width: 100%; justify-content: center; }
 
-  /* Dashboard */
   .dashboard { max-width: 980px; margin: 0 auto; padding: 24px 16px; }
 
   .territory-bar {
-    background: var(--black);
-    border: 1px solid var(--gold-dim);
-    border-left: 4px solid var(--gold);
-    padding: 16px 20px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
+    background: var(--black); border: 1px solid var(--gold-dim);
+    border-left: 4px solid var(--gold); padding: 16px 20px;
+    border-radius: 8px; display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 20px;
   }
   .territory-bar h2 { font-size: 18px; color: var(--gold); }
   .territory-bar .sub { color: var(--gray-3); font-size: 12px; margin-top: 2px; }
@@ -122,97 +95,47 @@
   .territory-bar .stat .num { font-size: 24px; font-weight: 700; color: var(--gold); }
   .territory-bar .stat .lbl { font-size: 11px; color: var(--gray-3); }
 
-  .tab-row {
-    display: flex; gap: 4px; margin-bottom: 20px;
-    border-bottom: 2px solid var(--gray-1); padding-bottom: 0;
-  }
-  .tab {
-    padding: 10px 20px; border: none; background: none;
-    font-size: 14px; font-weight: 600; color: var(--gray-3);
-    cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
-    transition: color 0.15s;
-  }
+  .tab-row { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--gray-1); }
+  .tab { padding: 10px 20px; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--gray-3); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
   .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
-  .search-row { display: flex; gap: 10px; margin-bottom: 16px; align-items: flex-end; }
+  .search-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .search-wrap { flex: 1; position: relative; }
   .search-wrap input { padding-left: 36px; }
-  .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--gray-3); font-size: 14px; }
+  .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--gray-3); }
 
-  /* Account list */
   .account-list { display: flex; flex-direction: column; gap: 2px; }
-  .account-row {
-    background: var(--black-soft);
-    border: 1px solid var(--gray-1);
-    border-radius: 6px; padding: 12px 16px;
-    display: flex; align-items: center; justify-content: space-between;
-    cursor: pointer; transition: border-color 0.15s, background 0.15s;
-  }
+  .account-row { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 6px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: border-color 0.15s; }
   .account-row:hover { border-color: var(--gold); background: var(--black); }
   .account-row .name { font-weight: 600; font-size: 14px; color: var(--white); }
   .account-row .meta { font-size: 12px; color: var(--gray-3); margin-top: 2px; }
   .account-row .right { display: flex; align-items: center; gap: 10px; }
-  .rating-badge {
-    width: 28px; height: 28px; border-radius: 50%;
-    font-size: 12px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--gray-2); color: var(--gray-3);
-  }
+  .rating-badge { width: 28px; height: 28px; border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; background: var(--gray-2); color: var(--gray-3); }
   .rating-badge.r5 { background: var(--gold); color: var(--black); }
   .rating-badge.r4 { background: var(--gold-dim); color: var(--gold); border: 1px solid var(--gold); }
   .rating-badge.r3 { background: var(--gray-2); color: var(--gold); }
-  .status-pill {
-    font-size: 10px; font-weight: 700; padding: 3px 8px;
-    border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px;
-  }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px; }
   .pill-prospect { background: var(--gold-dim); color: var(--gold); }
   .pill-active   { background: #1a3d25; color: #5dba7d; }
-  .pill-deleted  { background: #3d1a1a; color: #d47070; }
 
   .empty-state { text-align: center; padding: 48px 24px; color: var(--gray-3); }
-  .empty-state .icon { font-size: 36px; margin-bottom: 12px; }
 
-  /* Account detail */
   .account-detail { max-width: 980px; margin: 0 auto; padding: 24px 16px; }
-  .detail-header {
-    background: var(--black);
-    border: 1px solid var(--gold-dim);
-    border-left: 4px solid var(--gold);
-    border-radius: 8px; padding: 20px 24px; margin-bottom: 20px;
-    display: flex; justify-content: space-between; align-items: flex-start;
-  }
+  .detail-header { background: var(--black); border: 1px solid var(--gold-dim); border-left: 4px solid var(--gold); border-radius: 8px; padding: 20px 24px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
   .detail-header h2 { color: var(--gold); font-size: 22px; margin-bottom: 4px; }
   .detail-header .meta { color: var(--gray-3); font-size: 13px; }
   .detail-header .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-  .back-btn {
-    background: none; border: none; color: var(--gold);
-    font-size: 13px; cursor: pointer;
-    display: flex; align-items: center; gap: 4px;
-    margin-bottom: 12px; padding: 0;
-  }
-  .back-btn:hover { opacity: 0.8; }
+  .back-btn { background: none; border: none; color: var(--gold); font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; margin-bottom: 12px; padding: 0; }
 
   .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  @media (max-width: 640px) {
-    .cards-grid { grid-template-columns: 1fr; }
-    .detail-header { flex-direction: column; gap: 12px; }
-    .territory-bar .stats { gap: 14px; }
-  }
+  @media (max-width: 640px) { .cards-grid { grid-template-columns: 1fr; } .detail-header { flex-direction: column; gap: 12px; } }
 
   .card { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 8px; overflow: hidden; }
-  .card-header {
-    background: var(--black); color: var(--gold);
-    padding: 10px 16px; font-size: 13px; font-weight: 700;
-    display: flex; align-items: center; gap: 6px;
-    border-bottom: 1px solid var(--gold-dim);
-  }
+  .card-header { background: var(--black); color: var(--gold); padding: 10px 16px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--gold-dim); }
   .card-body { padding: 14px 16px; }
-  .field-row {
-    display: flex; gap: 8px; padding: 6px 0;
-    border-bottom: 1px solid var(--gray-1); font-size: 13px;
-  }
+  .field-row { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
   .field-row:last-child { border-bottom: none; }
-  .field-label { width: 130px; flex-shrink: 0; color: var(--gray-3); font-size: 12px; padding-top: 1px; }
+  .field-label { width: 130px; flex-shrink: 0; color: var(--gray-3); font-size: 12px; }
   .field-value { flex: 1; color: var(--white); word-break: break-word; }
   .field-value.empty { color: var(--gray-2); font-style: italic; }
 
@@ -222,58 +145,26 @@
   .product-chip.no  { background: var(--gray-1); color: var(--gray-3); }
 
   .visit-card { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
-  .visit-card-header {
-    background: var(--black); color: var(--gold); padding: 10px 16px;
-    font-size: 13px; font-weight: 700;
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--gold-dim);
-  }
+  .visit-card-header { background: var(--black); color: var(--gold); padding: 10px 16px; font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; border-bottom: 1px solid var(--gold-dim); }
   .visit-entry { padding: 12px 16px; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
   .visit-entry:last-child { border-bottom: none; }
-  .visit-entry .visit-date { font-weight: 700; color: var(--gold); margin-bottom: 4px; font-size: 12px; }
-  .visit-entry .visit-notes { color: var(--gray-4); line-height: 1.5; }
-  .visit-entry .visit-followup { margin-top: 6px; font-size: 12px; color: var(--gray-3); }
-  .expand-btn {
-    background: var(--black); border: none; border-top: 1px solid var(--gray-1);
-    color: var(--gold); width: 100%; padding: 10px;
-    font-size: 12px; font-weight: 700; cursor: pointer; text-align: center;
-  }
+  .visit-date { font-weight: 700; color: var(--gold); margin-bottom: 4px; font-size: 12px; }
+  .visit-notes { color: var(--gray-4); line-height: 1.5; }
+  .visit-followup { margin-top: 6px; font-size: 12px; color: var(--gray-3); }
+  .expand-btn { background: var(--black); border: none; border-top: 1px solid var(--gray-1); color: var(--gold); width: 100%; padding: 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
   .expand-btn:hover { background: var(--gray-1); }
 
-  .convert-banner {
-    background: #1a3d25; border: 1px solid #2a6040;
-    border-radius: 6px; padding: 12px 16px;
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 16px; font-size: 13px; color: #5dba7d;
-  }
-  .deleted-banner {
-    background: #3d1a1a; border: 1px solid #6b2a2a;
-    border-radius: 6px; padding: 12px 16px; margin-bottom: 16px;
-    font-size: 13px; color: #d47070; text-align: center;
-  }
+  .convert-banner { background: #1a3d25; border: 1px solid #2a6040; border-radius: 6px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 13px; color: #5dba7d; }
+  .deleted-banner { background: #3d1a1a; border: 1px solid #6b2a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #d47070; text-align: center; }
 
-  /* Modals */
-  .modal-overlay {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.75); z-index: 200;
-    align-items: flex-start; justify-content: center;
-    padding: 24px 16px; overflow-y: auto;
-  }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
   .modal-overlay.open { display: flex; }
   .modal { background: var(--black-soft); border: 1px solid var(--gray-2); border-radius: 10px; width: 100%; max-width: 560px; overflow: hidden; margin: auto; }
-  .modal-header {
-    background: var(--black); color: var(--gold); padding: 16px 20px;
-    display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 1px solid var(--gold-dim);
-  }
+  .modal-header { background: var(--black); color: var(--gold); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--gold-dim); }
   .modal-header h3 { font-size: 16px; }
   .modal-close { background: none; border: none; color: var(--gray-3); font-size: 20px; cursor: pointer; }
-  .modal-close:hover { color: var(--white); }
   .modal-body { padding: 20px; }
-  .modal-footer {
-    padding: 14px 20px; border-top: 1px solid var(--gray-1);
-    display: flex; gap: 10px; justify-content: flex-end;
-  }
+  .modal-footer { padding: 14px 20px; border-top: 1px solid var(--gray-1); display: flex; gap: 10px; justify-content: flex-end; }
 
   .form-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--gray-1); }
   .form-section:last-child { border-bottom: none; margin-bottom: 0; }
@@ -284,72 +175,52 @@
   .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   .rating-input { display: flex; gap: 6px; }
-  .rating-opt {
-    flex: 1; padding: 8px 4px; border: 2px solid var(--gray-2);
-    border-radius: 6px; text-align: center; cursor: pointer;
-    font-size: 13px; font-weight: 700; color: var(--gray-3);
-    transition: all 0.15s; background: var(--gray-1);
-  }
+  .rating-opt { flex: 1; padding: 8px 4px; border: 2px solid var(--gray-2); border-radius: 6px; text-align: center; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--gray-3); background: var(--gray-1); transition: all 0.15s; }
   .rating-opt:hover, .rating-opt.selected { border-color: var(--gold); background: var(--gold-dim); color: var(--gold); }
 
   .products-check-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .product-check {
-    display: flex; align-items: center; gap: 6px; font-size: 13px;
-    cursor: pointer; padding: 6px 8px; border-radius: 4px;
-    border: 1px solid var(--gray-2); color: var(--gray-4);
-    transition: all 0.15s;
-  }
+  .product-check { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--gray-2); color: var(--gray-4); }
   .product-check:hover { background: var(--gold-dim); border-color: var(--gold); color: var(--gold); }
   .product-check input { accent-color: var(--gold); }
 
-  .toast {
-    position: fixed; bottom: 24px; right: 24px;
-    background: var(--gold); color: var(--black);
-    padding: 12px 20px; border-radius: 6px;
-    font-size: 13px; font-weight: 700; z-index: 999;
-    opacity: 0; transform: translateY(12px);
-    transition: all 0.3s; pointer-events: none;
-  }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gold); color: var(--black); padding: 12px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; z-index: 999; opacity: 0; transform: translateY(12px); transition: all 0.3s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translateY(0); }
   .toast.error { background: var(--red); color: var(--white); }
 
   .loading { text-align: center; padding: 48px; color: var(--gray-3); }
-  .spinner {
-    width: 32px; height: 32px; border: 3px solid var(--gray-2);
-    border-top-color: var(--gold); border-radius: 50%;
-    animation: spin 0.8s linear infinite; margin: 0 auto 12px;
-  }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
 <header class="app-header">
-  <img src="logo.png" class="header-logo" alt="Drayton Distributors">
+  <div class="header-left">
+    <span class="header-title">Drayton Distributors</span>
+    <span class="header-sub">CRM</span>
+  </div>
   <div id="authArea">
-    <button class="auth-btn" onclick="window.signIn&&signIn()">Sign in with Google</button>
+    <button class="auth-btn" id="signInBtn">Sign in with Google</button>
   </div>
 </header>
 
 <div class="toast" id="toast"></div>
 
-<!-- Landing -->
 <div class="screen active" id="screenLanding">
   <div class="landing">
-    <img src="logo.png" class="landing-logo" alt="Drayton Distributors">
+    <div class="landing-icon">🔧</div>
     <h2>Drayton CRM</h2>
     <p>Sign in with your Google account to access your territory dashboard.</p>
-    <button class="btn btn-gold btn-full" onclick="window.signIn&&signIn()">Sign in with Google</button>
+    <button class="btn btn-gold btn-full" id="landingSignInBtn">Sign in with Google</button>
   </div>
 </div>
 
-<!-- Territory Select -->
 <div class="screen" id="screenTerritory">
   <div class="landing">
-    <img src="logo.png" class="landing-logo" alt="Drayton Distributors">
+    <div class="landing-icon">📍</div>
     <h2>Select Territory</h2>
     <p>Choose your route to load your accounts.</p>
-    <div class="territory-select-wrap">
+    <div class="field-wrap">
       <label>Territory</label>
       <select id="territorySelect">
         <option value="">-- Select a route --</option>
@@ -365,11 +236,10 @@
         <option value="Route 147">Route 147</option>
       </select>
     </div>
-    <button class="btn btn-gold btn-full" onclick="loadTerritory()">Load Territory</button>
+    <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
   </div>
 </div>
 
-<!-- Dashboard -->
 <div class="screen" id="screenDashboard">
   <div class="dashboard">
     <div class="territory-bar">
@@ -384,15 +254,15 @@
       </div>
     </div>
     <div class="tab-row">
-      <button class="tab active" id="tabProspect" onclick="switchTab('prospect')">🔍 Prospective</button>
-      <button class="tab" id="tabActive" onclick="switchTab('active')">✅ Active Clients</button>
+      <button class="tab active" id="tabProspect">🔍 Prospective</button>
+      <button class="tab" id="tabActive">✅ Active Clients</button>
     </div>
     <div class="search-row">
       <div class="search-wrap">
         <span class="search-icon">🔍</span>
-        <input type="text" id="searchInput" placeholder="Search by name, town, or contact..." oninput="renderList()">
+        <input type="text" id="searchInput" placeholder="Search by name, town, or contact...">
       </div>
-      <button class="btn btn-gold" onclick="openNewAccount()">＋ New Account</button>
+      <button class="btn btn-gold" id="newAccountBtn">＋ New Account</button>
     </div>
     <div id="accountList" class="account-list">
       <div class="loading"><div class="spinner"></div>Loading accounts...</div>
@@ -400,48 +270,45 @@
   </div>
 </div>
 
-<!-- Account Detail -->
 <div class="screen" id="screenDetail">
   <div class="account-detail">
-    <button class="back-btn" onclick="goBack()">← Back to dashboard</button>
+    <button class="back-btn" id="backBtn">← Back to dashboard</button>
     <div id="detailContent"></div>
   </div>
 </div>
 
-<!-- Edit Modal -->
 <div class="modal-overlay" id="modalEdit">
   <div class="modal">
     <div class="modal-header">
       <h3 id="editModalTitle">Edit Account</h3>
-      <button class="modal-close" onclick="closeModal('modalEdit')">✕</button>
+      <button class="modal-close" id="editModalClose">✕</button>
     </div>
     <div class="modal-body" id="editModalBody" style="max-height:70vh;overflow-y:auto;"></div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('modalEdit')">Cancel</button>
-      <button class="btn btn-gold" id="editSaveBtn" onclick="saveAccount()">Save Changes</button>
+      <button class="btn btn-secondary" id="editCancelBtn">Cancel</button>
+      <button class="btn btn-gold" id="editSaveBtn">Save Changes</button>
     </div>
   </div>
 </div>
 
-<!-- Visit Modal -->
 <div class="modal-overlay" id="modalVisit">
   <div class="modal">
     <div class="modal-header">
       <h3>Log a Visit</h3>
-      <button class="modal-close" onclick="closeModal('modalVisit')">✕</button>
+      <button class="modal-close" id="visitModalClose">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-row"><label>Visit Date</label><input type="date" id="visitDate"></div>
       <div class="form-row"><label>Attendees</label><input type="text" id="visitAttendees" placeholder="Who was present?"></div>
-      <div class="form-row"><label>Visit Notes</label><textarea id="visitNotes" placeholder="What was discussed? Key takeaways..."></textarea></div>
+      <div class="form-row"><label>Visit Notes</label><textarea id="visitNotes" placeholder="What was discussed?"></textarea></div>
       <div class="form-grid-2">
         <div class="form-row"><label>Follow-Up Date</label><input type="date" id="visitFollowup"></div>
         <div class="form-row"><label>Follow-Up Notes</label><input type="text" id="visitFollowupNotes" placeholder="Next steps..."></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('modalVisit')">Cancel</button>
-      <button class="btn btn-gold" onclick="saveVisit()">Log Visit</button>
+      <button class="btn btn-secondary" id="visitCancelBtn">Cancel</button>
+      <button class="btn btn-gold" id="visitSaveBtn">Log Visit</button>
     </div>
   </div>
 </div>
@@ -461,7 +328,6 @@ const BG_PRODUCTS = [
   {key:'bg_battery',label:'Battery'},{key:'bg_fuel',label:'Fuel Pour-in'},
   {key:'bg_diesel',label:'Diesel'},{key:'bg_misc',label:'Misc'},
 ];
-
 const COL = {
   account_id:0,territory:1,status:2,business_name:3,address:4,town:5,state:6,website:7,
   bays:8,advisors:9,monthly_ro:10,door_rate:11,maint_rate:12,
@@ -477,57 +343,85 @@ const COL = {
   products_offered:44,general_notes:45,interested:46,
   last_visit:47,next_followup:48
 };
-
 const VCOL = {visit_id:0,account_id:1,account_name:2,territory:3,visit_date:4,attendees:5,notes:6,followup_date:7,followup_notes:8};
 
 let gapiReady=false, gisReady=false, tokenClient;
 let allAccounts=[], allVisits=[], sheetRowMap={};
-let currentTerritory='', currentTab='prospect', currentAccount=null;
+let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
+
+// ── Wire up all buttons via addEventListener — no inline onclick ──────────────
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('signInBtn').addEventListener('click', doSignIn);
+  document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
+  document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
+  document.getElementById('backBtn').addEventListener('click', goBack);
+  document.getElementById('newAccountBtn').addEventListener('click', openNewAccount);
+  document.getElementById('tabProspect').addEventListener('click', function(){ switchTab('prospect'); });
+  document.getElementById('tabActive').addEventListener('click', function(){ switchTab('active'); });
+  document.getElementById('searchInput').addEventListener('input', renderList);
+  document.getElementById('editModalClose').addEventListener('click', function(){ closeModal('modalEdit'); });
+  document.getElementById('editCancelBtn').addEventListener('click', function(){ closeModal('modalEdit'); });
+  document.getElementById('visitModalClose').addEventListener('click', function(){ closeModal('modalVisit'); });
+  document.getElementById('visitCancelBtn').addEventListener('click', function(){ closeModal('modalVisit'); });
+  document.getElementById('visitSaveBtn').addEventListener('click', saveVisit);
+});
+
+function doSignIn() {
+  if (!gisReady || !tokenClient) { showToast('Still loading, please wait a moment','error'); return; }
+  tokenClient.requestAccessToken({prompt:''});
+}
 
 function gapiLoaded() {
-  gapi.load('client', async () => {
-    await gapi.client.init({discoveryDocs:[DISCOVERY]});
-    gapiReady=true; maybeReady();
+  gapi.load('client', function() {
+    gapi.client.init({discoveryDocs:[DISCOVERY]}).then(function() {
+      gapiReady = true; maybeReady();
+    });
   });
 }
+
 function gisLoaded() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID, scope: SCOPES,
-    callback: async (resp) => {
+    callback: function(resp) {
       if (resp.error) { showToast('Sign-in failed','error'); return; }
       showScreen('screenTerritory');
       document.getElementById('authArea').innerHTML =
-        '<div class="user-info"><span class="sign-out" onclick="signOut()">Sign out</span></div>';
+        '<div class="user-info"><button class="sign-out" id="signOutBtn">Sign out</button></div>';
+      document.getElementById('signOutBtn').addEventListener('click', doSignOut);
     }
   });
-  gisReady = true;
-  window._signInReady = true;
-  window._doSignIn = function() { tokenClient.requestAccessToken({prompt:''}); };
-  // If sign-in was queued while loading, trigger it now
-  if (window._signInQueued) { window._signInQueued = false; window._doSignIn(); }
-  maybeReady();
+  gisReady = true; maybeReady();
 }
-function maybeReady() { if (gapiReady && gisReady && gapi.client.getToken()) showScreen('screenTerritory'); }
-function signIn() {
-  if (!gisReady || !tokenClient) {
-    showToast('Still loading — please try again in a moment','error');
-    return;
-  }
-  tokenClient.requestAccessToken({prompt:''});
+
+function maybeReady() {
+  if (gapiReady && gisReady && gapi.client.getToken()) showScreen('screenTerritory');
 }
-function signOut() {
+
+function doSignOut() {
   google.accounts.oauth2.revoke(gapi.client.getToken().access_token);
   gapi.client.setToken(null);
   allAccounts=[]; allVisits=[];
   showScreen('screenLanding');
-  document.getElementById('authArea').innerHTML = '<button class="auth-btn" onclick="window.signIn&&signIn()">Sign in with Google</button>';
+  document.getElementById('authArea').innerHTML = '<button class="auth-btn" id="signInBtn">Sign in with Google</button>';
+  document.getElementById('signInBtn').addEventListener('click', doSignIn);
 }
 
-function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+}
 function goBack() { showScreen('screenDashboard'); renderList(); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (type==='error' ? ' error' : '') + ' show';
+  setTimeout(function(){ t.className='toast'; }, 3000);
+}
 
 async function loadTerritory() {
-  const sel = document.getElementById('territorySelect').value;
+  var sel = document.getElementById('territorySelect').value;
   if (!sel) { showToast('Please select a territory','error'); return; }
   currentTerritory = sel;
   showScreen('screenDashboard');
@@ -539,31 +433,31 @@ async function loadTerritory() {
 
 async function fetchData() {
   try {
-    const [ar, vr, idxR] = await Promise.all([
+    var results = await Promise.all([
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:AW'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:I'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:A'}),
     ]);
-    const accRows = ar.result.values || [];
-    const idxRows = idxR.result.values || [];
+    var accRows = results[0].result.values || [];
+    var visRows = results[1].result.values || [];
     sheetRowMap = {};
-    idxRows.forEach((r,i) => { if(r[0]) sheetRowMap[r[0]] = i+1; });
-    allAccounts = accRows.slice(1).filter(r=>r[COL.territory]===currentTerritory).map(r=>rowToAcc(r));
-    const visRows = vr.result.values || [];
-    allVisits = visRows.slice(1).filter(r=>r[VCOL.territory]===currentTerritory).map(r=>({
-      visit_id:r[VCOL.visit_id]||'', account_id:r[VCOL.account_id]||'',
-      visit_date:r[VCOL.visit_date]||'', attendees:r[VCOL.attendees]||'',
-      notes:r[VCOL.notes]||'', followup_date:r[VCOL.followup_date]||'', followup_notes:r[VCOL.followup_notes]||'',
-    }));
+    accRows.forEach(function(r,i){ if(r[0]) sheetRowMap[r[0]] = i+1; });
+    allAccounts = accRows.slice(1).filter(function(r){ return r[COL.territory]===currentTerritory; }).map(rowToAcc);
+    allVisits = visRows.slice(1).filter(function(r){ return r[VCOL.territory]===currentTerritory; }).map(function(r){
+      return { visit_id:r[0]||'', account_id:r[1]||'', visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'', followup_notes:r[8]||'' };
+    });
   } catch(e) { showToast('Error loading data','error'); console.error(e); }
 }
 
-function rowToAcc(r) { const o={}; Object.entries(COL).forEach(([k,i])=>o[k]=r[i]||''); return o; }
+function rowToAcc(r) {
+  var o={};
+  Object.entries(COL).forEach(function(e){ o[e[0]] = r[e[1]]||''; });
+  return o;
+}
 
 function updateStats() {
-  const active   = allAccounts.filter(a=>a.status==='active').length;
-  const prospect = allAccounts.filter(a=>a.status==='prospect').length;
-  const hot      = allAccounts.filter(a=>parseInt(a.rating)>=4 && a.status!=='deleted').length;
+  var active   = allAccounts.filter(function(a){ return a.status==='active'; }).length;
+  var prospect = allAccounts.filter(function(a){ return a.status==='prospect'; }).length;
+  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted'; }).length;
   document.getElementById('statActive').textContent   = active;
   document.getElementById('statProspect').textContent = prospect;
   document.getElementById('statHot').textContent      = hot;
@@ -577,361 +471,294 @@ function switchTab(tab) {
 }
 
 function renderList() {
-  const q = (document.getElementById('searchInput').value||'').toLowerCase();
-  const filtered = allAccounts.filter(a => {
-    if (a.status === 'deleted') return false;
-    if (a.status !== currentTab) return false;
+  var q = (document.getElementById('searchInput').value||'').toLowerCase();
+  var filtered = allAccounts.filter(function(a){
+    if (a.status==='deleted') return false;
+    if (a.status!==currentTab) return false;
     if (!q) return true;
-    return a.business_name.toLowerCase().includes(q) ||
-           a.town.toLowerCase().includes(q) ||
-           a.owner_name.toLowerCase().includes(q) ||
-           a.sm_name.toLowerCase().includes(q);
-  }).sort((a,b) => {
-    const ra=parseInt(a.rating)||0, rb=parseInt(b.rating)||0;
+    return a.business_name.toLowerCase().includes(q) || a.town.toLowerCase().includes(q) ||
+           a.owner_name.toLowerCase().includes(q) || a.sm_name.toLowerCase().includes(q);
+  }).sort(function(a,b){
+    var ra=parseInt(a.rating)||0, rb=parseInt(b.rating)||0;
     if (rb!==ra) return rb-ra;
     return a.business_name.localeCompare(b.business_name);
   });
 
   if (!filtered.length) {
-    document.getElementById('accountList').innerHTML = `<div class="empty-state"><div class="icon">🔍</div><div>${q?'No accounts match your search.':'No accounts in this category yet.'}</div></div>`;
+    document.getElementById('accountList').innerHTML = '<div class="empty-state"><div>🔍</div><div style="margin-top:8px">'+(q?'No accounts match your search.':'No accounts in this category yet.')+'</div></div>';
     return;
   }
-  document.getElementById('accountList').innerHTML = filtered.map(a => {
-    const r=parseInt(a.rating)||0;
-    const rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
-    return `<div class="account-row" onclick="openAccount('${a.account_id}')">
-      <div>
-        <div class="name">${a.business_name}</div>
-        <div class="meta">${[a.town,a.state].filter(Boolean).join(', ')}${a.owner_name?' · '+a.owner_name:a.sm_name?' · '+a.sm_name:''}</div>
-      </div>
-      <div class="right">
-        <span class="status-pill ${a.status==='active'?'pill-active':'pill-prospect'}">${a.status}</span>
-        <div class="rating-badge ${rc}">${r||'—'}</div>
-      </div>
-    </div>`;
+  document.getElementById('accountList').innerHTML = filtered.map(function(a){
+    var r=parseInt(a.rating)||0;
+    var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
+    return '<div class="account-row" data-id="'+a.account_id+'">'+
+      '<div><div class="name">'+a.business_name+'</div>'+
+      '<div class="meta">'+[a.town,a.state].filter(Boolean).join(', ')+(a.owner_name?' · '+a.owner_name:a.sm_name?' · '+a.sm_name:'')+'</div></div>'+
+      '<div class="right"><span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+a.status+'</span>'+
+      '<div class="rating-badge '+rc+'">'+(r||'—')+'</div></div></div>';
   }).join('');
+
+  document.querySelectorAll('.account-row').forEach(function(el){
+    el.addEventListener('click', function(){ openAccount(this.dataset.id); });
+  });
 }
 
 function openAccount(id) {
-  currentAccount = allAccounts.find(a=>a.account_id===id);
+  currentAccount = allAccounts.find(function(a){ return a.account_id===id; });
   if (!currentAccount) return;
   renderDetail(); showScreen('screenDetail');
 }
 
-function renderDetail() {
-  const a = currentAccount;
-  const visits = allVisits.filter(v=>v.account_id===a.account_id)
-    .sort((x,y)=>(y.visit_date||'').localeCompare(x.visit_date||''));
-  const recent=visits.slice(0,3), more=visits.slice(3);
-  const fv=(v,fb='—')=>v?`<span class="field-value">${v}</span>`:`<span class="field-value empty">${fb}</span>`;
-  const isDeleted = a.status==='deleted';
-  const isProspect = a.status==='prospect';
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fv(v) { return v ? '<span class="field-value">'+esc(v)+'</span>' : '<span class="field-value empty">—</span>'; }
 
-  document.getElementById('detailContent').innerHTML = `
-    ${isDeleted?'<div class="deleted-banner">⚠️ This account has been deleted and is hidden from the dashboard. You can restore it using the Edit Info button.</div>':''}
-    <div class="detail-header">
-      <div>
-        <h2>${a.business_name}</h2>
-        <div class="meta">${[a.address,a.town,a.state].filter(Boolean).join(', ')}${a.website?' · '+a.website:''}</div>
-      </div>
-      <div class="actions">
-        ${isProspect?'<button class="btn btn-success btn-sm" onclick="convertToActive()">✅ Convert to Active</button>':''}
-        <button class="btn btn-primary btn-sm" onclick="openEditModal()">✏️ Edit Info</button>
-        <button class="btn btn-gold btn-sm" onclick="openVisitModal()">📋 Log Visit</button>
-        ${!isDeleted?'<button class="btn btn-danger btn-sm" onclick="softDelete()">🗑 Delete</button>':'<button class="btn btn-success btn-sm" onclick="restoreAccount()">↩ Restore</button>'}
-      </div>
-    </div>
-    ${isProspect&&!isDeleted?'<div class="convert-banner"><span>🔍 Prospective account — not yet carrying BG Products.</span><button class="btn btn-success btn-sm" onclick="convertToActive()">Convert to Active</button></div>':''}
-    <div class="cards-grid">
-      <div class="card">
-        <div class="card-header">🏢 Business Information</div>
-        <div class="card-body">
-          <div class="field-row"><span class="field-label">Address</span>${fv([a.address,a.town,a.state].filter(Boolean).join(', '))}</div>
-          <div class="field-row"><span class="field-label">Website</span>${fv(a.website)}</div>
-          <div class="field-row"><span class="field-label">Bays</span>${fv(a.bays)}</div>
-          <div class="field-row"><span class="field-label">Advisors</span>${fv(a.advisors)}</div>
-          <div class="field-row"><span class="field-label">Monthly RO</span>${fv(a.monthly_ro)}</div>
-          <div class="field-row"><span class="field-label">Door Rate</span>${fv(a.door_rate)}</div>
-          <div class="field-row"><span class="field-label">Maint. Rate</span>${fv(a.maint_rate)}</div>
-          <div class="field-row"><span class="field-label">Competitor</span>${fv(a.competitor_name||(a.competitor_product?a.competitor_product:''))}</div>
-          <div class="field-row"><span class="field-label">Rating</span>${fv(a.rating?'★'.repeat(parseInt(a.rating))+' ('+a.rating+'/5)':'')}</div>
-          <div class="field-row"><span class="field-label">Last Visit</span>${fv(a.last_visit)}</div>
-          <div class="field-row"><span class="field-label">Next Follow-Up</span>${fv(a.next_followup)}</div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header">👤 Key Personnel</div>
-        <div class="card-body">
-          <div class="field-row"><span class="field-label">SM Name</span>${fv(a.sm_name)}</div>
-          <div class="field-row"><span class="field-label">SM Phone</span>${fv(a.sm_phone)}</div>
-          <div class="field-row"><span class="field-label">SM Email</span>${fv(a.sm_email)}</div>
-          <div class="field-row"><span class="field-label">Owner Name</span>${fv(a.owner_name)}</div>
-          <div class="field-row"><span class="field-label">Owner Phone</span>${fv(a.owner_phone)}</div>
-          <div class="field-row"><span class="field-label">Owner Email</span>${fv(a.owner_email)}</div>
-          ${a.other1_name?`<div class="field-row"><span class="field-label">${a.other1_role||'Other'}</span>${fv(a.other1_name)}</div>`:''}
-          ${a.other2_name?`<div class="field-row"><span class="field-label">${a.other2_role||'Other'}</span>${fv(a.other2_name)}</div>`:''}
-        </div>
-      </div>
-    </div>
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-header">🔧 BG Products Discussed</div>
-      <div class="card-body">
-        <div class="products-grid">
-          ${BG_PRODUCTS.map(p=>{const v=a[p.key];const c=v&&v.toLowerCase()==='yes'?'yes':'no';return`<div class="product-chip ${c}">${p.label}${v?': '+v:''}</div>`;}).join('')}
-        </div>
-        ${a.products_offered?`<div style="margin-top:12px;font-size:12px;color:var(--gray-3)"><strong style="color:var(--gray-4)">Products offered:</strong> ${a.products_offered}</div>`:''}
-      </div>
-    </div>
-    ${a.general_notes?`<div class="card" style="margin-bottom:16px"><div class="card-header">📝 General Notes</div><div class="card-body" style="font-size:13px;line-height:1.6;color:var(--gray-4)">${a.general_notes}</div></div>`:''}
-    <div class="visit-card">
-      <div class="visit-card-header"><span>📅 Visit Log</span><span style="font-size:11px;opacity:0.7">${visits.length} visit${visits.length!==1?'s':''}</span></div>
-      ${!visits.length?'<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged yet.</div>':''}
-      ${recent.map(v=>`<div class="visit-entry"><div class="visit-date">${v.visit_date||'Date not recorded'}${v.attendees?' · '+v.attendees:''}</div><div class="visit-notes">${v.notes||'—'}</div>${v.followup_date||v.followup_notes?`<div class="visit-followup">📌 Follow-up: ${v.followup_date||''} ${v.followup_notes?'— '+v.followup_notes:''}</div>`:''}</div>`).join('')}
-      ${more.length?`<div id="moreVisits" style="display:none">${more.map(v=>`<div class="visit-entry"><div class="visit-date">${v.visit_date||'Date not recorded'}${v.attendees?' · '+v.attendees:''}</div><div class="visit-notes">${v.notes||'—'}</div>${v.followup_date||v.followup_notes?`<div class="visit-followup">📌 ${v.followup_date||''} ${v.followup_notes?'— '+v.followup_notes:''}</div>`:''}</div>`).join('')}</div><button class="expand-btn" id="expandBtn" onclick="toggleVisits()">Show ${more.length} more visit${more.length!==1?'s':''}</button>`:''}
-    </div>`;
+function renderDetail() {
+  var a = currentAccount;
+  var visits = allVisits.filter(function(v){ return v.account_id===a.account_id; })
+    .sort(function(x,y){ return (y.visit_date||'').localeCompare(x.visit_date||''); });
+  var recent = visits.slice(0,3), more = visits.slice(3);
+  var isDeleted = a.status==='deleted', isProspect = a.status==='prospect';
+
+  var html = '';
+  if (isDeleted) html += '<div class="deleted-banner">⚠️ This account is deleted and hidden from the dashboard. Use Edit Info to restore it.</div>';
+
+  html += '<div class="detail-header"><div><h2>'+esc(a.business_name)+'</h2><div class="meta">'+esc([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div></div>'+
+    '<div class="actions">'+
+    (isProspect&&!isDeleted?'<button class="btn btn-success btn-sm" id="convertBtn">✅ Convert to Active</button>':'')+
+    '<button class="btn btn-primary btn-sm" id="editBtn">✏️ Edit Info</button>'+
+    '<button class="btn btn-gold btn-sm" id="logVisitBtn">📋 Log Visit</button>'+
+    (!isDeleted?'<button class="btn btn-danger btn-sm" id="deleteBtn">🗑 Delete</button>':
+                '<button class="btn btn-success btn-sm" id="restoreBtn">↩ Restore</button>')+
+    '</div></div>';
+
+  if (isProspect&&!isDeleted) html += '<div class="convert-banner"><span>🔍 Prospective — not yet carrying BG Products.</span><button class="btn btn-success btn-sm" id="convertBtn2">Convert to Active</button></div>';
+
+  html += '<div class="cards-grid">'+
+    '<div class="card"><div class="card-header">🏢 Business Information</div><div class="card-body">'+
+    '<div class="field-row"><span class="field-label">Address</span>'+fv([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div>'+
+    '<div class="field-row"><span class="field-label">Website</span>'+fv(a.website)+'</div>'+
+    '<div class="field-row"><span class="field-label">Bays</span>'+fv(a.bays)+'</div>'+
+    '<div class="field-row"><span class="field-label">Advisors</span>'+fv(a.advisors)+'</div>'+
+    '<div class="field-row"><span class="field-label">Monthly RO</span>'+fv(a.monthly_ro)+'</div>'+
+    '<div class="field-row"><span class="field-label">Door Rate</span>'+fv(a.door_rate)+'</div>'+
+    '<div class="field-row"><span class="field-label">Maint. Rate</span>'+fv(a.maint_rate)+'</div>'+
+    '<div class="field-row"><span class="field-label">Competitor</span>'+fv(a.competitor_name||a.competitor_product)+'</div>'+
+    '<div class="field-row"><span class="field-label">Rating</span>'+fv(a.rating?'★'.repeat(parseInt(a.rating))+' ('+a.rating+'/5)':'')+'</div>'+
+    '<div class="field-row"><span class="field-label">Last Visit</span>'+fv(a.last_visit)+'</div>'+
+    '<div class="field-row"><span class="field-label">Next Follow-Up</span>'+fv(a.next_followup)+'</div>'+
+    '</div></div>'+
+    '<div class="card"><div class="card-header">👤 Key Personnel</div><div class="card-body">'+
+    '<div class="field-row"><span class="field-label">SM Name</span>'+fv(a.sm_name)+'</div>'+
+    '<div class="field-row"><span class="field-label">SM Phone</span>'+fv(a.sm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">SM Email</span>'+fv(a.sm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Phone</span>'+fv(a.owner_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Email</span>'+fv(a.owner_email)+'</div>'+
+    (a.other1_name?'<div class="field-row"><span class="field-label">'+(a.other1_role||'Other')+'</span>'+fv(a.other1_name)+'</div>':'')+
+    '</div></div></div>';
+
+  html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🔧 BG Products Discussed</div><div class="card-body"><div class="products-grid">'+
+    BG_PRODUCTS.map(function(p){ var v=a[p.key]; var c=v&&v.toLowerCase()==='yes'?'yes':'no'; return '<div class="product-chip '+c+'">'+p.label+(v?': '+v:'')+'</div>'; }).join('')+
+    '</div>'+(a.products_offered?'<div style="margin-top:12px;font-size:12px;color:var(--gray-3)"><strong style="color:var(--gray-4)">Products offered:</strong> '+esc(a.products_offered)+'</div>':'')+
+    '</div></div>';
+
+  if (a.general_notes) html += '<div class="card" style="margin-bottom:16px"><div class="card-header">📝 General Notes</div><div class="card-body" style="font-size:13px;line-height:1.6;color:var(--gray-4)">'+esc(a.general_notes)+'</div></div>';
+
+  html += '<div class="visit-card"><div class="visit-card-header"><span>📅 Visit Log</span><span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+'</span></div>'+
+    (!visits.length?'<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged yet.</div>':'')+
+    recent.map(function(v){ return '<div class="visit-entry"><div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div><div class="visit-notes">'+esc(v.notes||'—')+'</div>'+(v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+'</div>'; }).join('');
+
+  if (more.length) {
+    html += '<div id="moreVisits" style="display:none">'+
+      more.map(function(v){ return '<div class="visit-entry"><div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div><div class="visit-notes">'+esc(v.notes||'—')+'</div></div>'; }).join('')+
+      '</div><button class="expand-btn" id="expandBtn">Show '+more.length+' more visit'+(more.length!==1?'s':'')+'</button>';
+  }
+  html += '</div>';
+
+  document.getElementById('detailContent').innerHTML = html;
+
+  // Wire up detail buttons
+  var eb = document.getElementById('editBtn'); if(eb) eb.addEventListener('click', openEditModal);
+  var lb = document.getElementById('logVisitBtn'); if(lb) lb.addEventListener('click', openVisitModal);
+  var db = document.getElementById('deleteBtn'); if(db) db.addEventListener('click', softDelete);
+  var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreAccount);
+  var cb = document.getElementById('convertBtn'); if(cb) cb.addEventListener('click', convertToActive);
+  var cb2= document.getElementById('convertBtn2'); if(cb2) cb2.addEventListener('click', convertToActive);
+  var xb = document.getElementById('expandBtn'); if(xb) xb.addEventListener('click', toggleVisits);
 }
 
 function toggleVisits() {
-  const el=document.getElementById('moreVisits'), btn=document.getElementById('expandBtn');
-  const show=el.style.display==='none'||!el.style.display;
-  el.style.display=show?'block':'none';
-  btn.textContent=show?'Show fewer visits':`Show ${document.querySelectorAll('#moreVisits .visit-entry').length} more visits`;
+  var el=document.getElementById('moreVisits'), btn=document.getElementById('expandBtn');
+  var show = el.style.display!=='block';
+  el.style.display = show?'block':'none';
+  btn.textContent  = show?'Show fewer visits':'Show '+el.querySelectorAll('.visit-entry').length+' more visits';
+}
+
+async function updateStatus(newStatus) {
+  var rowNum = sheetRowMap[currentAccount.account_id];
+  if (!rowNum) { showToast('Row not found','error'); return; }
+  try {
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId:SHEET_ID, range:'Accounts!C'+rowNum,
+      valueInputOption:'RAW', resource:{values:[[newStatus]]}
+    });
+    currentAccount.status = newStatus;
+  } catch(e) { showToast('Error updating status','error'); console.error(e); }
 }
 
 async function softDelete() {
-  if (!confirm(`Delete "${currentAccount.business_name}"? It will be hidden but recoverable.`)) return;
+  if (!confirm('Delete "'+currentAccount.business_name+'"? It will be hidden but recoverable.')) return;
   await updateStatus('deleted');
   showToast('Account deleted — recoverable from the account page');
   updateStats(); goBack();
 }
 
 async function restoreAccount() {
-  const newStatus = confirm('Restore as Active Client?
-Click Cancel to restore as Prospect.') ? 'active' : 'prospect';
+  var newStatus = confirm('Restore as Active Client?\nCancel to restore as Prospect.') ? 'active' : 'prospect';
   await updateStatus(newStatus);
-  showToast('Account restored ✓');
-  updateStats(); renderDetail();
+  showToast('Account restored ✓'); updateStats(); renderDetail();
 }
 
 async function convertToActive() {
-  if (!confirm(`Convert "${currentAccount.business_name}" to an Active Client?`)) return;
+  if (!confirm('Convert "'+currentAccount.business_name+'" to an Active Client?')) return;
   await updateStatus('active');
-  showToast(`${currentAccount.business_name} is now Active ✅`);
-  updateStats(); renderDetail();
+  showToast(currentAccount.business_name+' is now Active ✅'); updateStats(); renderDetail();
 }
-
-async function updateStatus(newStatus) {
-  const rowNum = sheetRowMap[currentAccount.account_id];
-  if (!rowNum) { showToast('Row not found','error'); return; }
-  try {
-    await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID, range: `Accounts!C${rowNum}`,
-      valueInputOption: 'RAW', resource: {values:[[newStatus]]}
-    });
-    currentAccount.status = newStatus;
-  } catch(e) { showToast('Error updating','error'); console.error(e); }
-}
-
-let selectedRating = null;
-
-function openEditModal() {
-  const a = currentAccount;
-  document.getElementById('editModalTitle').textContent = a.business_name || 'New Account';
-  document.getElementById('editSaveBtn').onclick = saveAccount;
-  selectedRating = a.rating ? parseInt(a.rating) : null;
-  document.getElementById('editModalBody').innerHTML = `
-    <div class="form-section">
-      <div class="form-section-title">Business Information</div>
-      <div class="form-row"><label>Business Name</label><input type="text" id="e_business_name" value="${esc(a.business_name)}"></div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Address</label><input type="text" id="e_address" value="${esc(a.address)}"></div>
-        <div class="form-row"><label>Town</label><input type="text" id="e_town" value="${esc(a.town)}"></div>
-      </div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>State</label><input type="text" id="e_state" value="${esc(a.state)}"></div>
-        <div class="form-row"><label>Website</label><input type="text" id="e_website" value="${esc(a.website)}"></div>
-      </div>
-      <div class="form-grid-2">
-        <div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="${esc(a.bays)}"></div>
-        <div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="${esc(a.advisors)}"></div>
-      </div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Monthly RO Count</label><input type="text" id="e_monthly_ro" value="${esc(a.monthly_ro)}"></div>
-        <div class="form-row"><label>Door Rate</label><input type="text" id="e_door_rate" value="${esc(a.door_rate)}"></div>
-      </div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Maint. Rate</label><input type="text" id="e_maint_rate" value="${esc(a.maint_rate)}"></div>
-        <div class="form-row"><label>Competitor Product?</label><input type="text" id="e_competitor_product" value="${esc(a.competitor_product)}"></div>
-      </div>
-      <div class="form-row"><label>Competitor Name</label><input type="text" id="e_competitor_name" value="${esc(a.competitor_name)}"></div>
-    </div>
-    <div class="form-section">
-      <div class="form-section-title">Key Personnel</div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>SM Name</label><input type="text" id="e_sm_name" value="${esc(a.sm_name)}"></div>
-        <div class="form-row"><label>SM Phone</label><input type="text" id="e_sm_phone" value="${esc(a.sm_phone)}"></div>
-      </div>
-      <div class="form-row"><label>SM Email</label><input type="text" id="e_sm_email" value="${esc(a.sm_email)}"></div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Owner Name</label><input type="text" id="e_owner_name" value="${esc(a.owner_name)}"></div>
-        <div class="form-row"><label>Owner Phone</label><input type="text" id="e_owner_phone" value="${esc(a.owner_phone)}"></div>
-      </div>
-      <div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="${esc(a.owner_email)}"></div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Other 1 Role</label><input type="text" id="e_other1_role" value="${esc(a.other1_role)}"></div>
-        <div class="form-row"><label>Other 1 Name</label><input type="text" id="e_other1_name" value="${esc(a.other1_name)}"></div>
-      </div>
-    </div>
-    <div class="form-section">
-      <div class="form-section-title">Account Rating</div>
-      <div class="rating-input">
-        ${[1,2,3,4,5].map(n=>`<div class="rating-opt ${selectedRating===n?'selected':''}" onclick="selectRating(${n})" data-val="${n}">${n} ★</div>`).join('')}
-      </div>
-      <div style="font-size:11px;color:var(--gray-3);margin-top:6px">1=Low priority · 3=Good prospect · 5=High priority</div>
-    </div>
-    <div class="form-section">
-      <div class="form-section-title">BG Products Discussed</div>
-      <div class="products-check-grid">
-        ${BG_PRODUCTS.map(p=>`<label class="product-check"><input type="checkbox" id="e_${p.key}" ${a[p.key]&&a[p.key].toLowerCase()==='yes'?'checked':''}>${p.label}</label>`).join('')}
-      </div>
-    </div>
-    <div class="form-section">
-      <div class="form-section-title">General Notes</div>
-      <div class="form-row"><textarea id="e_general_notes" style="min-height:100px">${esc(a.general_notes)}</textarea></div>
-    </div>`;
-  document.getElementById('modalEdit').classList.add('open');
-}
-
-function esc(s) { return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function selectRating(n) {
   selectedRating = n;
-  document.querySelectorAll('.rating-opt').forEach(el=>el.classList.toggle('selected', parseInt(el.dataset.val)===n));
+  document.querySelectorAll('.rating-opt').forEach(function(el){ el.classList.toggle('selected', parseInt(el.dataset.val)===n); });
+}
+
+function openEditModal() {
+  var a = currentAccount;
+  document.getElementById('editModalTitle').textContent = a.business_name || 'New Account';
+  selectedRating = a.rating ? parseInt(a.rating) : null;
+  document.getElementById('editModalBody').innerHTML =
+    '<div class="form-section"><div class="form-section-title">Business Information</div>'+
+    '<div class="form-row"><label>Business Name</label><input type="text" id="e_business_name" value="'+esc(a.business_name)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Address</label><input type="text" id="e_address" value="'+esc(a.address)+'"></div>'+
+    '<div class="form-row"><label>Town</label><input type="text" id="e_town" value="'+esc(a.town)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>State</label><input type="text" id="e_state" value="'+esc(a.state)+'"></div>'+
+    '<div class="form-row"><label>Website</label><input type="text" id="e_website" value="'+esc(a.website)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="'+esc(a.bays)+'"></div>'+
+    '<div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="'+esc(a.advisors)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Monthly RO</label><input type="text" id="e_monthly_ro" value="'+esc(a.monthly_ro)+'"></div>'+
+    '<div class="form-row"><label>Door Rate</label><input type="text" id="e_door_rate" value="'+esc(a.door_rate)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Maint. Rate</label><input type="text" id="e_maint_rate" value="'+esc(a.maint_rate)+'"></div>'+
+    '<div class="form-row"><label>Competitor Product?</label><input type="text" id="e_competitor_product" value="'+esc(a.competitor_product)+'"></div></div>'+
+    '<div class="form-row"><label>Competitor Name</label><input type="text" id="e_competitor_name" value="'+esc(a.competitor_name)+'"></div></div>'+
+    '<div class="form-section"><div class="form-section-title">Key Personnel</div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>SM Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
+    '<div class="form-row"><label>SM Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
+    '<div class="form-row"><label>SM Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Owner Name</label><input type="text" id="e_owner_name" value="'+esc(a.owner_name)+'"></div>'+
+    '<div class="form-row"><label>Owner Phone</label><input type="text" id="e_owner_phone" value="'+esc(a.owner_phone)+'"></div></div>'+
+    '<div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="'+esc(a.owner_email)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Other 1 Role</label><input type="text" id="e_other1_role" value="'+esc(a.other1_role)+'"></div>'+
+    '<div class="form-row"><label>Other 1 Name</label><input type="text" id="e_other1_name" value="'+esc(a.other1_name)+'"></div></div></div>'+
+    '<div class="form-section"><div class="form-section-title">Account Rating</div>'+
+    '<div class="rating-input">'+[1,2,3,4,5].map(function(n){ return '<div class="rating-opt'+(selectedRating===n?' selected':'')+'" data-val="'+n+'">'+n+' ★</div>'; }).join('')+'</div>'+
+    '<div style="font-size:11px;color:var(--gray-3);margin-top:6px">1=Low priority · 3=Good prospect · 5=High priority</div></div>'+
+    '<div class="form-section"><div class="form-section-title">BG Products Discussed</div>'+
+    '<div class="products-check-grid">'+BG_PRODUCTS.map(function(p){ return '<label class="product-check"><input type="checkbox" id="e_'+p.key+'"'+(a[p.key]&&a[p.key].toLowerCase()==='yes'?' checked':'')+'>'+p.label+'</label>'; }).join('')+'</div></div>'+
+    '<div class="form-section"><div class="form-section-title">General Notes</div>'+
+    '<div class="form-row"><textarea id="e_general_notes" style="min-height:100px">'+esc(a.general_notes)+'</textarea></div></div>';
+
+  document.querySelectorAll('.rating-opt').forEach(function(el){
+    el.addEventListener('click', function(){ selectRating(parseInt(this.dataset.val)); });
+  });
+
+  document.getElementById('editSaveBtn').onclick = saveAccount;
+  document.getElementById('modalEdit').classList.add('open');
+}
+
+function openNewAccount() {
+  currentAccount = {};
+  Object.keys(COL).forEach(function(k){ currentAccount[k]=''; });
+  currentAccount.territory = currentTerritory;
+  currentAccount.status    = currentTab;
+  currentAccount.state     = 'RI';
+  currentAccount.account_id = 'ACC'+Date.now();
+  openEditModal();
+  document.getElementById('editModalTitle').textContent = 'Add New Account';
+  document.getElementById('editSaveBtn').onclick = saveNewAccount;
+}
+
+function collectEditFields() {
+  var a = currentAccount;
+  var fields = ['business_name','address','town','state','website','bays','advisors',
+    'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
+    'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
+    'other1_role','other1_name','general_notes'];
+  fields.forEach(function(f){ var el=document.getElementById('e_'+f); if(el) a[f]=el.value; });
+  if (selectedRating!==null) a.rating = String(selectedRating);
+  BG_PRODUCTS.forEach(function(p){ var el=document.getElementById('e_'+p.key); if(el) a[p.key]=el.checked?'Yes':''; });
 }
 
 async function saveAccount() {
-  const a = currentAccount;
-  const fields = ['business_name','address','town','state','website','bays','advisors',
-    'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
-    'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
-    'other1_role','other1_name','other1_phone','other1_email',
-    'other2_role','other2_name','other2_phone','other2_email','general_notes'];
-  fields.forEach(f=>{const el=document.getElementById('e_'+f);if(el)a[f]=el.value;});
-  if (selectedRating!==null) a.rating = String(selectedRating);
-  BG_PRODUCTS.forEach(p=>{const el=document.getElementById('e_'+p.key);if(el)a[p.key]=el.checked?'Yes':'';});
-
-  const rowNum = sheetRowMap[a.account_id];
+  collectEditFields();
+  var rowNum = sheetRowMap[currentAccount.account_id];
   if (!rowNum) { showToast('Row not found','error'); return; }
-  const vals = Object.keys(COL).map(k=>a[k]||'');
+  var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId:SHEET_ID, range:`Accounts!A${rowNum}`,
+      spreadsheetId:SHEET_ID, range:'Accounts!A'+rowNum,
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     showToast('Saved ✓'); closeModal('modalEdit'); selectedRating=null; renderDetail();
   } catch(e) { showToast('Error saving','error'); console.error(e); }
 }
 
-function openNewAccount() {
-  currentAccount = Object.fromEntries(Object.keys(COL).map(k=>[k,'']));
-  currentAccount.territory=currentTerritory; currentAccount.status=currentTab;
-  currentAccount.state='RI'; currentAccount.account_id='ACC'+Date.now();
-  openEditModal();
-  document.getElementById('editModalTitle').textContent='Add New Account';
-  document.getElementById('editSaveBtn').onclick = saveNewAccount;
-}
-
 async function saveNewAccount() {
-  const a = currentAccount;
-  const fields = ['business_name','address','town','state','website','bays','advisors',
-    'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
-    'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
-    'other1_role','other1_name','other1_phone','other1_email',
-    'other2_role','other2_name','other2_phone','other2_email','general_notes'];
-  fields.forEach(f=>{const el=document.getElementById('e_'+f);if(el)a[f]=el.value;});
-  if (selectedRating!==null) a.rating=String(selectedRating);
-  BG_PRODUCTS.forEach(p=>{const el=document.getElementById('e_'+p.key);if(el)a[p.key]=el.checked?'Yes':'';});
-  const vals = Object.keys(COL).map(k=>a[k]||'');
+  collectEditFields();
+  var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
-    const res = await gapi.client.sheets.spreadsheets.values.append({
+    var res = await gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:SHEET_ID, range:'Accounts!A:AW',
       valueInputOption:'RAW', resource:{values:[vals]}
     });
-    allAccounts.push(a);
-    // Update row map
-    const newRange = res.result.updates.updatedRange;
-    const rowNum = parseInt(newRange.match(/\d+/)[0]);
-    sheetRowMap[a.account_id] = rowNum;
+    allAccounts.push(currentAccount);
+    var newRange = res.result.updates.updatedRange;
+    var rowNum = parseInt(newRange.match(/\d+/)[0]);
+    sheetRowMap[currentAccount.account_id] = rowNum;
     showToast('Account added ✓'); closeModal('modalEdit'); selectedRating=null;
     updateStats(); renderList();
   } catch(e) { showToast('Error adding account','error'); console.error(e); }
 }
 
 function openVisitModal() {
-  document.getElementById('visitDate').value=new Date().toISOString().split('T')[0];
-  document.getElementById('visitAttendees').value='';
-  document.getElementById('visitNotes').value='';
-  document.getElementById('visitFollowup').value='';
-  document.getElementById('visitFollowupNotes').value='';
+  document.getElementById('visitDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('visitAttendees').value = '';
+  document.getElementById('visitNotes').value = '';
+  document.getElementById('visitFollowup').value = '';
+  document.getElementById('visitFollowupNotes').value = '';
   document.getElementById('modalVisit').classList.add('open');
 }
 
 async function saveVisit() {
-  const a=currentAccount;
-  const date=document.getElementById('visitDate').value;
-  const attend=document.getElementById('visitAttendees').value;
-  const notes=document.getElementById('visitNotes').value;
-  const fu=document.getElementById('visitFollowup').value;
-  const fuN=document.getElementById('visitFollowupNotes').value;
+  var a = currentAccount;
+  var date   = document.getElementById('visitDate').value;
+  var attend = document.getElementById('visitAttendees').value;
+  var notes  = document.getElementById('visitNotes').value;
+  var fu     = document.getElementById('visitFollowup').value;
+  var fuN    = document.getElementById('visitFollowupNotes').value;
   if (!notes) { showToast('Please add visit notes','error'); return; }
-  const vid='VIS'+Date.now();
-  const row=[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN];
+  var vid = 'VIS'+Date.now();
   try {
     await gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:SHEET_ID, range:'Visits!A:I',
-      valueInputOption:'RAW', resource:{values:[row]}
+      valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN]]}
     });
-    // Update last_visit
-    const rowNum=sheetRowMap[a.account_id];
-    if(rowNum) {
-      await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId:SHEET_ID, range:`Accounts!AV${rowNum}`,
-        valueInputOption:'RAW', resource:{values:[[date]]}
-      });
-      a.last_visit=date;
+    var rowNum = sheetRowMap[a.account_id];
+    if (rowNum) {
+      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!AV'+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
+      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!AW'+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
     }
-    if(fu) {
-      if(rowNum) {
-        await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId:SHEET_ID, range:`Accounts!AW${rowNum}`,
-          valueInputOption:'RAW', resource:{values:[[fu]]}
-        });
-        a.next_followup=fu;
-      }
-    }
-    allVisits.push({visit_id:vid,account_id:a.account_id,visit_date:date,attendees:attend,notes,followup_date:fu,followup_notes:fuN});
+    allVisits.push({visit_id:vid,account_id:a.account_id,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
   } catch(e) { showToast('Error logging visit','error'); console.error(e); }
 }
-
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-function showToast(msg, type='') {
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.className='toast'+(type==='error'?' error':'')+' show';
-  setTimeout(()=>t.className='toast',3000);
-}
-</script>
-<script>
-// Define stub immediately so onclick never throws ReferenceError
-window.signIn = function() {
-  if (window._signInReady) {
-    window._doSignIn();
-  } else {
-    // Queue it — APIs not ready yet
-    window._signInQueued = true;
-    showToast('Loading — please try again in a moment','error');
-  }
-};
 </script>
 <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
