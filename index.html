@@ -327,7 +327,7 @@
 <header class="app-header">
   <img src="logo.png" class="header-logo" alt="Drayton Distributors">
   <div id="authArea">
-    <button class="auth-btn" onclick="signIn()">Sign in with Google</button>
+    <button class="auth-btn" onclick="window.signIn&&signIn()">Sign in with Google</button>
   </div>
 </header>
 
@@ -339,7 +339,7 @@
     <img src="logo.png" class="landing-logo" alt="Drayton Distributors">
     <h2>Drayton CRM</h2>
     <p>Sign in with your Google account to access your territory dashboard.</p>
-    <button class="btn btn-gold btn-full" onclick="signIn()">Sign in with Google</button>
+    <button class="btn btn-gold btn-full" onclick="window.signIn&&signIn()">Sign in with Google</button>
   </div>
 </div>
 
@@ -500,16 +500,27 @@ function gisLoaded() {
         '<div class="user-info"><span class="sign-out" onclick="signOut()">Sign out</span></div>';
     }
   });
-  gisReady=true; maybeReady();
+  gisReady = true;
+  window._signInReady = true;
+  window._doSignIn = function() { tokenClient.requestAccessToken({prompt:''}); };
+  // If sign-in was queued while loading, trigger it now
+  if (window._signInQueued) { window._signInQueued = false; window._doSignIn(); }
+  maybeReady();
 }
 function maybeReady() { if (gapiReady && gisReady && gapi.client.getToken()) showScreen('screenTerritory'); }
-function signIn() { tokenClient.requestAccessToken({prompt:''}); }
+function signIn() {
+  if (!gisReady || !tokenClient) {
+    showToast('Still loading — please try again in a moment','error');
+    return;
+  }
+  tokenClient.requestAccessToken({prompt:''});
+}
 function signOut() {
   google.accounts.oauth2.revoke(gapi.client.getToken().access_token);
   gapi.client.setToken(null);
   allAccounts=[]; allVisits=[];
   showScreen('screenLanding');
-  document.getElementById('authArea').innerHTML = '<button class="auth-btn" onclick="signIn()">Sign in with Google</button>';
+  document.getElementById('authArea').innerHTML = '<button class="auth-btn" onclick="window.signIn&&signIn()">Sign in with Google</button>';
 }
 
 function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
@@ -909,6 +920,18 @@ function showToast(msg, type='') {
   t.textContent=msg; t.className='toast'+(type==='error'?' error':'')+' show';
   setTimeout(()=>t.className='toast',3000);
 }
+</script>
+<script>
+// Define stub immediately so onclick never throws ReferenceError
+window.signIn = function() {
+  if (window._signInReady) {
+    window._doSignIn();
+  } else {
+    // Queue it — APIs not ready yet
+    window._signInQueued = true;
+    showToast('Loading — please try again in a moment','error');
+  }
+};
 </script>
 <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
