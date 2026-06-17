@@ -328,20 +328,52 @@ const BG_PRODUCTS = [
   {key:'bg_battery',label:'Battery'},{key:'bg_fuel',label:'Fuel Pour-in'},
   {key:'bg_diesel',label:'Diesel'},{key:'bg_misc',label:'Misc'},
 ];
+const STORE_FIELDS = [
+  {key:'penetration_pct', label:'Penetration %',          type:'num'},
+  {key:'mpi',             label:'MPI',                    type:'yn'},
+  {key:'menus_paper',     label:'Menus (Paper)',          type:'yn'},
+  {key:'menus_vma',       label:'Menus (VMA)',            type:'yn'},
+  {key:'smoke_burns',     label:'Smoke and Burns',        type:'yn'},
+  {key:'contest_promo',   label:'Contest / Promo',        type:'yn'},
+  {key:'pop_materials',   label:'POP Materials',          type:'yn'},
+  {key:'lpp_training',    label:'LPP Training',           type:'yn'},
+  {key:'bg_advisor_app',  label:'BG Advisor / Tech App',  type:'yn'},
+  {key:'machine_demo',    label:'Machine / Tool Demo',    type:'yn'},
+  {key:'bg_op_code',      label:'BG Op Code Up-to-date',  type:'yn'},
+  {key:'bdc',             label:'BDC',                    type:'yn'},
+  {key:'role_play',       label:'Role-Play',              type:'yn'},
+  {key:'claims',          label:'Claims',                 type:'num'},
+  {key:'hyperbi',         label:'HyperBI',                type:'yn'},
+];
 const COL = {
   account_id:0,territory:1,status:2,business_name:3,address:4,town:5,state:6,website:7,
   bays:8,advisors:9,monthly_ro:10,door_rate:11,maint_rate:12,
-  competitor_product:13,competitor_name:14,
-  sm_name:15,sm_phone:16,sm_email:17,
-  owner_name:18,owner_phone:19,owner_email:20,
-  other1_role:21,other1_name:22,other1_phone:23,other1_email:24,
-  other2_role:25,other2_name:26,other2_phone:27,other2_email:28,
-  rating:29,
-  bg_transmission:30,bg_coolant:31,bg_diff:32,bg_induction:33,
-  bg_injection:34,bg_gdi:35,bg_brake:36,bg_ac:37,bg_moa_efl:38,
-  bg_epr:39,bg_battery:40,bg_fuel:41,bg_diesel:42,bg_misc:43,
-  products_offered:44,general_notes:45,interested:46,
-  last_visit:47,next_followup:48
+  penetration_pct:13,penetration_pct_notes:14,
+  mpi:15,mpi_notes:16,
+  menus_paper:17,menus_paper_notes:18,
+  menus_vma:19,menus_vma_notes:20,
+  smoke_burns:21,smoke_burns_notes:22,
+  contest_promo:23,contest_promo_notes:24,
+  pop_materials:25,pop_materials_notes:26,
+  lpp_training:27,lpp_training_notes:28,
+  bg_advisor_app:29,bg_advisor_app_notes:30,
+  machine_demo:31,machine_demo_notes:32,
+  bg_op_code:33,bg_op_code_notes:34,
+  bdc:35,bdc_notes:36,
+  role_play:37,role_play_notes:38,
+  claims:39,claims_notes:40,
+  hyperbi:41,hyperbi_notes:42,
+  competitor_product:43,competitor_name:44,
+  sm_name:45,sm_phone:46,sm_email:47,
+  owner_name:48,owner_phone:49,owner_email:50,
+  other1_role:51,other1_name:52,other1_phone:53,other1_email:54,
+  other2_role:55,other2_name:56,other2_phone:57,other2_email:58,
+  rating:59,
+  bg_transmission:60,bg_coolant:61,bg_diff:62,bg_induction:63,
+  bg_injection:64,bg_gdi:65,bg_brake:66,bg_ac:67,bg_moa_efl:68,
+  bg_epr:69,bg_battery:70,bg_fuel:71,bg_diesel:72,bg_misc:73,
+  products_offered:74,general_notes:75,interested:76,
+  last_visit:77,next_followup:78
 };
 const VCOL = {visit_id:0,account_id:1,account_name:2,territory:3,visit_date:4,attendees:5,notes:6,followup_date:7,followup_notes:8};
 
@@ -434,7 +466,7 @@ async function loadTerritory() {
 async function fetchData() {
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:AW'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:CA'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:I'}),
     ]);
     var accRows = results[0].result.values || [];
@@ -557,6 +589,29 @@ function renderDetail() {
     (a.other1_name?'<div class="field-row"><span class="field-label">'+(a.other1_role||'Other')+'</span>'+fv(a.other1_name)+'</div>':'')+
     '</div></div></div>';
 
+  var storeFieldsWithData = STORE_FIELDS.filter(function(f){ return a[f.key] || a[f.key+'_notes']; });
+  if (storeFieldsWithData.length) {
+    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🏪 Store Information</div><div class="card-body">'+
+      storeFieldsWithData.map(function(f){
+        var val = a[f.key] || '';
+        var note = a[f.key+'_notes'] || '';
+        var valDisplay;
+        if (f.type === 'yn') {
+          var lv = val.toLowerCase();
+          var badgeClass = lv==='yes' ? 'yes' : (lv==='no' ? 'no' : '');
+          valDisplay = val ? '<span class="product-chip '+badgeClass+'" style="display:inline-block;padding:2px 10px;font-size:11px">'+esc(val)+'</span>' : '<span class="field-value empty">—</span>';
+        } else {
+          valDisplay = val ? '<span class="field-value">'+esc(val)+'</span>' : '<span class="field-value empty">—</span>';
+        }
+        return '<div class="field-row" style="align-items:flex-start">'+
+          '<span class="field-label" style="padding-top:2px">'+f.label+'</span>'+
+          '<div style="flex:1">'+valDisplay+
+          (note?'<div style="font-size:12px;color:var(--gray-3);margin-top:4px;line-height:1.4">📝 '+esc(note)+'</div>':'')+
+          '</div></div>';
+      }).join('')+
+      '</div></div>';
+  }
+
   html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🔧 BG Products Discussed</div><div class="card-body"><div class="products-grid">'+
     BG_PRODUCTS.map(function(p){ var v=a[p.key]; var c=v&&v.toLowerCase()==='yes'?'yes':'no'; return '<div class="product-chip '+c+'">'+p.label+(v?': '+v:'')+'</div>'; }).join('')+
     '</div>'+(a.products_offered?'<div style="margin-top:12px;font-size:12px;color:var(--gray-3)"><strong style="color:var(--gray-4)">Products offered:</strong> '+esc(a.products_offered)+'</div>':'')+
@@ -647,27 +702,27 @@ async function convertToActive() {
       try {
         await gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: 'Accounts!N' + rowNum + ':N' + rowNum,
+          range: 'Accounts!AR' + rowNum + ':AR' + rowNum,
           valueInputOption: 'RAW', resource: {values: [[a.competitor_product]]}
         });
         await gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: 'Accounts!O' + rowNum + ':O' + rowNum,
+          range: 'Accounts!AS' + rowNum + ':AS' + rowNum,
           valueInputOption: 'RAW', resource: {values: [[a.competitor_name]]}
         });
         await gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: 'Accounts!AD' + rowNum + ':AD' + rowNum,
+          range: 'Accounts!BH' + rowNum + ':BH' + rowNum,
           valueInputOption: 'RAW', resource: {values: [[a.rating]]}
         });
         await gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: 'Accounts!AT' + rowNum + ':AT' + rowNum,
+          range: 'Accounts!BX' + rowNum + ':BX' + rowNum,
           valueInputOption: 'RAW', resource: {values: [[a.general_notes]]}
         });
         await gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: 'Accounts!AU' + rowNum + ':AU' + rowNum,
+          range: 'Accounts!BY' + rowNum + ':BY' + rowNum,
           valueInputOption: 'RAW', resource: {values: [[a.interested]]}
         });
       } catch(e) { console.error('Error saving former-prospect fields', e); }
@@ -701,6 +756,25 @@ function openEditModal() {
     '<div class="form-grid-2"><div class="form-row"><label>Maint. Rate</label><input type="text" id="e_maint_rate" value="'+esc(a.maint_rate)+'"></div>'+
     '<div class="form-row"><label>Competitor Product?</label><input type="text" id="e_competitor_product" value="'+esc(a.competitor_product)+'"></div></div>'+
     '<div class="form-row"><label>Competitor Name</label><input type="text" id="e_competitor_name" value="'+esc(a.competitor_name)+'"></div></div>'+
+    '<div class="form-section"><div class="form-section-title">Store Information</div>'+
+    STORE_FIELDS.map(function(f){
+      var valInput;
+      if (f.type === 'yn') {
+        var cur = (a[f.key]||'').toLowerCase();
+        valInput = '<select id="e_'+f.key+'">'+
+          '<option value=""'+(cur===''?' selected':'')+'>—</option>'+
+          '<option value="Yes"'+(cur==='yes'?' selected':'')+'>Yes</option>'+
+          '<option value="No"'+(cur==='no'?' selected':'')+'>No</option>'+
+          '</select>';
+      } else {
+        valInput = '<input type="text" id="e_'+f.key+'" value="'+esc(a[f.key])+'" placeholder="'+(f.type==='num'?'e.g. 42':'')+'">';
+      }
+      return '<div class="form-grid-2" style="margin-bottom:12px">'+
+        '<div class="form-row" style="margin-bottom:0"><label>'+f.label+'</label>'+valInput+'</div>'+
+        '<div class="form-row" style="margin-bottom:0"><label>'+f.label+' Notes</label><input type="text" id="e_'+f.key+'_notes" value="'+esc(a[f.key+'_notes'])+'" placeholder="Notes..."></div>'+
+        '</div>';
+    }).join('')+
+    '</div>'+
     '<div class="form-section"><div class="form-section-title">Key Personnel</div>'+
     '<div class="form-grid-2"><div class="form-row"><label>SM Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
     '<div class="form-row"><label>SM Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
@@ -745,6 +819,12 @@ function collectEditFields() {
     'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
     'other1_role','other1_name','general_notes'];
   fields.forEach(function(f){ var el=document.getElementById('e_'+f); if(el) a[f]=el.value; });
+  STORE_FIELDS.forEach(function(f){
+    var vEl = document.getElementById('e_'+f.key);
+    var nEl = document.getElementById('e_'+f.key+'_notes');
+    if (vEl) a[f.key] = vEl.value;
+    if (nEl) a[f.key+'_notes'] = nEl.value;
+  });
   if (selectedRating!==null) a.rating = String(selectedRating);
   BG_PRODUCTS.forEach(function(p){ var el=document.getElementById('e_'+p.key); if(el) a[p.key]=el.checked?'Yes':''; });
 }
@@ -768,7 +848,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Accounts!A:AW',
+      spreadsheetId:SHEET_ID, range:'Accounts!A:CA',
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     allAccounts.push(currentAccount);
@@ -805,8 +885,8 @@ async function saveVisit() {
     });
     var rowNum = sheetRowMap[a.account_id];
     if (rowNum) {
-      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!AV'+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
-      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!AW'+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
+      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!BZ'+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
+      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!CA'+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
     }
     allVisits.push({visit_id:vid,account_id:a.account_id,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
