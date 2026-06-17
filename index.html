@@ -144,6 +144,52 @@
   .product-chip.yes { background: #1a3d25; color: #5dba7d; border: 1px solid #2a6040; }
   .product-chip.no  { background: var(--gray-1); color: var(--gray-3); }
 
+  .product-row {
+    background: var(--gray-1); border: 1px solid var(--gray-2);
+    border-radius: 6px; margin-bottom: 6px; overflow: hidden;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .product-row:hover { border-color: var(--gold); }
+  .product-row-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; font-size: 13px; font-weight: 600;
+  }
+  .product-row-head .dot {
+    width: 10px; height: 10px; border-radius: 50%; margin-right: 10px;
+    flex-shrink: 0; display: inline-block;
+  }
+  .dot-gray   { background: var(--gray-3); }
+  .dot-yellow { background: #d4ac0d; }
+  .dot-green  { background: #5dba7d; }
+  .dot-red    { background: #d47070; }
+  .product-row-name { display: flex; align-items: center; color: var(--white); }
+  .product-row-tag {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .tag-gray   { background: var(--gray-2); color: var(--gray-4); }
+  .tag-yellow { background: #3d3100; color: #d4ac0d; }
+  .tag-green  { background: #1a3d25; color: #5dba7d; }
+  .tag-red    { background: #3d1a1a; color: #d47070; }
+  .product-row-body {
+    display: none; padding: 14px; background: var(--black-soft);
+    border-top: 1px solid var(--gray-2);
+  }
+  .product-row.expanded .product-row-body { display: block; }
+  .product-row.expanded { border-color: var(--gold); }
+  .product-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .product-detail-field label { display: block; font-size: 11px; color: var(--gray-3); margin-bottom: 4px; }
+  .status-btn-row { display: flex; gap: 6px; margin-bottom: 12px; }
+  .status-btn {
+    flex: 1; padding: 6px 4px; border-radius: 5px; border: 1.5px solid var(--gray-2);
+    background: var(--gray-1); color: var(--gray-4); font-size: 11px; font-weight: 700;
+    cursor: pointer; text-align: center;
+  }
+  .status-btn.active-gray   { background: var(--gray-2); border-color: var(--gray-3); color: var(--white); }
+  .status-btn.active-yellow { background: #3d3100; border-color: #d4ac0d; color: #d4ac0d; }
+  .status-btn.active-green  { background: #1a3d25; border-color: #5dba7d; color: #5dba7d; }
+  .status-btn.active-red    { background: #3d1a1a; border-color: #d47070; color: #d47070; }
+
   .visit-card { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
   .visit-card-header { background: var(--black); color: var(--gold); padding: 10px 16px; font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; border-bottom: 1px solid var(--gold-dim); }
   .visit-entry { padding: 12px 16px; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
@@ -372,9 +418,34 @@ const COL = {
   bg_transmission:60,bg_coolant:61,bg_diff:62,bg_induction:63,
   bg_injection:64,bg_gdi:65,bg_brake:66,bg_ac:67,bg_moa_efl:68,
   bg_epr:69,bg_battery:70,bg_fuel:71,bg_diesel:72,bg_misc:73,
-  products_offered:74,general_notes:75,interested:76,
-  last_visit:77,next_followup:78
+  bg_transmission_status:74,bg_transmission_carrying:75,bg_transmission_profile_pricing:76,bg_transmission_training:77,bg_transmission_part_number:78,bg_transmission_part_notes:79,
+  bg_coolant_status:80,bg_coolant_carrying:81,bg_coolant_profile_pricing:82,bg_coolant_training:83,bg_coolant_part_number:84,bg_coolant_part_notes:85,
+  bg_diff_status:86,bg_diff_carrying:87,bg_diff_profile_pricing:88,bg_diff_training:89,bg_diff_part_number:90,bg_diff_part_notes:91,
+  bg_induction_status:92,bg_induction_carrying:93,bg_induction_profile_pricing:94,bg_induction_training:95,bg_induction_part_number:96,bg_induction_part_notes:97,
+  bg_injection_status:98,bg_injection_carrying:99,bg_injection_profile_pricing:100,bg_injection_training:101,bg_injection_part_number:102,bg_injection_part_notes:103,
+  bg_gdi_status:104,bg_gdi_carrying:105,bg_gdi_profile_pricing:106,bg_gdi_training:107,bg_gdi_part_number:108,bg_gdi_part_notes:109,
+  bg_brake_status:110,bg_brake_carrying:111,bg_brake_profile_pricing:112,bg_brake_training:113,bg_brake_part_number:114,bg_brake_part_notes:115,
+  bg_ac_status:116,bg_ac_carrying:117,bg_ac_profile_pricing:118,bg_ac_training:119,bg_ac_part_number:120,bg_ac_part_notes:121,
+  bg_moa_efl_status:122,bg_moa_efl_carrying:123,bg_moa_efl_profile_pricing:124,bg_moa_efl_training:125,bg_moa_efl_part_number:126,bg_moa_efl_part_notes:127,
+  bg_epr_status:128,bg_epr_carrying:129,bg_epr_profile_pricing:130,bg_epr_training:131,bg_epr_part_number:132,bg_epr_part_notes:133,
+  bg_battery_status:134,bg_battery_carrying:135,bg_battery_profile_pricing:136,bg_battery_training:137,bg_battery_part_number:138,bg_battery_part_notes:139,
+  bg_fuel_status:140,bg_fuel_carrying:141,bg_fuel_profile_pricing:142,bg_fuel_training:143,bg_fuel_part_number:144,bg_fuel_part_notes:145,
+  bg_diesel_status:146,bg_diesel_carrying:147,bg_diesel_profile_pricing:148,bg_diesel_training:149,bg_diesel_part_number:150,bg_diesel_part_notes:151,
+  bg_misc_status:152,bg_misc_carrying:153,bg_misc_profile_pricing:154,bg_misc_training:155,bg_misc_part_number:156,bg_misc_part_notes:157,
+  products_offered:158,general_notes:159,interested:160,
+  last_visit:161,next_followup:162
 };
+
+function colLetter(idx) {
+  idx += 1;
+  var letters = '';
+  while (idx > 0) {
+    var rem = (idx - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    idx = Math.floor((idx - 1) / 26);
+  }
+  return letters;
+}
 const VCOL = {visit_id:0,account_id:1,account_name:2,territory:3,visit_date:4,attendees:5,notes:6,followup_date:7,followup_notes:8};
 
 let gapiReady=false, gisReady=false, tokenClient;
@@ -466,7 +537,7 @@ async function loadTerritory() {
 async function fetchData() {
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:CA'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FG'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:I'}),
     ]);
     var accRows = results[0].result.values || [];
@@ -612,12 +683,50 @@ function renderDetail() {
       '</div></div>';
   }
 
-  html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🔧 BG Products Discussed</div><div class="card-body"><div class="products-grid">'+
-    BG_PRODUCTS.map(function(p){ var v=a[p.key]; var c=v&&v.toLowerCase()==='yes'?'yes':'no'; return '<div class="product-chip '+c+'">'+p.label+(v?': '+v:'')+'</div>'; }).join('')+
-    '</div>'+(a.products_offered?'<div style="margin-top:12px;font-size:12px;color:var(--gray-3)"><strong style="color:var(--gray-4)">Products offered:</strong> '+esc(a.products_offered)+'</div>':'')+
-    '</div></div>';
+  if (isProspect) {
+    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🔧 BG Products Discussed</div><div class="card-body"><div class="products-grid">'+
+      BG_PRODUCTS.map(function(p){ var v=a[p.key]; var c=v&&v.toLowerCase()==='yes'?'yes':'no'; return '<div class="product-chip '+c+'">'+p.label+(v?': '+v:'')+'</div>'; }).join('')+
+      '</div>'+(a.products_offered?'<div style="margin-top:12px;font-size:12px;color:var(--gray-3)"><strong style="color:var(--gray-4)">Products offered:</strong> '+esc(a.products_offered)+'</div>':'')+
+      '</div></div>';
+  } else {
+    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🔧 Product Information</div><div class="card-body">'+
+      BG_PRODUCTS.map(function(p){
+        var status = a[p.key+'_status'] || 'gray';
+        var tagText = status==='green'?'Carrying':status==='yellow'?'Discussed':status==='red'?'Declined':'Not Discussed';
+        return '<div class="product-row" data-pkey="'+p.key+'">'+
+          '<div class="product-row-head">'+
+            '<span class="product-row-name"><span class="dot dot-'+status+'"></span>'+p.label+'</span>'+
+            '<span class="product-row-tag tag-'+status+'">'+tagText+'</span>'+
+          '</div>'+
+          '<div class="product-row-body">'+
+            '<div class="status-btn-row">'+
+              ['gray','yellow','green','red'].map(function(s){
+                var lbl = s==='gray'?'Not Discussed':s==='yellow'?'Discussed':s==='green'?'Carrying':'Declined';
+                return '<button type="button" class="status-btn'+(status===s?' active-'+s:'')+'" data-pkey="'+p.key+'" data-status="'+s+'">'+lbl+'</button>';
+              }).join('')+
+            '</div>'+
+            '<div class="product-detail-grid">'+
+              '<div class="product-detail-field"><label>Carrying</label><select id="pf_'+p.key+'_carrying">'+
+                ['','Yes','No'].map(function(o){ var cur=(a[p.key+'_carrying']||''); return '<option value="'+o+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>'; }).join('')+
+              '</select></div>'+
+              '<div class="product-detail-field"><label>Profile Pricing</label><select id="pf_'+p.key+'_profile_pricing">'+
+                ['','Yes','No'].map(function(o){ var cur=(a[p.key+'_profile_pricing']||''); return '<option value="'+o+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>'; }).join('')+
+              '</select></div>'+
+              '<div class="product-detail-field"><label>Training Performed</label><select id="pf_'+p.key+'_training">'+
+                ['','Yes','No'].map(function(o){ var cur=(a[p.key+'_training']||''); return '<option value="'+o+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>'; }).join('')+
+              '</select></div>'+
+              '<div class="product-detail-field"><label>Part Number</label><input type="text" id="pf_'+p.key+'_part_number" value="'+esc(a[p.key+'_part_number'])+'"></div>'+
+            '</div>'+
+            '<div class="product-detail-field" style="margin-bottom:10px"><label>Notes</label><input type="text" id="pf_'+p.key+'_part_notes" value="'+esc(a[p.key+'_part_notes'])+'" placeholder="Notes for this part..."></div>'+
+            '<button type="button" class="btn btn-gold btn-sm" data-pkey="'+p.key+'" data-action="save-product">Save</button>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+      '</div></div>';
+  }
 
   if (a.general_notes) html += '<div class="card" style="margin-bottom:16px"><div class="card-header">📝 General Notes</div><div class="card-body" style="font-size:13px;line-height:1.6;color:var(--gray-4)">'+esc(a.general_notes)+'</div></div>';
+
 
   html += '<div class="visit-card"><div class="visit-card-header"><span>📅 Visit Log</span><span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+'</span></div>'+
     (!visits.length?'<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged yet.</div>':'')+
@@ -640,6 +749,86 @@ function renderDetail() {
   var cb = document.getElementById('convertBtn'); if(cb) cb.addEventListener('click', convertToActive);
   var cb2= document.getElementById('convertBtn2'); if(cb2) cb2.addEventListener('click', convertToActive);
   var xb = document.getElementById('expandBtn'); if(xb) xb.addEventListener('click', toggleVisits);
+
+  // Product rows — click header to expand/collapse
+  document.querySelectorAll('.product-row-head').forEach(function(headEl){
+    headEl.addEventListener('click', function(){
+      headEl.closest('.product-row').classList.toggle('expanded');
+    });
+  });
+  // Status quick-set buttons
+  document.querySelectorAll('.status-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var pkey = btn.dataset.pkey, status = btn.dataset.status;
+      saveProductStatus(pkey, status);
+    });
+  });
+  // Save button inside expanded product row
+  document.querySelectorAll('[data-action="save-product"]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      saveProductDetails(btn.dataset.pkey);
+    });
+  });
+}
+
+async function saveProductStatus(pkey, status) {
+  var a = currentAccount;
+  a[pkey+'_status'] = status;
+  var rowNum = sheetRowMap[a.account_id];
+  if (rowNum) {
+    try {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID, range: 'Accounts!'+colLetter(COL[pkey+'_status'])+rowNum,
+        valueInputOption: 'RAW', resource: {values: [[status]]}
+      });
+      showToast('Updated ✓');
+    } catch(e) { showToast('Error saving','error'); console.error(e); }
+  }
+  renderDetail();
+  // Re-expand the row the user was just working in
+  var row = document.querySelector('.product-row[data-pkey="'+pkey+'"]');
+  if (row) row.classList.add('expanded');
+}
+
+async function saveProductDetails(pkey) {
+  var a = currentAccount;
+  var carrying = document.getElementById('pf_'+pkey+'_carrying').value;
+  var pricing  = document.getElementById('pf_'+pkey+'_profile_pricing').value;
+  var training = document.getElementById('pf_'+pkey+'_training').value;
+  var partNum  = document.getElementById('pf_'+pkey+'_part_number').value;
+  var partNotes= document.getElementById('pf_'+pkey+'_part_notes').value;
+
+  a[pkey+'_carrying'] = carrying;
+  a[pkey+'_profile_pricing'] = pricing;
+  a[pkey+'_training'] = training;
+  a[pkey+'_part_number'] = partNum;
+  a[pkey+'_part_notes'] = partNotes;
+
+  // If rep confirms Carrying = Yes, auto-promote status to green.
+  // If rep sets Carrying = No on a product that was previously discussed (yellow),
+  // leave the status decision to them via the status buttons (could be red/declined
+  // or just not-yet-confirmed), so we don't auto-overwrite status here unless
+  // they explicitly say Yes.
+  if (carrying === 'Yes') a[pkey+'_status'] = 'green';
+
+  var rowNum = sheetRowMap[a.account_id];
+  if (rowNum) {
+    var fields = [pkey+'_carrying', pkey+'_profile_pricing', pkey+'_training', pkey+'_part_number', pkey+'_part_notes', pkey+'_status'];
+    var data = fields.map(function(f){
+      return { range: 'Accounts!'+colLetter(COL[f])+rowNum, values: [[a[f]||'']] };
+    });
+    try {
+      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SHEET_ID, resource: { valueInputOption: 'RAW', data: data }
+      });
+      showToast('Product info saved ✓');
+    } catch(e) { showToast('Error saving','error'); console.error(e); }
+  }
+  renderDetail();
+  var row = document.querySelector('.product-row[data-pkey="'+pkey+'"]');
+  if (row) row.classList.add('expanded');
 }
 
 function toggleVisits() {
@@ -687,6 +876,8 @@ async function convertToActive() {
   if (a.competitor_product)   formerBits.push('Competitor Product: ' + a.competitor_product);
   if (a.competitor_name)      formerBits.push('Competitor Name: ' + a.competitor_name);
 
+  var updates = [];   // {range, values}
+
   if (formerBits.length) {
     var formerBlock = '📋 FORMER PROSPECT INFORMATION — ' + formerBits.join(' | ');
     var existingNotes = a.general_notes || '';
@@ -695,38 +886,31 @@ async function convertToActive() {
     a.interested = '';
     a.competitor_product = '';
     a.competitor_name = '';
+  }
 
-    // Push the updated notes + cleared fields to the sheet
-    var rowNum = sheetRowMap[a.account_id];
-    if (rowNum) {
-      try {
-        await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId: SHEET_ID,
-          range: 'Accounts!AR' + rowNum + ':AR' + rowNum,
-          valueInputOption: 'RAW', resource: {values: [[a.competitor_product]]}
-        });
-        await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId: SHEET_ID,
-          range: 'Accounts!AS' + rowNum + ':AS' + rowNum,
-          valueInputOption: 'RAW', resource: {values: [[a.competitor_name]]}
-        });
-        await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId: SHEET_ID,
-          range: 'Accounts!BH' + rowNum + ':BH' + rowNum,
-          valueInputOption: 'RAW', resource: {values: [[a.rating]]}
-        });
-        await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId: SHEET_ID,
-          range: 'Accounts!BX' + rowNum + ':BX' + rowNum,
-          valueInputOption: 'RAW', resource: {values: [[a.general_notes]]}
-        });
-        await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId: SHEET_ID,
-          range: 'Accounts!BY' + rowNum + ':BY' + rowNum,
-          valueInputOption: 'RAW', resource: {values: [[a.interested]]}
-        });
-      } catch(e) { console.error('Error saving former-prospect fields', e); }
+  // Transfer "discussed as prospect" (bg_X = Yes) into the active Product
+  // Information status as yellow — "discussed, not yet confirmed" — unless
+  // it already has a status set.
+  BG_PRODUCTS.forEach(function(p){
+    var discussed = (a[p.key]||'').toLowerCase() === 'yes';
+    if (discussed && !a[p.key+'_status']) {
+      a[p.key+'_status'] = 'yellow';
     }
+  });
+
+  var rowNum = sheetRowMap[a.account_id];
+  if (rowNum) {
+    var fieldsToSync = ['competitor_product','competitor_name','rating','general_notes','interested'];
+    BG_PRODUCTS.forEach(function(p){ fieldsToSync.push(p.key+'_status'); });
+    var data = fieldsToSync.map(function(f){
+      return { range: 'Accounts!'+colLetter(COL[f])+rowNum, values: [[a[f]||'']] };
+    });
+    try {
+      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        resource: { valueInputOption: 'RAW', data: data }
+      });
+    } catch(e) { console.error('Error saving former-prospect fields', e); }
   }
 
   await updateStatus('active');
@@ -848,7 +1032,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Accounts!A:CA',
+      spreadsheetId:SHEET_ID, range:'Accounts!A:FG',
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     allAccounts.push(currentAccount);
@@ -885,8 +1069,8 @@ async function saveVisit() {
     });
     var rowNum = sheetRowMap[a.account_id];
     if (rowNum) {
-      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!BZ'+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
-      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!CA'+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
+      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
+      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
     }
     allVisits.push({visit_id:vid,account_id:a.account_id,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
