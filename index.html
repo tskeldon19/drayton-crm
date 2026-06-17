@@ -621,6 +621,59 @@ async function restoreAccount() {
 
 async function convertToActive() {
   if (!confirm('Convert "'+currentAccount.business_name+'" to an Active Client?')) return;
+  var a = currentAccount;
+
+  // Fold prospect-only fields into general_notes under a labeled section
+  // so nothing is lost, then clear the source fields since they're no
+  // longer meaningful on an active account.
+  var formerBits = [];
+  if (a.rating)               formerBits.push('Rating: ' + a.rating + '/5');
+  if (a.interested)           formerBits.push('Interested: ' + a.interested);
+  if (a.competitor_product)   formerBits.push('Competitor Product: ' + a.competitor_product);
+  if (a.competitor_name)      formerBits.push('Competitor Name: ' + a.competitor_name);
+
+  if (formerBits.length) {
+    var formerBlock = '📋 FORMER PROSPECT INFORMATION — ' + formerBits.join(' | ');
+    var existingNotes = a.general_notes || '';
+    a.general_notes = (formerBlock + (existingNotes ? ' | ' + existingNotes : '')).trim();
+    a.rating = '';
+    a.interested = '';
+    a.competitor_product = '';
+    a.competitor_name = '';
+
+    // Push the updated notes + cleared fields to the sheet
+    var rowNum = sheetRowMap[a.account_id];
+    if (rowNum) {
+      try {
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: 'Accounts!N' + rowNum + ':N' + rowNum,
+          valueInputOption: 'RAW', resource: {values: [[a.competitor_product]]}
+        });
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: 'Accounts!O' + rowNum + ':O' + rowNum,
+          valueInputOption: 'RAW', resource: {values: [[a.competitor_name]]}
+        });
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: 'Accounts!AD' + rowNum + ':AD' + rowNum,
+          valueInputOption: 'RAW', resource: {values: [[a.rating]]}
+        });
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: 'Accounts!AT' + rowNum + ':AT' + rowNum,
+          valueInputOption: 'RAW', resource: {values: [[a.general_notes]]}
+        });
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: 'Accounts!AU' + rowNum + ':AU' + rowNum,
+          valueInputOption: 'RAW', resource: {values: [[a.interested]]}
+        });
+      } catch(e) { console.error('Error saving former-prospect fields', e); }
+    }
+  }
+
   await updateStatus('active');
   showToast(currentAccount.business_name+' is now Active ✅'); updateStats(); renderDetail();
 }
