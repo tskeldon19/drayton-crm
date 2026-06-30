@@ -194,6 +194,15 @@
   .visit-card-header { background: var(--black); color: var(--gold); padding: 10px 16px; font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; border-bottom: 1px solid var(--gold-dim); }
   .visit-entry { padding: 12px 16px; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
   .visit-entry:last-child { border-bottom: none; }
+  .visit-entry.highlighted { background: rgba(232,200,74,0.06); border-left: 3px solid var(--gold); }
+  .visit-entry-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .visit-star-btn {
+    background: none; border: none; cursor: pointer; font-size: 16px;
+    line-height: 1; padding: 2px 4px; flex-shrink: 0; opacity: 0.4;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .visit-star-btn:hover { opacity: 0.8; transform: scale(1.1); }
+  .visit-star-btn.starred { opacity: 1; }
   .visit-date { font-weight: 700; color: var(--gold); margin-bottom: 4px; font-size: 12px; }
   .visit-notes { color: var(--gray-4); line-height: 1.5; }
   .visit-followup { margin-top: 6px; font-size: 12px; color: var(--gray-3); }
@@ -298,6 +307,7 @@
         <div class="stat"><div class="num" id="statProspect">—</div><div class="lbl">Prospects</div></div>
         <div class="stat"><div class="num" id="statHot">—</div><div class="lbl">Hot (4-5★)</div></div>
       </div>
+      <button class="btn btn-primary btn-sm" id="weeklyRecapBtn">📊 Weekly Recap</button>
     </div>
     <div class="tab-row">
       <button class="tab active" id="tabProspect">🔍 Prospective</button>
@@ -320,6 +330,36 @@
   <div class="account-detail">
     <button class="back-btn" id="backBtn">← Back to dashboard</button>
     <div id="detailContent"></div>
+  </div>
+</div>
+
+<div class="screen" id="screenRecap">
+  <div class="account-detail">
+    <button class="back-btn" id="recapBackBtn">← Back to dashboard</button>
+    <div class="detail-header" style="flex-wrap:wrap;gap:14px">
+      <div>
+        <h2>📊 Weekly Activity Recap</h2>
+        <div class="meta">Key changes and visit activity for the selected period</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-row" style="margin-bottom:0">
+          <label style="display:block;font-size:11px;color:var(--gray-3);margin-bottom:4px">Territory</label>
+          <select id="recapTerritorySelect" style="min-width:160px">
+            <option value="ALL">All Territories</option>
+          </select>
+        </div>
+        <div class="form-row" style="margin-bottom:0">
+          <label style="display:block;font-size:11px;color:var(--gray-3);margin-bottom:4px">From</label>
+          <input type="date" id="recapStartDate">
+        </div>
+        <div class="form-row" style="margin-bottom:0">
+          <label style="display:block;font-size:11px;color:var(--gray-3);margin-bottom:4px">To</label>
+          <input type="date" id="recapEndDate">
+        </div>
+        <button class="btn btn-gold btn-sm" id="recapRunBtn">Run Report</button>
+      </div>
+    </div>
+    <div id="recapContent"><div class="loading"><div class="spinner"></div>Loading recap...</div></div>
   </div>
 </div>
 
@@ -351,6 +391,7 @@
         <div class="form-row"><label>Follow-Up Date</label><input type="date" id="visitFollowup"></div>
         <div class="form-row"><label>Follow-Up Notes</label><input type="text" id="visitFollowupNotes" placeholder="Next steps..."></div>
       </div>
+      <label class="product-check" style="margin-top:4px"><input type="checkbox" id="visitHighlight">⭐ Mark as a key event / highlight for the weekly recap</label>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="visitCancelBtn">Cancel</button>
@@ -446,11 +487,53 @@ function colLetter(idx) {
   }
   return letters;
 }
-const VCOL = {visit_id:0,account_id:1,account_name:2,territory:3,visit_date:4,attendees:5,notes:6,followup_date:7,followup_notes:8};
+const VCOL = {visit_id:0,account_id:1,account_name:2,territory:3,visit_date:4,attendees:5,notes:6,followup_date:7,followup_notes:8,is_highlight:9};
+
+const CLCOL = {timestamp:0,account_id:1,account_name:2,territory:3,field_key:4,field_label:5,old_value:6,new_value:7};
+
+// Human-readable labels for every trackable field, grouped by category for the
+// weekly recap. Personnel + Smoke and Burns + LPP Training were the explicit
+// ask; Store Information and Product Information are included too so the log
+// stays comprehensive rather than needing another retrofit later.
+const TRACKED_FIELDS = {
+  // Personnel
+  sm_name:'SM Name', sm_phone:'SM Phone', sm_email:'SM Email',
+  owner_name:'Owner Name', owner_phone:'Owner Phone', owner_email:'Owner Email',
+  other1_role:'Other Contact Role', other1_name:'Other Contact Name',
+  other1_phone:'Other Contact Phone', other1_email:'Other Contact Email',
+  // Store Information (includes Smoke and Burns + LPP Training)
+  penetration_pct:'Penetration %', penetration_pct_notes:'Penetration % Notes',
+  mpi:'MPI', mpi_notes:'MPI Notes',
+  menus_paper:'Menus (Paper)', menus_paper_notes:'Menus (Paper) Notes',
+  menus_vma:'Menus (VMA)', menus_vma_notes:'Menus (VMA) Notes',
+  smoke_burns:'Smoke and Burns', smoke_burns_notes:'Smoke and Burns Notes',
+  contest_promo:'Contest / Promo', contest_promo_notes:'Contest / Promo Notes',
+  pop_materials:'POP Materials', pop_materials_notes:'POP Materials Notes',
+  lpp_training:'LPP Training', lpp_training_notes:'LPP Training Notes',
+  bg_advisor_app:'BG Advisor / Tech App', bg_advisor_app_notes:'BG Advisor / Tech App Notes',
+  machine_demo:'Machine / Tool Demo', machine_demo_notes:'Machine / Tool Demo Notes',
+  bg_op_code:'BG Op Code Up-to-date', bg_op_code_notes:'BG Op Code Up-to-date Notes',
+  bdc:'BDC', bdc_notes:'BDC Notes',
+  role_play:'Role-Play', role_play_notes:'Role-Play Notes',
+  claims:'Claims', claims_notes:'Claims Notes',
+  hyperbi:'HyperBI', hyperbi_notes:'HyperBI Notes',
+};
+// Product Information fields (Carrying / Profile Pricing / Training / Part# / Notes / Status)
+// generated per BG product so the full Carrying/Pricing/Training/PartNumber/Notes/Status
+// set is tracked without hand-writing 84 entries.
+BG_PRODUCTS.forEach(function(p){
+  TRACKED_FIELDS[p.key+'_status']          = p.label + ' — Status';
+  TRACKED_FIELDS[p.key+'_carrying']        = p.label + ' — Carrying';
+  TRACKED_FIELDS[p.key+'_profile_pricing'] = p.label + ' — Profile Pricing';
+  TRACKED_FIELDS[p.key+'_training']        = p.label + ' — Training Performed';
+  TRACKED_FIELDS[p.key+'_part_number']     = p.label + ' — Part Number';
+  TRACKED_FIELDS[p.key+'_part_notes']      = p.label + ' — Notes';
+});
 
 let gapiReady=false, gisReady=false, tokenClient;
-let allAccounts=[], allVisits=[], sheetRowMap={};
+let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={};
 let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
+let recapTerritory='', recapStart='', recapEnd='';
 
 // ── Wire up all buttons via addEventListener — no inline onclick ──────────────
 document.addEventListener('DOMContentLoaded', function() {
@@ -467,6 +550,9 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitModalClose').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitCancelBtn').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitSaveBtn').addEventListener('click', saveVisit);
+  document.getElementById('weeklyRecapBtn').addEventListener('click', openWeeklyRecap);
+  document.getElementById('recapBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('recapRunBtn').addEventListener('click', runWeeklyRecap);
 });
 
 function doSignIn() {
@@ -538,17 +624,70 @@ async function fetchData() {
   try {
     var results = await Promise.all([
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FG'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:I'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
     ]);
     var accRows = results[0].result.values || [];
     var visRows = results[1].result.values || [];
+    var clRows  = results[2].result.values || [];
     sheetRowMap = {};
     accRows.forEach(function(r,i){ if(r[0]) sheetRowMap[r[0]] = i+1; });
     allAccounts = accRows.slice(1).filter(function(r){ return r[COL.territory]===currentTerritory; }).map(rowToAcc);
+
+    visitRowMap = {};
+    visRows.forEach(function(r,i){ if(r[0]) visitRowMap[r[0]] = i+1; });
     allVisits = visRows.slice(1).filter(function(r){ return r[VCOL.territory]===currentTerritory; }).map(function(r){
-      return { visit_id:r[0]||'', account_id:r[1]||'', visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'', followup_notes:r[8]||'' };
+      return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+               visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
+               followup_notes:r[8]||'', is_highlight:r[9]||'' };
+    });
+
+    // Change Log isn't filtered by territory here since the Weekly Recap can
+    // span All Territories; filtering happens at render time instead.
+    allChangeLog = clRows.slice(1).map(function(r){
+      return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+               field_key:r[4]||'', field_label:r[5]||'', old_value:r[6]||'', new_value:r[7]||'' };
     });
   } catch(e) { showToast('Error loading data','error'); console.error(e); }
+}
+
+// Appends a single row to the Change Log sheet. Timestamp is time-of-save —
+// per direction, field changes are administrative and don't need backdating
+// (only Visit Log entries carry a rep-editable date, since reps may log a
+// whole week of visits in one sitting and the visit_date must reflect when
+// the visit actually happened, not when it was typed in).
+async function logFieldChange(account, fieldKey, oldVal, newVal) {
+  var label = TRACKED_FIELDS[fieldKey];
+  if (!label) return;            // not a tracked field — skip silently
+  if ((oldVal||'') === (newVal||'')) return;  // no actual change — skip
+  var row = [
+    new Date().toISOString(), account.account_id, account.business_name,
+    account.territory||currentTerritory, fieldKey, label, oldVal||'', newVal||''
+  ];
+  try {
+    await gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID, range: 'Change Log!A:H',
+      valueInputOption: 'RAW', resource: {values:[row]}
+    });
+    allChangeLog.push({
+      timestamp: row[0], account_id: row[1], account_name: row[2], territory: row[3],
+      field_key: row[4], field_label: row[5], old_value: row[6], new_value: row[7]
+    });
+  } catch(e) { console.error('Error writing change log', e); }
+}
+
+// Compares two snapshots of an account (before/after edit) across every
+// TRACKED_FIELDS key and logs one Change Log row per field that actually
+// changed. Used by saveAccount so personnel/Store Info edits get captured
+// without having to hand-list fields at every call site.
+async function logChangedFields(before, after) {
+  var keys = Object.keys(TRACKED_FIELDS);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if ((before[k]||'') !== (after[k]||'')) {
+      await logFieldChange(after, k, before[k], after[k]);
+    }
+  }
 }
 
 function rowToAcc(r) {
@@ -730,16 +869,23 @@ function renderDetail() {
 
   html += '<div class="visit-card"><div class="visit-card-header"><span>📅 Visit Log</span><span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+'</span></div>'+
     (!visits.length?'<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged yet.</div>':'')+
-    recent.map(function(v){ return '<div class="visit-entry"><div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div><div class="visit-notes">'+esc(v.notes||'—')+'</div>'+(v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+'</div>'; }).join('');
+    recent.map(renderVisitEntry).join('');
 
   if (more.length) {
     html += '<div id="moreVisits" style="display:none">'+
-      more.map(function(v){ return '<div class="visit-entry"><div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div><div class="visit-notes">'+esc(v.notes||'—')+'</div></div>'; }).join('')+
+      more.map(renderVisitEntry).join('')+
       '</div><button class="expand-btn" id="expandBtn">Show '+more.length+' more visit'+(more.length!==1?'s':'')+'</button>';
   }
   html += '</div>';
 
   document.getElementById('detailContent').innerHTML = html;
+
+  document.querySelectorAll('.visit-star-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      toggleVisitHighlight(btn.dataset.vid);
+    });
+  });
 
   // Wire up detail buttons
   var eb = document.getElementById('editBtn'); if(eb) eb.addEventListener('click', openEditModal);
@@ -775,6 +921,7 @@ function renderDetail() {
 
 async function saveProductStatus(pkey, status) {
   var a = currentAccount;
+  var oldStatus = a[pkey+'_status'];
   a[pkey+'_status'] = status;
   var rowNum = sheetRowMap[a.account_id];
   if (rowNum) {
@@ -783,6 +930,7 @@ async function saveProductStatus(pkey, status) {
         spreadsheetId: SHEET_ID, range: 'Accounts!'+colLetter(COL[pkey+'_status'])+rowNum,
         valueInputOption: 'RAW', resource: {values: [[status]]}
       });
+      await logFieldChange(a, pkey+'_status', oldStatus, status);
       showToast('Updated ✓');
     } catch(e) { showToast('Error saving','error'); console.error(e); }
   }
@@ -794,6 +942,11 @@ async function saveProductStatus(pkey, status) {
 
 async function saveProductDetails(pkey) {
   var a = currentAccount;
+  var before = {
+    carrying: a[pkey+'_carrying'], pricing: a[pkey+'_profile_pricing'],
+    training: a[pkey+'_training'], partNum: a[pkey+'_part_number'],
+    partNotes: a[pkey+'_part_notes'], status: a[pkey+'_status']
+  };
   var carrying = document.getElementById('pf_'+pkey+'_carrying').value;
   var pricing  = document.getElementById('pf_'+pkey+'_profile_pricing').value;
   var training = document.getElementById('pf_'+pkey+'_training').value;
@@ -823,12 +976,197 @@ async function saveProductDetails(pkey) {
       await gapi.client.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SHEET_ID, resource: { valueInputOption: 'RAW', data: data }
       });
+      await logFieldChange(a, pkey+'_carrying',        before.carrying,  carrying);
+      await logFieldChange(a, pkey+'_profile_pricing', before.pricing,   pricing);
+      await logFieldChange(a, pkey+'_training',        before.training,  training);
+      await logFieldChange(a, pkey+'_part_number',     before.partNum,   partNum);
+      await logFieldChange(a, pkey+'_part_notes',      before.partNotes, partNotes);
+      await logFieldChange(a, pkey+'_status',          before.status,    a[pkey+'_status']);
       showToast('Product info saved ✓');
     } catch(e) { showToast('Error saving','error'); console.error(e); }
   }
   renderDetail();
   var row = document.querySelector('.product-row[data-pkey="'+pkey+'"]');
   if (row) row.classList.add('expanded');
+}
+
+function renderVisitEntry(v) {
+  var isStar = (v.is_highlight||'').toLowerCase() === 'yes';
+  return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
+    '<div class="visit-entry-top">'+
+      '<div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div>'+
+      '<button type="button" class="visit-star-btn'+(isStar?' starred':'')+'" data-vid="'+v.visit_id+'" title="'+(isStar?'Remove highlight':'Mark as key event')+'">'+(isStar?'⭐':'☆')+'</button>'+
+    '</div>'+
+    '<div class="visit-notes">'+esc(v.notes||'—')+'</div>'+
+    (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
+  '</div>';
+}
+
+async function toggleVisitHighlight(vid) {
+  var v = allVisits.find(function(x){ return x.visit_id===vid; });
+  if (!v) return;
+  var newVal = (v.is_highlight||'').toLowerCase()==='yes' ? '' : 'Yes';
+  v.is_highlight = newVal;
+  var rowNum = visitRowMap[vid];
+  if (rowNum) {
+    try {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID, range: 'Visits!J'+rowNum,
+        valueInputOption: 'RAW', resource: {values: [[newVal]]}
+      });
+    } catch(e) { showToast('Error updating highlight','error'); console.error(e); }
+  }
+  renderDetail();
+}
+
+// ── Weekly Recap ────────────────────────────────────────────────────────────
+const ALL_TERRITORIES = ['Route 101','Route 102','Route 105','Route 111','Route 112',
+                          'Route 135','Route 137','Route 141','Route 143','Route 147'];
+
+function defaultLastWeekRange() {
+  // "Last week" = the most recently completed Mon–Sun.
+  var now = new Date();
+  var day = now.getDay();                 // 0=Sun..6=Sat
+  var diffToMonday = (day===0 ? 6 : day-1);
+  var thisMonday = new Date(now); thisMonday.setHours(0,0,0,0);
+  thisMonday.setDate(now.getDate() - diffToMonday);
+  var lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate()-7);
+  var lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate()-1);
+  function toISO(d){ return d.toISOString().split('T')[0]; }
+  return { start: toISO(lastMonday), end: toISO(lastSunday) };
+}
+
+function openWeeklyRecap() {
+  var sel = document.getElementById('recapTerritorySelect');
+  if (sel.options.length <= 1) {
+    ALL_TERRITORIES.forEach(function(t){
+      var opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      sel.appendChild(opt);
+    });
+  }
+  sel.value = currentTerritory || 'ALL';
+  var range = defaultLastWeekRange();
+  document.getElementById('recapStartDate').value = range.start;
+  document.getElementById('recapEndDate').value = range.end;
+  showScreen('screenRecap');
+  runWeeklyRecap();
+}
+
+async function runWeeklyRecap() {
+  var territory = document.getElementById('recapTerritorySelect').value;
+  var start = document.getElementById('recapStartDate').value;
+  var end   = document.getElementById('recapEndDate').value;
+  if (!start || !end) { showToast('Please select a date range','error'); return; }
+
+  document.getElementById('recapContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading recap...</div>';
+
+  try {
+    var changeRows, visitRows;
+    if (territory === currentTerritory) {
+      // Already have it loaded for the active territory session.
+      changeRows = allChangeLog;
+      visitRows  = allVisits;
+    } else {
+      // Pull fresh — either a different single territory or All Territories.
+      var results = await Promise.all([
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
+      ]);
+      var visRaw = results[0].result.values || [];
+      var clRaw  = results[1].result.values || [];
+      visitRows = visRaw.slice(1).map(function(r){
+        return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+                 visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
+                 followup_notes:r[8]||'', is_highlight:r[9]||'' };
+      });
+      changeRows = clRaw.slice(1).map(function(r){
+        return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+                 field_key:r[4]||'', field_label:r[5]||'', old_value:r[6]||'', new_value:r[7]||'' };
+      });
+    }
+  } catch(e) {
+    document.getElementById('recapContent').innerHTML = '<div class="empty-state">Error loading recap data.</div>';
+    console.error(e); return;
+  }
+
+  var inRange = function(dateStr){
+    if (!dateStr) return false;
+    var d = dateStr.split('T')[0];   // handles both plain dates and ISO timestamps
+    return d >= start && d <= end;
+  };
+  var inTerritory = function(t){ return territory==='ALL' || t===territory; };
+
+  var changesInRange = changeRows.filter(function(c){ return inTerritory(c.territory) && inRange(c.timestamp); });
+  var visitsInRange   = visitRows.filter(function(v){ return inTerritory(v.territory) && inRange(v.visit_date); });
+
+  // Sort: highlighted visits first, then by date descending.
+  visitsInRange.sort(function(a,b){
+    var ah = (a.is_highlight||'').toLowerCase()==='yes', bh=(b.is_highlight||'').toLowerCase()==='yes';
+    if (ah !== bh) return ah ? -1 : 1;
+    return (b.visit_date||'').localeCompare(a.visit_date||'');
+  });
+  changesInRange.sort(function(a,b){ return (b.timestamp||'').localeCompare(a.timestamp||''); });
+
+  renderWeeklyRecap(changesInRange, visitsInRange, start, end, territory);
+}
+
+function renderWeeklyRecap(changes, visits, start, end, territory) {
+  var fmtDate = function(s){
+    if (!s) return '';
+    var parts = s.split('T')[0].split('-');
+    return parts[1]+'/'+parts[2]+'/'+parts[0];
+  };
+
+  var html = '<div class="card" style="margin-bottom:16px">'+
+    '<div class="card-header">📋 Key Field Changes ('+fmtDate(start)+' – '+fmtDate(end)+')'+
+    (territory==='ALL'?' — All Territories':' — '+territory)+
+    '<span style="float:right;font-weight:400;opacity:0.7">'+changes.length+' change'+(changes.length!==1?'s':'')+'</span></div>'+
+    '<div class="card-body" style="padding:0">';
+
+  if (!changes.length) {
+    html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No tracked field changes in this period.</div>';
+  } else {
+    html += changes.map(function(c){
+      var ts = c.timestamp ? c.timestamp.split('T')[0] : '';
+      return '<div class="field-row" style="padding:10px 16px;align-items:flex-start">'+
+        '<div style="width:90px;flex-shrink:0;font-size:11px;color:var(--gray-3);padding-top:1px">'+fmtDate(ts)+
+        (territory==='ALL'?'<div style="color:var(--gold);font-weight:600;margin-top:2px">'+esc(c.territory)+'</div>':'')+'</div>'+
+        '<div style="flex:1">'+
+          '<div style="font-weight:600;font-size:13px">'+esc(c.account_name)+' <span style="color:var(--gray-3);font-weight:400">— '+esc(c.field_label)+'</span></div>'+
+          '<div style="font-size:12px;color:var(--gray-4);margin-top:2px">'+
+            (c.old_value?'<span style="color:var(--gray-3);text-decoration:line-through">'+esc(c.old_value)+'</span> → ':'')+
+            '<span style="color:var(--white)">'+(esc(c.new_value)||'<em style="color:var(--gray-3)">cleared</em>')+'</span>'+
+          '</div>'+
+        '</div></div>';
+    }).join('');
+  }
+  html += '</div></div>';
+
+  var highlightCount = visits.filter(function(v){ return (v.is_highlight||'').toLowerCase()==='yes'; }).length;
+  html += '<div class="visit-card">'+
+    '<div class="visit-card-header"><span>📅 Visit Log ('+fmtDate(start)+' – '+fmtDate(end)+')</span>'+
+    '<span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+(highlightCount?' · '+highlightCount+' highlighted':'')+'</span></div>';
+
+  if (!visits.length) {
+    html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged in this period.</div>';
+  } else {
+    html += visits.map(function(v){
+      var isStar = (v.is_highlight||'').toLowerCase()==='yes';
+      return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
+        '<div class="visit-entry-top">'+
+          '<div class="visit-date">'+(isStar?'⭐ ':'')+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+
+          (territory==='ALL'?' <span style="color:var(--gold)">· '+esc(v.territory)+'</span>':'')+'</div>'+
+        '</div>'+
+        '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+'</div>'+
+        '<div class="visit-notes" style="margin-top:4px">'+esc(v.notes||'—')+'</div>'+
+        (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
+      '</div>';
+    }).join('');
+  }
+  html += '</div>';
+
+  document.getElementById('recapContent').innerHTML = html;
 }
 
 function toggleVisits() {
@@ -924,6 +1262,7 @@ function selectRating(n) {
 
 function openEditModal() {
   var a = currentAccount;
+  window._editSnapshot = Object.assign({}, a);   // before-state for change-log diffing on save
   document.getElementById('editModalTitle').textContent = a.business_name || 'New Account';
   selectedRating = a.rating ? parseInt(a.rating) : null;
   document.getElementById('editModalBody').innerHTML =
@@ -1014,6 +1353,7 @@ function collectEditFields() {
 }
 
 async function saveAccount() {
+  var before = window._editSnapshot || {};
   collectEditFields();
   var rowNum = sheetRowMap[currentAccount.account_id];
   if (!rowNum) { showToast('Row not found','error'); return; }
@@ -1023,6 +1363,7 @@ async function saveAccount() {
       spreadsheetId:SHEET_ID, range:'Accounts!A'+rowNum,
       valueInputOption:'RAW', resource:{values:[vals]}
     });
+    await logChangedFields(before, currentAccount);
     showToast('Saved ✓'); closeModal('modalEdit'); selectedRating=null; renderDetail();
   } catch(e) { showToast('Error saving','error'); console.error(e); }
 }
@@ -1060,19 +1401,24 @@ async function saveVisit() {
   var notes  = document.getElementById('visitNotes').value;
   var fu     = document.getElementById('visitFollowup').value;
   var fuN    = document.getElementById('visitFollowupNotes').value;
+  var hl     = document.getElementById('visitHighlight').checked ? 'Yes' : '';
   if (!notes) { showToast('Please add visit notes','error'); return; }
   var vid = 'VIS'+Date.now();
   try {
-    await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Visits!A:I',
-      valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN]]}
+    var appendRes = await gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId:SHEET_ID, range:'Visits!A:J',
+      valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN,hl]]}
     });
+    var newRange = appendRes.result.updates.updatedRange;
+    var visitRowNum = parseInt(newRange.match(/\d+/)[0]);
+    visitRowMap[vid] = visitRowNum;
+
     var rowNum = sheetRowMap[a.account_id];
     if (rowNum) {
       if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
       if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
     }
-    allVisits.push({visit_id:vid,account_id:a.account_id,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN});
+    allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
   } catch(e) { showToast('Error logging visit','error'); console.error(e); }
 }
