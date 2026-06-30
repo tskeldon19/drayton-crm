@@ -95,6 +95,18 @@
   .territory-bar .stat .num { font-size: 24px; font-weight: 700; color: var(--gold); }
   .territory-bar .stat .lbl { font-size: 11px; color: var(--gray-3); }
 
+  .metric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .metric-card {
+    flex: 1; min-width: 130px; background: var(--black-soft); border: 1px solid var(--gray-1);
+    border-radius: 8px; padding: 12px 14px; cursor: pointer; text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .metric-card:hover { border-color: var(--gold); background: var(--black); }
+  .metric-card .metric-num { font-size: 22px; font-weight: 700; color: var(--gold); }
+  .metric-card .metric-lbl { font-size: 11px; color: var(--gray-3); margin-top: 2px; line-height: 1.3; }
+  .metric-card.alert .metric-num { color: #d47070; }
+  .metric-card.warn  .metric-num { color: #d4ac0d; }
+
   .tab-row { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--gray-1); }
   .tab { padding: 10px 20px; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--gray-3); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
   .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
@@ -323,6 +335,23 @@
       </div>
       <button class="btn btn-primary btn-sm" id="weeklyRecapBtn">📊 Weekly Recap</button>
     </div>
+    <div class="metric-row" id="metricRow">
+      <button type="button" class="metric-card" id="metricYtdConversions" data-metric="ytd_conversions">
+        <div class="metric-num">—</div><div class="metric-lbl">Converted YTD</div>
+      </button>
+      <button type="button" class="metric-card" id="metricOverdueFollowups" data-metric="overdue_followups">
+        <div class="metric-num">—</div><div class="metric-lbl">Overdue Follow-Ups</div>
+      </button>
+      <button type="button" class="metric-card" id="metricNewThisMonth" data-metric="new_this_month">
+        <div class="metric-num">—</div><div class="metric-lbl">New This Month</div>
+      </button>
+      <button type="button" class="metric-card" id="metricUnconfirmed" data-metric="unconfirmed_products">
+        <div class="metric-num">—</div><div class="metric-lbl">Discussed, Not Confirmed</div>
+      </button>
+      <button type="button" class="metric-card" id="metricStale" data-metric="stale_prospects">
+        <div class="metric-num">—</div><div class="metric-lbl">Stale Prospects (<span id="staleThresholdLbl">90</span>+ days)</div>
+      </button>
+    </div>
     <div class="tab-row">
       <button class="tab active" id="tabProspect">🔍 Prospective</button>
       <button class="tab" id="tabActive">✅ Active Clients</button>
@@ -385,8 +414,24 @@
         <span class="search-icon">🔍</span>
         <input type="text" id="recapSearchInput" placeholder="Search by keyword, account name, or town...">
       </div>
+      <label class="product-check" style="white-space:nowrap" id="conversionsOnlyLabel">
+        <input type="checkbox" id="conversionsOnlyToggle">🎉 Conversions only
+      </label>
     </div>
     <div id="recapContent"><div class="loading"><div class="spinner"></div>Loading recap...</div></div>
+  </div>
+</div>
+
+<div class="screen" id="screenMetricFilter">
+  <div class="account-detail">
+    <button class="back-btn" id="metricBackBtn">← Back to dashboard</button>
+    <div class="detail-header">
+      <div>
+        <h2 id="metricFilterTitle">Filtered Accounts</h2>
+        <div class="meta" id="metricFilterSubtitle"></div>
+      </div>
+    </div>
+    <div id="metricFilterList" class="account-list"></div>
   </div>
 </div>
 
@@ -584,10 +629,15 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('recapBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('recapRunBtn').addEventListener('click', runWeeklyRecap);
   document.getElementById('recapSearchInput').addEventListener('input', applyRecapSearch);
+  document.getElementById('conversionsOnlyToggle').addEventListener('change', applyRecapSearch);
   document.getElementById('recapStartDate').addEventListener('change', clearRecapPresetActive);
   document.getElementById('recapEndDate').addEventListener('change', clearRecapPresetActive);
   document.querySelectorAll('.preset-btn').forEach(function(btn){
     btn.addEventListener('click', function(){ applyRecapPreset(btn.dataset.preset); });
+  });
+  document.getElementById('metricBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.querySelectorAll('.metric-card').forEach(function(card){
+    card.addEventListener('click', function(){ openMetricFilter(card.dataset.metric); });
   });
 });
 
@@ -732,13 +782,169 @@ function rowToAcc(r) {
   return o;
 }
 
+var staleThresholdDays = 90;   // default per user direction; adjustable via prompt on the metric card
+
+function daysAgo(dateStr) {
+  if (!dateStr) return null;
+  var d = new Date(dateStr.split('T')[0]);
+  if (isNaN(d.getTime())) return null;
+  var now = new Date(); now.setHours(0,0,0,0);
+  return Math.floor((now - d) / 86400000);
+}
+
+function thisMonthKey() {
+  var n = new Date();
+  return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
+}
+function thisYear() { return new Date().getFullYear(); }
+
+function computeMetrics() {
+  var todayKey = thisMonthKey();
+  var yr = thisYear();
+  // Dashboard metrics are scoped to the currently loaded territory — the
+  // full unfiltered allChangeLog is reserved for the Weekly Recap's
+  // All Territories view.
+  var territoryChanges = allChangeLog.filter(function(c){ return c.territory===currentTerritory; });
+
+  // YTD Conversions — from Change Log, status changes to 'active' this year.
+  var conversions = territoryChanges.filter(function(c){
+    return c.field_key==='status' && (c.new_value||'').toLowerCase()==='active' &&
+           c.timestamp && new Date(c.timestamp).getFullYear()===yr;
+  });
+  var conversionIds = {};
+  conversions.forEach(function(c){ conversionIds[c.account_id]=true; });
+
+  // Overdue Follow-Ups — active/prospect accounts with next_followup in the past.
+  var overdue = allAccounts.filter(function(a){
+    if (a.status==='deleted' || a.status==='disqualified') return false;
+    if (!a.next_followup) return false;
+    var d = daysAgo(a.next_followup);
+    return d !== null && d > 0;
+  });
+
+  // New This Month — accounts created (status set from blank) this calendar month.
+  var newThisMonth = territoryChanges.filter(function(c){
+    return c.field_key==='status' && (c.old_value||'')==='' &&
+           c.timestamp && c.timestamp.slice(0,7)===todayKey;
+  });
+  var newIds = {};
+  newThisMonth.forEach(function(c){ newIds[c.account_id]=true; });
+
+  // Discussed, Not Confirmed — active accounts with any product at yellow status.
+  var unconfirmedAccounts = allAccounts.filter(function(a){
+    if (a.status !== 'active') return false;
+    return BG_PRODUCTS.some(function(p){ return a[p.key+'_status']==='yellow'; });
+  });
+
+  // Stale Prospects — prospects with no visit in N+ days (or never visited at all).
+  var staleAccounts = allAccounts.filter(function(a){
+    if (a.status !== 'prospect') return false;
+    if (!a.last_visit) return true;   // never visited at all counts as stale
+    var d = daysAgo(a.last_visit);
+    return d !== null && d >= staleThresholdDays;
+  });
+
+  return {
+    conversionIds: conversionIds, conversionCount: Object.keys(conversionIds).length,
+    overdue: overdue,
+    newIds: newIds, newCount: Object.keys(newIds).length,
+    unconfirmedAccounts: unconfirmedAccounts,
+    staleAccounts: staleAccounts
+  };
+}
+
 function updateStats() {
   var active   = allAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allAccounts.filter(function(a){ return a.status==='prospect'; }).length;
-  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted'; }).length;
+  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; }).length;
   document.getElementById('statActive').textContent   = active;
   document.getElementById('statProspect').textContent = prospect;
   document.getElementById('statHot').textContent      = hot;
+
+  var m = computeMetrics();
+  window._dashboardMetrics = m;   // cached for openMetricFilter
+
+  document.getElementById('metricYtdConversions').querySelector('.metric-num').textContent = m.conversionCount;
+  document.getElementById('metricOverdueFollowups').querySelector('.metric-num').textContent = m.overdue.length;
+  document.getElementById('metricOverdueFollowups').classList.toggle('alert', m.overdue.length > 0);
+  document.getElementById('metricNewThisMonth').querySelector('.metric-num').textContent = m.newCount;
+  document.getElementById('metricUnconfirmed').querySelector('.metric-num').textContent = m.unconfirmedAccounts.length;
+  document.getElementById('metricUnconfirmed').classList.toggle('warn', m.unconfirmedAccounts.length > 0);
+  document.getElementById('metricStale').querySelector('.metric-num').textContent = m.staleAccounts.length;
+  document.getElementById('metricStale').classList.toggle('warn', m.staleAccounts.length > 0);
+  document.getElementById('staleThresholdLbl').textContent = staleThresholdDays;
+}
+
+function openMetricFilter(metricKey) {
+  var m = window._dashboardMetrics;
+  if (!m) return;
+
+  if (metricKey === 'stale_prospects') {
+    var custom = prompt('Show prospects with no visit in this many days or more:', staleThresholdDays);
+    if (custom !== null && custom.trim() !== '' && !isNaN(parseInt(custom))) {
+      staleThresholdDays = Math.max(1, parseInt(custom));
+      updateStats();
+      m = window._dashboardMetrics;
+    }
+  }
+
+  var title, subtitle, accounts;
+  if (metricKey === 'ytd_conversions') {
+    title = 'Converted to Active — Year to Date';
+    subtitle = Object.keys(m.conversionIds).length + ' account'+(Object.keys(m.conversionIds).length!==1?'s':'')+' converted in '+thisYear();
+    accounts = allAccounts.filter(function(a){ return m.conversionIds[a.account_id]; });
+  } else if (metricKey === 'overdue_followups') {
+    title = 'Overdue Follow-Ups';
+    subtitle = m.overdue.length + ' account'+(m.overdue.length!==1?'s':'')+' past their follow-up date';
+    accounts = m.overdue.slice().sort(function(a,b){ return (a.next_followup||'').localeCompare(b.next_followup||''); });
+  } else if (metricKey === 'new_this_month') {
+    title = 'New Accounts This Month';
+    subtitle = Object.keys(m.newIds).length + ' account'+(Object.keys(m.newIds).length!==1?'s':'')+' added this calendar month';
+    accounts = allAccounts.filter(function(a){ return m.newIds[a.account_id]; });
+  } else if (metricKey === 'unconfirmed_products') {
+    title = 'Products Discussed, Not Confirmed';
+    subtitle = m.unconfirmedAccounts.length + ' active account'+(m.unconfirmedAccounts.length!==1?'s':'')+' with at least one product still at "Discussed" status';
+    accounts = m.unconfirmedAccounts;
+  } else if (metricKey === 'stale_prospects') {
+    title = 'Stale Prospects';
+    subtitle = m.staleAccounts.length + ' prospect'+(m.staleAccounts.length!==1?'s':'')+' with no visit in '+staleThresholdDays+'+ days (or never visited)';
+    accounts = m.staleAccounts;
+  } else { return; }
+
+  document.getElementById('metricFilterTitle').textContent = title;
+  document.getElementById('metricFilterSubtitle').textContent = subtitle;
+  renderMetricFilterList(accounts, metricKey);
+  showScreen('screenMetricFilter');
+}
+
+function renderMetricFilterList(accounts, metricKey) {
+  var listEl = document.getElementById('metricFilterList');
+  if (!accounts.length) {
+    listEl.innerHTML = '<div class="empty-state"><div>✅</div><div style="margin-top:8px">Nothing in this category right now.</div></div>';
+    return;
+  }
+  listEl.innerHTML = accounts.map(function(a){
+    var r = parseInt(a.rating)||0;
+    var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
+    var extra = '';
+    if (metricKey === 'overdue_followups') {
+      var d = daysAgo(a.next_followup);
+      extra = '<span style="color:#d47070">Follow-up was due '+a.next_followup+' ('+d+' day'+(d!==1?'s':'')+' ago)</span>';
+    } else if (metricKey === 'stale_prospects') {
+      extra = a.last_visit ? '<span style="color:#d4ac0d">Last visit '+a.last_visit+'</span>' : '<span style="color:#d4ac0d">Never visited</span>';
+    } else if (metricKey === 'unconfirmed_products') {
+      var names = BG_PRODUCTS.filter(function(p){ return a[p.key+'_status']==='yellow'; }).map(function(p){ return p.label; });
+      extra = '<span style="color:#d4ac0d">'+names.join(', ')+'</span>';
+    }
+    return '<div class="account-row" data-id="'+a.account_id+'">'+
+      '<div><div class="name">'+a.business_name+'</div>'+
+      '<div class="meta">'+[a.town,a.state].filter(Boolean).join(', ')+(extra?' · '+extra:'')+'</div></div>'+
+      '<div class="right"><span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+a.status+'</span>'+
+      '<div class="rating-badge '+rc+'">'+(r||'—')+'</div></div></div>';
+  }).join('');
+  document.querySelectorAll('#metricFilterList .account-row').forEach(function(el){
+    el.addEventListener('click', function(){ openAccount(this.dataset.id); });
+  });
 }
 
 function switchTab(tab) {
@@ -795,21 +1001,26 @@ function renderDetail() {
   var visits = allVisits.filter(function(v){ return v.account_id===a.account_id; })
     .sort(function(x,y){ return (y.visit_date||'').localeCompare(x.visit_date||''); });
   var recent = visits.slice(0,3), more = visits.slice(3);
-  var isDeleted = a.status==='deleted', isProspect = a.status==='prospect';
+  var isDeleted = a.status==='deleted', isProspect = a.status==='prospect',
+      isActiveAcc = a.status==='active', isDisqualified = a.status==='disqualified';
+  var isHidden = isDeleted || isDisqualified;   // both states are hidden from normal lists
 
   var html = '';
   if (isDeleted) html += '<div class="deleted-banner">⚠️ This account is deleted and hidden from the dashboard. Use Edit Info to restore it.</div>';
+  if (isDisqualified) html += '<div class="deleted-banner">🚫 This lead has been disqualified and is hidden from active lists and recap counts. Use Restore to reopen it.</div>';
 
   html += '<div class="detail-header"><div><h2>'+esc(a.business_name)+'</h2><div class="meta">'+esc([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div></div>'+
     '<div class="actions">'+
-    (isProspect&&!isDeleted?'<button class="btn btn-success btn-sm" id="convertBtn">✅ Convert to Active</button>':'')+
+    (isProspect&&!isHidden?'<button class="btn btn-success btn-sm" id="convertBtn">✅ Convert to Active</button>':'')+
+    (isActiveAcc&&!isHidden?'<button class="btn btn-secondary btn-sm" id="revertBtn">↩ Revert to Prospect</button>':'')+
+    (isProspect&&!isHidden?'<button class="btn btn-secondary btn-sm" id="disqualifyBtn">🚫 Disqualify</button>':'')+
     '<button class="btn btn-primary btn-sm" id="editBtn">✏️ Edit Info</button>'+
     '<button class="btn btn-gold btn-sm" id="logVisitBtn">📋 Log Visit</button>'+
-    (!isDeleted?'<button class="btn btn-danger btn-sm" id="deleteBtn">🗑 Delete</button>':
-                '<button class="btn btn-success btn-sm" id="restoreBtn">↩ Restore</button>')+
+    (!isHidden?'<button class="btn btn-danger btn-sm" id="deleteBtn">🗑 Delete</button>':
+               '<button class="btn btn-success btn-sm" id="restoreBtn">↩ Restore</button>')+
     '</div></div>';
 
-  if (isProspect&&!isDeleted) html += '<div class="convert-banner"><span>🔍 Prospective — not yet carrying BG Products.</span><button class="btn btn-success btn-sm" id="convertBtn2">Convert to Active</button></div>';
+  if (isProspect&&!isHidden) html += '<div class="convert-banner"><span>🔍 Prospective — not yet carrying BG Products.</span><button class="btn btn-success btn-sm" id="convertBtn2">Convert to Active</button></div>';
 
   html += '<div class="cards-grid">'+
     '<div class="card"><div class="card-header">🏢 Business Information</div><div class="card-body">'+
@@ -929,6 +1140,8 @@ function renderDetail() {
   var lb = document.getElementById('logVisitBtn'); if(lb) lb.addEventListener('click', openVisitModal);
   var db = document.getElementById('deleteBtn'); if(db) db.addEventListener('click', softDelete);
   var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreAccount);
+  var rvb = document.getElementById('revertBtn'); if(rvb) rvb.addEventListener('click', revertToProspect);
+  var dqb = document.getElementById('disqualifyBtn'); if(dqb) dqb.addEventListener('click', disqualifyLead);
   var cb = document.getElementById('convertBtn'); if(cb) cb.addEventListener('click', convertToActive);
   var cb2= document.getElementById('convertBtn2'); if(cb2) cb2.addEventListener('click', convertToActive);
   var xb = document.getElementById('expandBtn'); if(xb) xb.addEventListener('click', toggleVisits);
@@ -1128,6 +1341,7 @@ function openWeeklyRecap() {
   }
   sel.value = currentTerritory || 'ALL';
   document.getElementById('recapSearchInput').value = '';
+  document.getElementById('conversionsOnlyToggle').checked = false;
   var range = presetRange('last_week');
   document.getElementById('recapStartDate').value = range.start;
   document.getElementById('recapEndDate').value = range.end;
@@ -1238,6 +1452,12 @@ function applyRecapSearch() {
   var visits  = window._recapVisits  || [];
   var meta    = window._recapMeta    || {};
   var q = (document.getElementById('recapSearchInput').value || '').toLowerCase().trim();
+  var conversionsOnly = document.getElementById('conversionsOnlyToggle').checked;
+
+  if (conversionsOnly) {
+    changes = changes.filter(function(c){ return c.is_conversion; });
+    visits = [];   // conversions-only view is about the milestone list, not visit activity
+  }
 
   if (q) {
     changes = changes.filter(function(c){
@@ -1256,10 +1476,10 @@ function applyRecapSearch() {
     });
   }
 
-  renderWeeklyRecap(changes, visits, meta.start, meta.end, meta.territory);
+  renderWeeklyRecap(changes, visits, meta.start, meta.end, meta.territory, conversionsOnly);
 }
 
-function renderWeeklyRecap(changes, visits, start, end, territory) {
+function renderWeeklyRecap(changes, visits, start, end, territory, conversionsOnly) {
   var fmtDate = function(s){
     if (!s) return '';
     var parts = s.split('T')[0].split('-');
@@ -1267,13 +1487,13 @@ function renderWeeklyRecap(changes, visits, start, end, territory) {
   };
 
   var html = '<div class="card" style="margin-bottom:16px">'+
-    '<div class="card-header">📋 Key Field Changes ('+fmtDate(start)+' – '+fmtDate(end)+')'+
+    '<div class="card-header">'+(conversionsOnly?'🎉 Conversions':'📋 Key Field Changes')+' ('+fmtDate(start)+' – '+fmtDate(end)+')'+
     (territory==='ALL'?' — All Territories':' — '+territory)+
-    '<span style="float:right;font-weight:400;opacity:0.7">'+changes.length+' change'+(changes.length!==1?'s':'')+'</span></div>'+
+    '<span style="float:right;font-weight:400;opacity:0.7">'+changes.length+(conversionsOnly?' conversion':' change')+(changes.length!==1?'s':'')+'</span></div>'+
     '<div class="card-body" style="padding:0">';
 
   if (!changes.length) {
-    html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No tracked field changes in this period.</div>';
+    html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">'+(conversionsOnly?'No conversions in this period.':'No tracked field changes in this period.')+'</div>';
   } else {
     html += changes.map(function(c){
       var ts = c.timestamp ? c.timestamp.split('T')[0] : '';
@@ -1300,30 +1520,32 @@ function renderWeeklyRecap(changes, visits, start, end, territory) {
   }
   html += '</div></div>';
 
-  var highlightCount = visits.filter(function(v){ return (v.is_highlight||'').toLowerCase()==='yes'; }).length;
-  html += '<div class="visit-card">'+
-    '<div class="visit-card-header"><span>📅 Visit Log ('+fmtDate(start)+' – '+fmtDate(end)+')</span>'+
-    '<span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+(highlightCount?' · '+highlightCount+' highlighted':'')+'</span></div>';
+  if (!conversionsOnly) {
+    var highlightCount = visits.filter(function(v){ return (v.is_highlight||'').toLowerCase()==='yes'; }).length;
+    html += '<div class="visit-card">'+
+      '<div class="visit-card-header"><span>📅 Visit Log ('+fmtDate(start)+' – '+fmtDate(end)+')</span>'+
+      '<span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+(highlightCount?' · '+highlightCount+' highlighted':'')+'</span></div>';
 
-  if (!visits.length) {
-    html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged in this period.</div>';
-  } else {
-    html += visits.map(function(v){
-      var isStar = (v.is_highlight||'').toLowerCase()==='yes';
-      var typeTag = v.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
-                  : v.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
-      return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
-        '<div class="visit-entry-top">'+
-          '<div class="visit-date">'+(isStar?'⭐ ':'')+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+
-          (territory==='ALL'?' <span style="color:var(--gold)">· '+esc(v.territory)+'</span>':'')+'</div>'+
-        '</div>'+
-        '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+typeTag+'</div>'+
-        '<div class="visit-notes" style="margin-top:4px">'+esc(v.notes||'—')+'</div>'+
-        (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
-      '</div>';
-    }).join('');
+    if (!visits.length) {
+      html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged in this period.</div>';
+    } else {
+      html += visits.map(function(v){
+        var isStar = (v.is_highlight||'').toLowerCase()==='yes';
+        var typeTag = v.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
+                    : v.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
+        return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
+          '<div class="visit-entry-top">'+
+            '<div class="visit-date">'+(isStar?'⭐ ':'')+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+
+            (territory==='ALL'?' <span style="color:var(--gold)">· '+esc(v.territory)+'</span>':'')+'</div>'+
+          '</div>'+
+          '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+typeTag+'</div>'+
+          '<div class="visit-notes" style="margin-top:4px">'+esc(v.notes||'—')+'</div>'+
+          (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
+        '</div>';
+      }).join('');
+    }
+    html += '</div>';
   }
-  html += '</div>';
 
   document.getElementById('recapContent').innerHTML = html;
 }
@@ -1354,8 +1576,24 @@ async function softDelete() {
   updateStats(); goBack();
 }
 
+async function disqualifyLead() {
+  if (!confirm('Disqualify "'+currentAccount.business_name+'"?\n\nThis marks the lead as a definite no and removes it from Stale Prospects and other recap counts, but keeps the record (and its history) so it can be reopened later if needed.')) return;
+  var a = currentAccount;
+  var before = a.status;
+  await updateStatus('disqualified');
+  await logFieldChange(a, 'status', before, 'disqualified');
+  showToast('Lead disqualified — hidden from active lists and recap counts');
+  updateStats(); goBack();
+}
+
 async function restoreAccount() {
-  var newStatus = confirm('Restore as Active Client?\nCancel to restore as Prospect.') ? 'active' : 'prospect';
+  var wasDisqualified = currentAccount.status === 'disqualified';
+  var newStatus;
+  if (wasDisqualified) {
+    newStatus = 'prospect';   // disqualified leads only ever return to Prospect
+  } else {
+    newStatus = confirm('Restore as Active Client?\nCancel to restore as Prospect.') ? 'active' : 'prospect';
+  }
   await updateStatus(newStatus);
   showToast('Account restored ✓'); updateStats(); renderDetail();
 }
@@ -1413,6 +1651,14 @@ async function convertToActive() {
   await updateStatus('active');
   await logFieldChange(a, 'status', 'prospect', 'active');
   showToast(currentAccount.business_name+' is now Active ✅'); updateStats(); renderDetail();
+}
+
+async function revertToProspect() {
+  if (!confirm('Revert "'+currentAccount.business_name+'" back to Prospect?\n\nThis only changes the account status — Product Information, Store Information, and visit history are kept as-is so nothing is lost.')) return;
+  var a = currentAccount;
+  await updateStatus('prospect');
+  await logFieldChange(a, 'status', 'active', 'prospect');
+  showToast(currentAccount.business_name+' reverted to Prospect'); updateStats(); renderDetail();
 }
 
 function selectRating(n) {
@@ -1540,6 +1786,10 @@ async function saveNewAccount() {
     var newRange = res.result.updates.updatedRange;
     var rowNum = parseInt(newRange.match(/\d+/)[0]);
     sheetRowMap[currentAccount.account_id] = rowNum;
+    // Log creation explicitly so "New This Month" has a reliable, timezone-safe
+    // signal to filter on — the account_id timestamp alone isn't human-readable
+    // and older imported accounts don't have one at all.
+    await logFieldChange(currentAccount, 'status', '', currentAccount.status);
     showToast('Account added ✓'); closeModal('modalEdit'); selectedRating=null;
     updateStats(); renderList();
   } catch(e) { showToast('Error adding account','error'); console.error(e); }
