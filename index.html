@@ -215,6 +215,7 @@
   .type-active   { background: #1a3d25; color: #5dba7d; }
   .type-prospect { background: var(--gold-dim); color: var(--gold); }
   .conversion-flag { background: #1a3d25; border: 1px solid #2a6040; border-radius: 5px; padding: 8px 12px; margin: 0 16px 10px; font-size: 12px; color: #5dba7d; font-weight: 600; }
+  .reversion-flag  { background: #3d1a1a; border: 1px solid #6b2a2a; border-radius: 5px; padding: 8px 12px; margin: 0 16px 10px; font-size: 12px; color: #d47070; font-weight: 600; }
 
   .visit-card { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
   .visit-card-header { background: var(--black); color: var(--gold); padding: 10px 16px; font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; border-bottom: 1px solid var(--gold-dim); }
@@ -346,7 +347,7 @@
         <div class="metric-num">—</div><div class="metric-lbl">New This Month</div>
       </button>
       <button type="button" class="metric-card" id="metricUnconfirmed" data-metric="unconfirmed_products">
-        <div class="metric-num">—</div><div class="metric-lbl">Discussed, Not Confirmed</div>
+        <div class="metric-num">—</div><div class="metric-lbl">Products Discussed, Not Confirmed</div>
       </button>
       <button type="button" class="metric-card" id="metricStale" data-metric="stale_prospects">
         <div class="metric-num">—</div><div class="metric-lbl">Stale Prospects (<span id="staleThresholdLbl">90</span>+ days)</div>
@@ -1419,6 +1420,9 @@ async function runWeeklyRecap() {
     // A "status" field change to "active" is a prospect→active conversion —
     // surface it distinctly in the UI rather than as a generic field edit.
     c.is_conversion = (c.field_key === 'status' && (c.new_value||'').toLowerCase() === 'active');
+    // The reverse: active→prospect is a reversion — flagged separately so
+    // management catches it the same way they catch a new conversion.
+    c.is_reversion = (c.field_key === 'status' && (c.old_value||'').toLowerCase() === 'active' && (c.new_value||'').toLowerCase() === 'prospect');
   });
   visitsInRange.forEach(function(v){
     var info = accountStatusMap[v.account_id] || {};
@@ -1432,9 +1436,10 @@ async function runWeeklyRecap() {
     if (ah !== bh) return ah ? -1 : 1;
     return (b.visit_date||'').localeCompare(a.visit_date||'');
   });
-  // Sort: conversions first (key milestone), then by timestamp descending.
+  // Sort: conversions and reversions first (key milestones), then by timestamp descending.
   changesInRange.sort(function(a,b){
-    if (a.is_conversion !== b.is_conversion) return a.is_conversion ? -1 : 1;
+    var aFlag = a.is_conversion || a.is_reversion, bFlag = b.is_conversion || b.is_reversion;
+    if (aFlag !== bFlag) return aFlag ? -1 : 1;
     return (b.timestamp||'').localeCompare(a.timestamp||'');
   });
 
@@ -1502,6 +1507,13 @@ function renderWeeklyRecap(changes, visits, start, end, territory, conversionsOn
       if (c.is_conversion) {
         return '<div class="conversion-flag" style="margin:8px 16px">'+
           '🎉 <strong>'+esc(c.account_name)+'</strong> converted from Prospect to Active'+
+          (territory==='ALL'?' <span style="opacity:0.8">('+esc(c.territory)+')</span>':'')+
+          ' — <span style="opacity:0.85">'+fmtDate(ts)+'</span>'+
+        '</div>';
+      }
+      if (c.is_reversion) {
+        return '<div class="reversion-flag" style="margin:8px 16px">'+
+          '⚠️ <strong>'+esc(c.account_name)+'</strong> reverted from Active back to Prospect'+
           (territory==='ALL'?' <span style="opacity:0.8">('+esc(c.territory)+')</span>':'')+
           ' — <span style="opacity:0.85">'+fmtDate(ts)+'</span>'+
         '</div>';
