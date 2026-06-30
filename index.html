@@ -190,6 +190,20 @@
   .status-btn.active-green  { background: #1a3d25; border-color: #5dba7d; color: #5dba7d; }
   .status-btn.active-red    { background: #3d1a1a; border-color: #d47070; color: #d47070; }
 
+  .recap-preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .preset-btn {
+    padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--gray-2);
+    background: var(--gray-1); color: var(--gray-4); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .preset-btn.active { background: var(--gold-dim); border-color: var(--gold); color: var(--gold); }
+
+  .account-type-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 6px; }
+  .type-active   { background: #1a3d25; color: #5dba7d; }
+  .type-prospect { background: var(--gold-dim); color: var(--gold); }
+  .conversion-flag { background: #1a3d25; border: 1px solid #2a6040; border-radius: 5px; padding: 8px 12px; margin: 0 16px 10px; font-size: 12px; color: #5dba7d; font-weight: 600; }
+
   .visit-card { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
   .visit-card-header { background: var(--black); color: var(--gold); padding: 10px 16px; font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; border-bottom: 1px solid var(--gold-dim); }
   .visit-entry { padding: 12px 16px; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
@@ -359,6 +373,19 @@
         <button class="btn btn-gold btn-sm" id="recapRunBtn">Run Report</button>
       </div>
     </div>
+    <div class="recap-preset-row" id="recapPresetRow">
+      <button type="button" class="preset-btn" data-preset="this_week">This Week</button>
+      <button type="button" class="preset-btn" data-preset="last_week">Last Week</button>
+      <button type="button" class="preset-btn" data-preset="this_month">This Month</button>
+      <button type="button" class="preset-btn" data-preset="last_month">Last Month</button>
+      <button type="button" class="preset-btn" data-preset="ytd">Year to Date</button>
+    </div>
+    <div class="search-row" style="margin-top:14px">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="recapSearchInput" placeholder="Search by keyword, account name, or town...">
+      </div>
+    </div>
     <div id="recapContent"><div class="loading"><div class="spinner"></div>Loading recap...</div></div>
   </div>
 </div>
@@ -496,6 +523,9 @@ const CLCOL = {timestamp:0,account_id:1,account_name:2,territory:3,field_key:4,f
 // ask; Store Information and Product Information are included too so the log
 // stays comprehensive rather than needing another retrofit later.
 const TRACKED_FIELDS = {
+  // Account lifecycle — status changes (esp. prospect→active conversions)
+  // get flagged distinctly in the Weekly Recap rather than as a generic edit.
+  status:'Account Status',
   // Personnel
   sm_name:'SM Name', sm_phone:'SM Phone', sm_email:'SM Email',
   owner_name:'Owner Name', owner_phone:'Owner Phone', owner_email:'Owner Email',
@@ -553,6 +583,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('weeklyRecapBtn').addEventListener('click', openWeeklyRecap);
   document.getElementById('recapBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('recapRunBtn').addEventListener('click', runWeeklyRecap);
+  document.getElementById('recapSearchInput').addEventListener('input', applyRecapSearch);
+  document.getElementById('recapStartDate').addEventListener('change', clearRecapPresetActive);
+  document.getElementById('recapEndDate').addEventListener('change', clearRecapPresetActive);
+  document.querySelectorAll('.preset-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ applyRecapPreset(btn.dataset.preset); });
+  });
 });
 
 function doSignIn() {
@@ -858,6 +894,7 @@ function renderDetail() {
             '</div>'+
             '<div class="product-detail-field" style="margin-bottom:10px"><label>Notes</label><input type="text" id="pf_'+p.key+'_part_notes" value="'+esc(a[p.key+'_part_notes'])+'" placeholder="Notes for this part..."></div>'+
             '<button type="button" class="btn btn-gold btn-sm" data-pkey="'+p.key+'" data-action="save-product">Save</button>'+
+            '<button type="button" class="btn btn-secondary btn-sm" data-pkey="'+p.key+'" data-action="close-product" style="margin-left:6px">Close</button>'+
           '</div>'+
         '</div>';
       }).join('')+
@@ -915,6 +952,14 @@ function renderDetail() {
     btn.addEventListener('click', function(e){
       e.stopPropagation();
       saveProductDetails(btn.dataset.pkey);
+    });
+  });
+  // Explicit close button — guaranteed way to collapse the panel back down
+  document.querySelectorAll('[data-action="close-product"]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var row = btn.closest('.product-row');
+      if (row) row.classList.remove('expanded');
     });
   });
 }
@@ -1023,17 +1068,53 @@ async function toggleVisitHighlight(vid) {
 const ALL_TERRITORIES = ['Route 101','Route 102','Route 105','Route 111','Route 112',
                           'Route 135','Route 137','Route 141','Route 143','Route 147'];
 
-function defaultLastWeekRange() {
-  // "Last week" = the most recently completed Mon–Sun.
-  var now = new Date();
-  var day = now.getDay();                 // 0=Sun..6=Sat
+function toISO(d){ return d.toISOString().split('T')[0]; }
+
+function getMonday(d) {
+  var date = new Date(d); date.setHours(0,0,0,0);
+  var day = date.getDay();                  // 0=Sun..6=Sat
   var diffToMonday = (day===0 ? 6 : day-1);
-  var thisMonday = new Date(now); thisMonday.setHours(0,0,0,0);
-  thisMonday.setDate(now.getDate() - diffToMonday);
-  var lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate()-7);
-  var lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate()-1);
-  function toISO(d){ return d.toISOString().split('T')[0]; }
-  return { start: toISO(lastMonday), end: toISO(lastSunday) };
+  date.setDate(date.getDate() - diffToMonday);
+  return date;
+}
+
+function presetRange(preset) {
+  var now = new Date();
+  if (preset === 'this_week') {
+    var mon = getMonday(now);
+    return { start: toISO(mon), end: toISO(now) };
+  }
+  if (preset === 'last_week') {
+    var thisMon = getMonday(now);
+    var lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate()-7);
+    var lastSun = new Date(thisMon); lastSun.setDate(thisMon.getDate()-1);
+    return { start: toISO(lastMon), end: toISO(lastSun) };
+  }
+  if (preset === 'this_month') {
+    var first = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: toISO(first), end: toISO(now) };
+  }
+  if (preset === 'last_month') {
+    var firstLast = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    var lastDayLast = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { start: toISO(firstLast), end: toISO(lastDayLast) };
+  }
+  if (preset === 'ytd') {
+    var jan1 = new Date(now.getFullYear(), 0, 1);
+    return { start: toISO(jan1), end: toISO(now) };
+  }
+  // Fallback — same as last_week
+  return presetRange('last_week');
+}
+
+function applyRecapPreset(preset) {
+  var range = presetRange(preset);
+  document.getElementById('recapStartDate').value = range.start;
+  document.getElementById('recapEndDate').value = range.end;
+  document.querySelectorAll('.preset-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.preset === preset);
+  });
+  runWeeklyRecap();
 }
 
 function openWeeklyRecap() {
@@ -1046,11 +1127,19 @@ function openWeeklyRecap() {
     });
   }
   sel.value = currentTerritory || 'ALL';
-  var range = defaultLastWeekRange();
+  document.getElementById('recapSearchInput').value = '';
+  var range = presetRange('last_week');
   document.getElementById('recapStartDate').value = range.start;
   document.getElementById('recapEndDate').value = range.end;
+  document.querySelectorAll('.preset-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.preset === 'last_week');
+  });
   showScreen('screenRecap');
   runWeeklyRecap();
+}
+
+function clearRecapPresetActive() {
+  document.querySelectorAll('.preset-btn').forEach(function(b){ b.classList.remove('active'); });
 }
 
 async function runWeeklyRecap() {
@@ -1062,19 +1151,23 @@ async function runWeeklyRecap() {
   document.getElementById('recapContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading recap...</div>';
 
   try {
-    var changeRows, visitRows;
-    if (territory === currentTerritory) {
+    var changeRows, visitRows, accountStatusMap;
+    if (territory === currentTerritory && allAccounts.length) {
       // Already have it loaded for the active territory session.
       changeRows = allChangeLog;
       visitRows  = allVisits;
+      accountStatusMap = {};
+      allAccounts.forEach(function(a){ accountStatusMap[a.account_id] = { status:a.status, town:a.town }; });
     } else {
       // Pull fresh — either a different single territory or All Territories.
       var results = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FG'}),
       ]);
       var visRaw = results[0].result.values || [];
       var clRaw  = results[1].result.values || [];
+      var accRaw = results[2].result.values || [];
       visitRows = visRaw.slice(1).map(function(r){
         return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
                  visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
@@ -1083,6 +1176,10 @@ async function runWeeklyRecap() {
       changeRows = clRaw.slice(1).map(function(r){
         return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
                  field_key:r[4]||'', field_label:r[5]||'', old_value:r[6]||'', new_value:r[7]||'' };
+      });
+      accountStatusMap = {};
+      accRaw.slice(1).forEach(function(r){
+        if (r[0]) accountStatusMap[r[0]] = { status: r[COL.status]||'', town: r[COL.town]||'' };
       });
     }
   } catch(e) {
@@ -1100,15 +1197,66 @@ async function runWeeklyRecap() {
   var changesInRange = changeRows.filter(function(c){ return inTerritory(c.territory) && inRange(c.timestamp); });
   var visitsInRange   = visitRows.filter(function(v){ return inTerritory(v.territory) && inRange(v.visit_date); });
 
+  // Attach current account status + town for the type tag and search.
+  changesInRange.forEach(function(c){
+    var info = accountStatusMap[c.account_id] || {};
+    c.account_status = info.status || '';
+    c.account_town = info.town || '';
+    // A "status" field change to "active" is a prospect→active conversion —
+    // surface it distinctly in the UI rather than as a generic field edit.
+    c.is_conversion = (c.field_key === 'status' && (c.new_value||'').toLowerCase() === 'active');
+  });
+  visitsInRange.forEach(function(v){
+    var info = accountStatusMap[v.account_id] || {};
+    v.account_status = info.status || '';
+    v.account_town = info.town || '';
+  });
+
   // Sort: highlighted visits first, then by date descending.
   visitsInRange.sort(function(a,b){
     var ah = (a.is_highlight||'').toLowerCase()==='yes', bh=(b.is_highlight||'').toLowerCase()==='yes';
     if (ah !== bh) return ah ? -1 : 1;
     return (b.visit_date||'').localeCompare(a.visit_date||'');
   });
-  changesInRange.sort(function(a,b){ return (b.timestamp||'').localeCompare(a.timestamp||''); });
+  // Sort: conversions first (key milestone), then by timestamp descending.
+  changesInRange.sort(function(a,b){
+    if (a.is_conversion !== b.is_conversion) return a.is_conversion ? -1 : 1;
+    return (b.timestamp||'').localeCompare(a.timestamp||'');
+  });
 
-  renderWeeklyRecap(changesInRange, visitsInRange, start, end, territory);
+  // Cache full unfiltered result sets so the search box can re-filter
+  // instantly without another round-trip to the sheet.
+  window._recapChanges = changesInRange;
+  window._recapVisits  = visitsInRange;
+  window._recapMeta    = { start: start, end: end, territory: territory };
+
+  applyRecapSearch();
+}
+
+function applyRecapSearch() {
+  var changes = window._recapChanges || [];
+  var visits  = window._recapVisits  || [];
+  var meta    = window._recapMeta    || {};
+  var q = (document.getElementById('recapSearchInput').value || '').toLowerCase().trim();
+
+  if (q) {
+    changes = changes.filter(function(c){
+      return c.account_name.toLowerCase().includes(q) ||
+             c.account_town.toLowerCase().includes(q) ||
+             c.field_label.toLowerCase().includes(q) ||
+             c.old_value.toLowerCase().includes(q) ||
+             c.new_value.toLowerCase().includes(q);
+    });
+    visits = visits.filter(function(v){
+      return v.account_name.toLowerCase().includes(q) ||
+             v.account_town.toLowerCase().includes(q) ||
+             v.notes.toLowerCase().includes(q) ||
+             v.attendees.toLowerCase().includes(q) ||
+             (v.followup_notes||'').toLowerCase().includes(q);
+    });
+  }
+
+  renderWeeklyRecap(changes, visits, meta.start, meta.end, meta.territory);
 }
 
 function renderWeeklyRecap(changes, visits, start, end, territory) {
@@ -1129,11 +1277,20 @@ function renderWeeklyRecap(changes, visits, start, end, territory) {
   } else {
     html += changes.map(function(c){
       var ts = c.timestamp ? c.timestamp.split('T')[0] : '';
+      var typeTag = c.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
+                  : c.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
+      if (c.is_conversion) {
+        return '<div class="conversion-flag" style="margin:8px 16px">'+
+          '🎉 <strong>'+esc(c.account_name)+'</strong> converted from Prospect to Active'+
+          (territory==='ALL'?' <span style="opacity:0.8">('+esc(c.territory)+')</span>':'')+
+          ' — <span style="opacity:0.85">'+fmtDate(ts)+'</span>'+
+        '</div>';
+      }
       return '<div class="field-row" style="padding:10px 16px;align-items:flex-start">'+
         '<div style="width:90px;flex-shrink:0;font-size:11px;color:var(--gray-3);padding-top:1px">'+fmtDate(ts)+
         (territory==='ALL'?'<div style="color:var(--gold);font-weight:600;margin-top:2px">'+esc(c.territory)+'</div>':'')+'</div>'+
         '<div style="flex:1">'+
-          '<div style="font-weight:600;font-size:13px">'+esc(c.account_name)+' <span style="color:var(--gray-3);font-weight:400">— '+esc(c.field_label)+'</span></div>'+
+          '<div style="font-weight:600;font-size:13px">'+esc(c.account_name)+typeTag+' <span style="color:var(--gray-3);font-weight:400">— '+esc(c.field_label)+'</span></div>'+
           '<div style="font-size:12px;color:var(--gray-4);margin-top:2px">'+
             (c.old_value?'<span style="color:var(--gray-3);text-decoration:line-through">'+esc(c.old_value)+'</span> → ':'')+
             '<span style="color:var(--white)">'+(esc(c.new_value)||'<em style="color:var(--gray-3)">cleared</em>')+'</span>'+
@@ -1153,12 +1310,14 @@ function renderWeeklyRecap(changes, visits, start, end, territory) {
   } else {
     html += visits.map(function(v){
       var isStar = (v.is_highlight||'').toLowerCase()==='yes';
+      var typeTag = v.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
+                  : v.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
       return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
         '<div class="visit-entry-top">'+
           '<div class="visit-date">'+(isStar?'⭐ ':'')+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+
           (territory==='ALL'?' <span style="color:var(--gold)">· '+esc(v.territory)+'</span>':'')+'</div>'+
         '</div>'+
-        '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+'</div>'+
+        '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+typeTag+'</div>'+
         '<div class="visit-notes" style="margin-top:4px">'+esc(v.notes||'—')+'</div>'+
         (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
       '</div>';
@@ -1252,6 +1411,7 @@ async function convertToActive() {
   }
 
   await updateStatus('active');
+  await logFieldChange(a, 'status', 'prospect', 'active');
   showToast(currentAccount.business_name+' is now Active ✅'); updateStats(); renderDetail();
 }
 
