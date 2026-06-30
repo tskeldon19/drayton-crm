@@ -1563,6 +1563,7 @@ async function saveVisit() {
   var fuN    = document.getElementById('visitFollowupNotes').value;
   var hl     = document.getElementById('visitHighlight').checked ? 'Yes' : '';
   if (!notes) { showToast('Please add visit notes','error'); return; }
+  if (!date)  { showToast('Please select a visit date','error'); return; }
   var vid = 'VIS'+Date.now();
   try {
     var appendRes = await gapi.client.sheets.spreadsheets.values.append({
