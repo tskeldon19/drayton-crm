@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v2.1 - built 2026-07-06 -->
+<!-- Drayton CRM v2.2 - built 2026-07-06 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -132,7 +132,7 @@
     display: none; position: fixed; bottom: 0; left: 0; right: 0;
     background: var(--black); border-top: 2px solid var(--gold);
     padding: 14px 20px; z-index: 150;
-    display: none; align-items: center; justify-content: space-between; gap: 12px;
+    align-items: center; justify-content: space-between; gap: 12px;
   }
   .bulk-action-bar.visible { display: flex; }
   .bulk-action-bar .count { color: var(--gold); font-weight: 700; font-size: 14px; }
@@ -1663,24 +1663,14 @@ async function saveNewList() {
   var name = document.getElementById('newListName').value.trim();
   if (!name) { showToast('Please enter a list name','error'); return; }
   var lid = 'LL'+Date.now();
-  var created = new Date().toISOString();
-  var userEmail = gapi.client.getToken() ? (gapi.auth2 ? '' : '') : '';
-  // Get current user email from token
-  try {
-    var userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers:{Authorization:'Bearer '+gapi.client.getToken().access_token}
-    });
-    var udata = await userInfo.json();
-    userEmail = udata.email || '';
-  } catch(e) { userEmail = ''; }
-
-  var row = [lid, name, currentTerritory, userEmail, created];
+  var created = new Date().toISOString().split('T')[0];  // just the date, cleaner display
+  var row = [lid, name, currentTerritory, '', created];
   try {
     await gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:SHEET_ID, range:'Lead Lists!A:E',
       valueInputOption:'RAW', resource:{values:[row]}
     });
-    allLists.push({list_id:lid,list_name:name,territory:currentTerritory,created_by:userEmail,created_date:created});
+    allLists.push({list_id:lid,list_name:name,territory:currentTerritory,created_by:'',created_date:created});
     closeModal('modalNewList');
     showToast('List created ✓');
     openListDetail(lid);
