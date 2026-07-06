@@ -1,8 +1,12 @@
 <!DOCTYPE html>
+<!-- Drayton CRM v2.1 - built 2026-07-06 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Drayton Distributors CRM</title>
 <style>
   :root {
@@ -724,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('metricBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('listsBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('listDetailBackBtn').addEventListener('click', function(){ showScreen('screenLists'); renderListsScreen(); });
-  document.getElementById('tabMyLists').addEventListener('click', function(){ showScreen('screenLists'); renderListsScreen(); });
+  document.getElementById('tabMyLists').addEventListener('click', function(){ renderListsScreen(); });
   document.getElementById('newListBtn').addEventListener('click', openNewListModal);
   document.getElementById('newListModalClose').addEventListener('click', function(){ closeModal('modalNewList'); });
   document.getElementById('newListCancel').addEventListener('click', function(){ closeModal('modalNewList'); });
@@ -1467,8 +1471,10 @@ async function fetchLists() {
   } catch(e) { showToast('Error loading lists','error'); console.error(e); }
 }
 
-function renderListsScreen() {
+async function renderListsScreen() {
   showScreen('screenLists');
+  document.getElementById('listsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading lists...</div>';
+  await fetchLists();   // always re-fetch so lists survive sign-out/sign-in cycles
   document.getElementById('listsSubtitle').textContent = allLists.length+' list'+(allLists.length!==1?'s':'')+' for '+currentTerritory;
   var el = document.getElementById('listsContent');
   if (!allLists.length) {
@@ -1755,12 +1761,16 @@ function isSelectMode() {
 }
 
 function exitSelectMode() {
+  var returnToList = currentList;
   window._selectingForListId = null;
   window._selectedAccountIds = {};
   document.getElementById('bulkActionBar').classList.remove('visible');
-  renderList();
-  // Go back to the list detail if we came from there
-  if (currentList) { showScreen('screenListDetail'); renderListStops(); }
+  if (returnToList) {
+    showScreen('screenListDetail');
+    renderListStops();
+  } else {
+    renderList();
+  }
 }
 
 function updateBulkBar() {
@@ -1844,12 +1854,8 @@ function openListInMaps() {
   window.open('https://www.google.com/maps/dir/' + stops, '_blank');
 }
 
-// ── Hook Lead Lists into fetchData ────────────────────────────────────────────
-var _originalFetchData = fetchData;
-fetchData = async function() {
-  await _originalFetchData();
-  await fetchLists();
-};
+// fetchLists is called explicitly by renderListsScreen on every open,
+// so no need to hook into fetchData — lists always load fresh from the sheet.
 const ALL_TERRITORIES = ['Route 101','Route 102','Route 105','Route 111','Route 112',
                           'Route 135','Route 137','Route 141','Route 143','Route 147'];
 
