@@ -119,9 +119,20 @@
   .account-list { display: flex; flex-direction: column; gap: 2px; }
   .account-row { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 6px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: border-color 0.15s; }
   .account-row:hover { border-color: var(--gold); background: var(--black); }
+  .account-row.selected { border-color: var(--gold); background: var(--gold-dim); }
   .account-row .name { font-weight: 600; font-size: 14px; color: var(--white); }
   .account-row .meta { font-size: 12px; color: var(--gray-3); margin-top: 2px; }
   .account-row .right { display: flex; align-items: center; gap: 10px; }
+  .select-checkbox { width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0; margin-right: 4px; }
+  .bulk-action-bar {
+    display: none; position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--black); border-top: 2px solid var(--gold);
+    padding: 14px 20px; z-index: 150;
+    display: none; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .bulk-action-bar.visible { display: flex; }
+  .bulk-action-bar .count { color: var(--gold); font-weight: 700; font-size: 14px; }
+  .bulk-action-bar .actions { display: flex; gap: 10px; }
   .rating-badge { width: 28px; height: 28px; border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; background: var(--gray-2); color: var(--gray-3); }
   .rating-badge.r5 { background: var(--gold); color: var(--black); }
   .rating-badge.r4 { background: var(--gold-dim); color: var(--gold); border: 1px solid var(--gold); }
@@ -381,6 +392,13 @@
     </div>
     <div id="accountList" class="account-list">
       <div class="loading"><div class="spinner"></div>Loading accounts...</div>
+    </div>
+  </div>
+  <div class="bulk-action-bar" id="bulkActionBar">
+    <span class="count" id="bulkCount">0 selected</span>
+    <div class="actions">
+      <button class="btn btn-secondary btn-sm" id="bulkCancelBtn">Cancel</button>
+      <button class="btn btn-gold btn-sm" id="bulkAddBtn">Add to List</button>
     </div>
   </div>
 </div>
@@ -713,6 +731,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('newListSave').addEventListener('click', saveNewList);
   document.getElementById('addToListClose').addEventListener('click', function(){ closeModal('modalAddToList'); });
   document.getElementById('addToListCancel').addEventListener('click', function(){ closeModal('modalAddToList'); });
+  document.getElementById('bulkCancelBtn').addEventListener('click', exitSelectMode);
+  document.getElementById('bulkAddBtn').addEventListener('click', bulkAddSelectedToList);
   document.querySelectorAll('.subfilter-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       currentSubfilter = btn.dataset.type;
@@ -769,7 +789,10 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
 }
-function goBack() { showScreen('screenDashboard'); renderList(); }
+function goBack() {
+  if (isSelectMode()) { exitSelectMode(); return; }
+  showScreen('screenDashboard'); renderList();
+}
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 function showToast(msg, type) {
@@ -1071,21 +1094,59 @@ function renderList() {
     document.getElementById('accountList').innerHTML = '<div class="empty-state"><div>🔍</div><div style="margin-top:8px">'+(q?'No accounts match your search.':'No accounts in this category yet.')+'</div></div>';
     return;
   }
+  var selectMode = isSelectMode();
   document.getElementById('accountList').innerHTML = filtered.map(function(a){
     var r=parseInt(a.rating)||0;
     var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
     var typeBadge = a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':'';
     var lastVisitStr = a.last_visit?'Last visit: '+a.last_visit:'No visits logged';
-    return '<div class="account-row" data-id="'+a.account_id+'">'+
-      '<div><div class="name">'+a.business_name+' '+typeBadge+'</div>'+
+    var isSelected = selectMode && !!(window._selectedAccountIds||{})[a.account_id];
+    return '<div class="account-row'+(isSelected?' selected':'')+'" data-id="'+a.account_id+'">'+
+      (selectMode?'<input type="checkbox" class="select-checkbox" data-id="'+a.account_id+'"'+(isSelected?' checked':'')+'>':'')+
+      '<div style="flex:1"><div class="name">'+a.business_name+' '+typeBadge+'</div>'+
       '<div class="meta">'+[a.town,a.state].filter(Boolean).join(', ')+(a.owner_name?' · '+a.owner_name:a.sm_name?' · '+a.sm_name:'')+' · <span style="color:var(--gray-3)">'+lastVisitStr+'</span></div></div>'+
-      '<div class="right"><span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+a.status+'</span>'+
-      '<div class="rating-badge '+rc+'">'+(r||'—')+'</div></div></div>';
+      '<div class="right">'+(selectMode?'':
+        '<span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+a.status+'</span>'+
+        '<div class="rating-badge '+rc+'">'+(r||'—')+'</div>')+
+      '</div></div>';
   }).join('');
 
-  document.querySelectorAll('.account-row').forEach(function(el){
-    el.addEventListener('click', function(){ openAccount(this.dataset.id); });
-  });
+  if (selectMode) {
+    // In select mode — clicks toggle checkbox, don't navigate
+    document.querySelectorAll('#accountList .account-row').forEach(function(el){
+      el.addEventListener('click', function(e){
+        if (e.target.classList.contains('select-checkbox')) return; // let checkbox handle itself
+        var aid = el.dataset.id;
+        if ((window._selectedAccountIds||{})[aid]) {
+          delete window._selectedAccountIds[aid];
+        } else {
+          window._selectedAccountIds = window._selectedAccountIds || {};
+          window._selectedAccountIds[aid] = true;
+        }
+        el.classList.toggle('selected', !!(window._selectedAccountIds||{})[aid]);
+        var cb = el.querySelector('.select-checkbox');
+        if (cb) cb.checked = !!(window._selectedAccountIds||{})[aid];
+        updateBulkBar();
+      });
+    });
+    document.querySelectorAll('#accountList .select-checkbox').forEach(function(cb){
+      cb.addEventListener('change', function(e){
+        e.stopPropagation();
+        var aid = cb.dataset.id;
+        window._selectedAccountIds = window._selectedAccountIds || {};
+        if (cb.checked) window._selectedAccountIds[aid] = true;
+        else delete window._selectedAccountIds[aid];
+        var row = document.querySelector('#accountList .account-row[data-id="'+aid+'"]');
+        if (row) row.classList.toggle('selected', cb.checked);
+        updateBulkBar();
+      });
+    });
+    updateBulkBar();
+  } else {
+    document.querySelectorAll('#accountList .account-row').forEach(function(el){
+      el.addEventListener('click', function(){ openAccount(this.dataset.id); });
+    });
+  }
 }
 
 function openAccount(id) {
@@ -1681,13 +1742,70 @@ function openAddToList(account) {
 }
 
 function openAddToListByListId(listId) {
-  // Show the dashboard so rep can search for accounts to add
-  // Store the target list ID so "Add to List" from detail page knows where to go
-  window._addingToListId = listId;
+  // Enter selection mode on the dashboard so the rep can bulk-pick accounts
+  window._selectingForListId = listId;
+  window._selectedAccountIds = {};
   showScreen('screenDashboard');
+  renderList();   // re-renders with checkboxes
+  updateBulkBar();
+}
+
+function isSelectMode() {
+  return !!window._selectingForListId;
+}
+
+function exitSelectMode() {
+  window._selectingForListId = null;
+  window._selectedAccountIds = {};
+  document.getElementById('bulkActionBar').classList.remove('visible');
   renderList();
-  showToast('Select an account to add to this list');
-  // Temporarily highlight the flow — the normal Add to List btn will add to this list
+  // Go back to the list detail if we came from there
+  if (currentList) { showScreen('screenListDetail'); renderListStops(); }
+}
+
+function updateBulkBar() {
+  var count = Object.keys(window._selectedAccountIds || {}).length;
+  var bar = document.getElementById('bulkActionBar');
+  bar.classList.toggle('visible', isSelectMode());
+  document.getElementById('bulkCount').textContent = count+' selected';
+  document.getElementById('bulkAddBtn').textContent = count ? 'Add '+count+' stop'+(count!==1?'s':'') : 'Add to List';
+  document.getElementById('bulkAddBtn').disabled = count === 0;
+}
+
+async function bulkAddSelectedToList() {
+  var listId = window._selectingForListId;
+  if (!listId) return;
+  var ids = Object.keys(window._selectedAccountIds || {});
+  if (!ids.length) { showToast('Select at least one account first','error'); return; }
+  var list = allLists.find(function(l){ return l.list_id===listId; });
+  if (!list) return;
+
+  var existing = allListItems.filter(function(i){ return i.list_id===listId; });
+  var nextOrder = existing.length + 1;
+  var rows = [];
+  var added = [];
+
+  ids.forEach(function(aid){
+    var alreadyIn = existing.some(function(i){ return i.account_id===aid; });
+    if (alreadyIn) return;
+    var acc = allAccounts.find(function(a){ return a.account_id===aid; });
+    if (!acc) return;
+    rows.push([listId, acc.account_id, acc.business_name, currentTerritory, nextOrder, '']);
+    added.push({list_id:listId,account_id:acc.account_id,account_name:acc.business_name,territory:currentTerritory,display_order:nextOrder,stop_notes:''});
+    nextOrder++;
+  });
+
+  if (!rows.length) { showToast('All selected accounts are already in this list','error'); return; }
+
+  try {
+    await gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId:SHEET_ID, range:'Lead List Items!A:F',
+      valueInputOption:'RAW', resource:{values:rows}
+    });
+    added.forEach(function(item){ allListItems.push(item); });
+    showToast(added.length+' stop'+(added.length!==1?'s':'')+' added to "'+list.list_name+'" ✓');
+    exitSelectMode();
+  } catch(e) { showToast('Error adding stops','error'); console.error(e); }
 }
 
 async function addAccountToList(account, listId) {
@@ -1717,11 +1835,13 @@ function openListInMaps() {
   }).filter(Boolean);
 
   if (!addrs.length) { showToast('No addresses on file for stops in this list','error'); return; }
-  if (addrs.length > 10) showToast('Note: Google Maps supports up to 10 waypoints. Showing first 10.','error');
+  if (addrs.length > 9) showToast('Google Maps supports up to 9 waypoints plus your start. Showing first 9.','error');
 
-  var base = 'https://www.google.com/maps/dir/';
-  var stops = addrs.slice(0, 10).map(function(a){ return encodeURIComponent(a); }).join('/');
-  window.open(base + stops, '_blank');
+  // Prepend empty string so Maps uses current location as the origin —
+  // Maps will prompt/auto-detect device location when the page opens.
+  var stops = [''].concat(addrs.slice(0, 9))
+    .map(function(a){ return encodeURIComponent(a); }).join('/');
+  window.open('https://www.google.com/maps/dir/' + stops, '_blank');
 }
 
 // ── Hook Lead Lists into fetchData ────────────────────────────────────────────
