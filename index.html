@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v2.6 - built 2026-07-06 -->
+<!-- Drayton CRM v2.7 - built 2026-07-06 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1364,7 +1364,7 @@ function renderDetail() {
   if (isProspect&&!isHidden) html += '<div class="convert-banner"><span>🔍 Prospective — not yet carrying BG Products.</span><button class="btn btn-success btn-sm" id="convertBtn2">Convert to Active</button></div>';
 
   html += '<div class="cards-grid">'+
-    '<div class="card"><div class="card-header">🏢 Business Information</div><div class="card-body">'+
+    '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center"><span>🏢 Business Information</span><button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="business" style="padding:3px 8px;font-size:11px">✏️ Edit</button></div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">Address</span>'+fv([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div>'+
     '<div class="field-row"><span class="field-label">Account Type</span>'+(a.account_type?'<span class="field-value '+(a.account_type==='Dealer'?'':'')+'">'+(a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':'<span class="type-indep">Independent</span>')+'</span>':'<span class="field-value empty">—</span>')+'</div>'+
     '<div class="field-row"><span class="field-label">Website</span>'+fv(a.website)+'</div>'+
@@ -1380,7 +1380,7 @@ function renderDetail() {
     '</div></div>'+
     '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center">'+
       '<span>👤 Key Personnel</span>'+
-      '<button type="button" class="btn btn-secondary btn-sm" id="addPersonnelBtn" style="font-size:11px;padding:4px 10px">＋ Add Contact</button>'+
+      '<button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="personnel" style="font-size:11px;padding:4px 10px">✏️ Edit</button>'+
     '</div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">SM Name</span>'+fv(a.sm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">SM Phone</span>'+fv(a.sm_phone)+'</div>'+
@@ -1408,7 +1408,7 @@ function renderDetail() {
   var activityFieldKeys = new Set(ACTIVITY_FIELDS.map(function(f){ return f.key; }));
   var storeFieldsWithData = STORE_FIELDS.filter(function(f){ return a[f.key] || a[f.key+'_notes'] || activityFieldKeys.has(f.key); });
   if (storeFieldsWithData.length) {
-    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🏪 Store Information</div><div class="card-body">'+
+    html += '<div class="card" style="margin-bottom:16px"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center"><span>🏪 Store Information</span><button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="store" style="padding:3px 8px;font-size:11px">✏️ Edit</button></div><div class="card-body">'+
       storeFieldsWithData.map(function(f){
         var val = a[f.key] || '';
         var note = a[f.key+'_notes'] || '';
@@ -1418,8 +1418,9 @@ function renderDetail() {
           // Show last performed date (cached) + Log button
           var history = allActivityLog.filter(function(e){ return e.account_id===a.account_id && e.field_key===f.key; })
             .sort(function(x,y){ return (y.date_performed||'').localeCompare(x.date_performed||''); });
-          valDisplay = (val?'<span class="field-value">Last: '+esc(val)+'</span>':'<span class="field-value empty">Not logged yet</span>')+
-            ' <button type="button" class="btn btn-secondary btn-sm activity-log-btn" data-fkey="'+f.key+'" data-flabel="'+esc(f.label)+'" style="padding:3px 8px;font-size:11px;margin-left:6px">＋ Log</button>';
+          var isValidDate = val && val !== 'No' && val !== 'Yes' && val !== '';
+          valDisplay = (isValidDate?'<span class="field-value">Last: '+esc(val)+'</span>':'<span class="field-value empty">Not logged yet</span>')+
+            '';
           if (history.length) {
             valDisplay += '<div style="margin-top:8px">'+history.map(function(e){
               return '<div style="font-size:12px;color:var(--gray-3);padding:3px 0">'+esc(e.date_performed)+(e.notes?' — '+esc(e.notes):'')+'</div>';
@@ -1520,9 +1521,11 @@ function renderDetail() {
   });
 
   // Wire up detail buttons
-  var eb = document.getElementById('editBtn'); if(eb) eb.addEventListener('click', openEditModal);
-  var apb = document.getElementById('addPersonnelBtn');
-  if (apb) apb.addEventListener('click', function(){ openPersonnelModal(null); });
+  var eb = document.getElementById('editBtn'); if(eb) eb.addEventListener('click', function(){ openEditModal(); });
+  document.querySelectorAll('.edit-section-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){ e.stopPropagation(); openEditModal(btn.dataset.section); });
+  });
+  // Personnel delete buttons now handled inside edit modal
   document.querySelectorAll('.personnel-delete-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){ e.stopPropagation(); deletePersonnel(btn.dataset.pid); });
   });
@@ -2927,13 +2930,64 @@ function selectRating(n) {
   document.querySelectorAll('.rating-opt').forEach(function(el){ el.classList.toggle('selected', parseInt(el.dataset.val)===n); });
 }
 
-function openEditModal() {
+function openEditModal(section) {
   var a = currentAccount;
-  window._editSnapshot = Object.assign({}, a);   // before-state for change-log diffing on save
+  window._editSnapshot = Object.assign({}, a);
   document.getElementById('editModalTitle').textContent = a.business_name || 'New Account';
   selectedRating = a.rating ? parseInt(a.rating) : null;
+
+  // Build Personnel section rows (existing + add new row)
+  var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
+  var personnelRows = extraPersonnel.map(function(p){
+    return '<div class="form-grid-2" style="margin-bottom:8px" data-pid="'+p.personnel_id+'">'+
+      '<div class="form-row" style="margin-bottom:0"><label>Role</label><input type="text" class="per-role" value="'+esc(p.role)+'" placeholder="Role..."></div>'+
+      '<div class="form-row" style="margin-bottom:0"><label>Name</label><input type="text" class="per-name" value="'+esc(p.name)+'"></div></div>'+
+      '<div class="form-grid-2" style="margin-bottom:4px">'+
+      '<div class="form-row" style="margin-bottom:0"><label>Phone</label><input type="text" class="per-phone" value="'+esc(p.phone)+'" placeholder="Phone..."></div>'+
+      '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" class="per-email" value="'+esc(p.email)+'" placeholder="Email..."></div></div>'+
+      '<div style="text-align:right;margin-bottom:12px"><button type="button" class="btn btn-danger btn-sm per-delete-btn" data-pid="'+p.personnel_id+'" style="font-size:11px;padding:3px 8px">Remove</button></div>';
+  }).join('');
+
+  // Build Activity Log fields for Store Information section
+  var activityFieldKeys = new Set(ACTIVITY_FIELDS.map(function(f){ return f.key; }));
+  var storeInfoHtml = STORE_FIELDS.map(function(f){
+    var isActivityField = activityFieldKeys.has(f.key);
+    if (isActivityField) {
+      // Date input + history inline
+      var history = allActivityLog.filter(function(e){ return e.account_id===a.account_id && e.field_key===f.key; })
+        .sort(function(x,y){ return (y.date_performed||'').localeCompare(x.date_performed||''); });
+      var histHtml = history.length
+        ? '<div style="margin-top:4px">'+history.map(function(e){
+            return '<div style="font-size:11px;color:var(--gray-3)">'+esc(e.date_performed)+(e.notes?' — '+esc(e.notes):'')+'</div>';
+          }).join('')+'</div>'
+        : '';
+      return '<div class="form-grid-2" style="margin-bottom:12px">'+
+        '<div class="form-row" style="margin-bottom:0"><label>'+f.label+' — Date</label>'+
+          '<input type="date" id="e_activity_'+f.key+'" style="font-size:13px">'+histHtml+'</div>'+
+        '<div class="form-row" style="margin-bottom:0"><label>'+f.label+' Notes</label>'+
+          '<input type="text" id="e_activity_'+f.key+'_notes" placeholder="Notes for this entry..."></div>'+
+        '</div>';
+    }
+    var valInput;
+    if (f.type === 'yn') {
+      var cur = (a[f.key]||'').toLowerCase();
+      valInput = '<select id="e_'+f.key+'">'+
+        '<option value=""'+(cur===''?' selected':'')+'>—</option>'+
+        '<option value="Yes"'+(cur==='yes'?' selected':'')+'>Yes</option>'+
+        '<option value="No"'+(cur==='no'?' selected':'')+'>No</option>'+
+        '</select>';
+    } else {
+      valInput = '<input type="text" id="e_'+f.key+'" value="'+esc(a[f.key])+'" placeholder="'+(f.type==='num'?'e.g. 42':'')+'">';
+    }
+    return '<div class="form-grid-2" style="margin-bottom:12px">'+
+      '<div class="form-row" style="margin-bottom:0"><label>'+f.label+'</label>'+valInput+'</div>'+
+      '<div class="form-row" style="margin-bottom:0"><label>'+f.label+' Notes</label>'+
+        '<input type="text" id="e_'+f.key+'_notes" value="'+esc(a[f.key+'_notes'])+'" placeholder="Notes..."></div>'+
+      '</div>';
+  }).join('');
+
   document.getElementById('editModalBody').innerHTML =
-    '<div class="form-section"><div class="form-section-title">Business Information</div>'+
+    '<div class="form-section" id="edit-section-business"><div class="form-section-title">Business Information</div>'+
     '<div class="form-row"><label>Business Name</label><input type="text" id="e_business_name" value="'+esc(a.business_name)+'"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Address</label><input type="text" id="e_address" value="'+esc(a.address)+'"></div>'+
     '<div class="form-row"><label>Town</label><input type="text" id="e_town" value="'+esc(a.town)+'"></div></div>'+
@@ -2951,26 +3005,8 @@ function openEditModal() {
     '<div class="form-grid-2"><div class="form-row"><label>Maint. Rate</label><input type="text" id="e_maint_rate" value="'+esc(a.maint_rate)+'"></div>'+
     '<div class="form-row"><label>Competitor Product?</label><input type="text" id="e_competitor_product" value="'+esc(a.competitor_product)+'"></div></div>'+
     '<div class="form-row"><label>Competitor Name</label><input type="text" id="e_competitor_name" value="'+esc(a.competitor_name)+'"></div></div>'+
-    '<div class="form-section"><div class="form-section-title">Store Information</div>'+
-    STORE_FIELDS.map(function(f){
-      var valInput;
-      if (f.type === 'yn') {
-        var cur = (a[f.key]||'').toLowerCase();
-        valInput = '<select id="e_'+f.key+'">'+
-          '<option value=""'+(cur===''?' selected':'')+'>—</option>'+
-          '<option value="Yes"'+(cur==='yes'?' selected':'')+'>Yes</option>'+
-          '<option value="No"'+(cur==='no'?' selected':'')+'>No</option>'+
-          '</select>';
-      } else {
-        valInput = '<input type="text" id="e_'+f.key+'" value="'+esc(a[f.key])+'" placeholder="'+(f.type==='num'?'e.g. 42':'')+'">';
-      }
-      return '<div class="form-grid-2" style="margin-bottom:12px">'+
-        '<div class="form-row" style="margin-bottom:0"><label>'+f.label+'</label>'+valInput+'</div>'+
-        '<div class="form-row" style="margin-bottom:0"><label>'+f.label+' Notes</label><input type="text" id="e_'+f.key+'_notes" value="'+esc(a[f.key+'_notes'])+'" placeholder="Notes..."></div>'+
-        '</div>';
-    }).join('')+
-    '</div>'+
-    '<div class="form-section"><div class="form-section-title">Key Personnel</div>'+
+    '<div class="form-section" id="edit-section-store"><div class="form-section-title">Store Information</div>'+storeInfoHtml+'</div>'+
+    '<div class="form-section" id="edit-section-personnel"><div class="form-section-title">Key Personnel</div>'+
     '<div class="form-grid-2"><div class="form-row"><label>SM Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
     '<div class="form-row"><label>SM Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
     '<div class="form-row"><label>SM Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div>'+
@@ -2978,7 +3014,18 @@ function openEditModal() {
     '<div class="form-row"><label>Owner Phone</label><input type="text" id="e_owner_phone" value="'+esc(a.owner_phone)+'"></div></div>'+
     '<div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="'+esc(a.owner_email)+'"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Other 1 Role</label><input type="text" id="e_other1_role" value="'+esc(a.other1_role)+'"></div>'+
-    '<div class="form-row"><label>Other 1 Name</label><input type="text" id="e_other1_name" value="'+esc(a.other1_name)+'"></div></div></div>'+
+    '<div class="form-row"><label>Other 1 Name</label><input type="text" id="e_other1_name" value="'+esc(a.other1_name)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Other 2 Role</label><input type="text" id="e_other2_role" value="'+esc(a.other2_role)+'"></div>'+
+    '<div class="form-row"><label>Other 2 Name</label><input type="text" id="e_other2_name" value="'+esc(a.other2_name)+'"></div></div>'+
+    (personnelRows.length ? '<div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 8px">Additional Contacts</div>'+personnelRows : '')+
+    '<div id="newPersonnelArea" style="border:1px dashed var(--gray-2);border-radius:6px;padding:12px;margin-top:8px">'+
+    '<div style="font-size:12px;color:var(--gray-3);margin-bottom:8px">Add new contact</div>'+
+    '<div class="form-grid-2" style="margin-bottom:8px">'+
+    '<div class="form-row" style="margin-bottom:0"><label>Role</label><input type="text" id="new_per_role" placeholder="e.g. Finance Manager..."></div>'+
+    '<div class="form-row" style="margin-bottom:0"><label>Name</label><input type="text" id="new_per_name" placeholder="Full name..."></div></div>'+
+    '<div class="form-grid-2">'+
+    '<div class="form-row" style="margin-bottom:0"><label>Phone</label><input type="text" id="new_per_phone"></div>'+
+    '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" id="new_per_email"></div></div></div></div>'+
     '<div class="form-section"><div class="form-section-title">Account Rating</div>'+
     '<div class="rating-input">'+[1,2,3,4,5].map(function(n){ return '<div class="rating-opt'+(selectedRating===n?' selected':'')+'" data-val="'+n+'">'+n+' ★</div>'; }).join('')+'</div>'+
     '<div style="font-size:11px;color:var(--gray-3);margin-top:6px">1=Low priority · 3=Good prospect · 5=High priority</div></div>'+
@@ -2989,8 +3036,21 @@ function openEditModal() {
     el.addEventListener('click', function(){ selectRating(parseInt(this.dataset.val)); });
   });
 
+  // Wire remove buttons for existing additional contacts
+  document.querySelectorAll('.per-delete-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ deletePersonnelFromModal(btn.dataset.pid); });
+  });
+
   document.getElementById('editSaveBtn').onclick = saveAccount;
   document.getElementById('modalEdit').classList.add('open');
+
+  // Scroll to the requested section after modal renders
+  if (section) {
+    setTimeout(function(){
+      var el = document.getElementById('edit-section-'+section);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    }, 100);
+  }
 }
 
 function openNewAccount() {
@@ -3022,18 +3082,107 @@ function collectEditFields() {
   BG_PRODUCTS.forEach(function(p){ var el=document.getElementById('e_'+p.key); if(el) a[p.key]=el.checked?'Yes':''; });
 }
 
+async function deletePersonnelFromModal(pid) {
+  allPersonnel = allPersonnel.filter(function(p){ return p.personnel_id!==pid; });
+  // Rebuild the modal section without this person
+  openEditModal('personnel');
+  // Delete from sheet in background
+  try {
+    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SHEET_ID});
+    var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
+    var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId:SHEET_ID, range:'Personnel!A:H'
+    })).result.values || [];
+    for (var i=1; i<allRows.length; i++) {
+      if (allRows[i][0]===pid) {
+        await gapi.client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId:SHEET_ID,
+          resource:{requests:[{deleteDimension:{range:{sheetId:perSheet.properties.sheetId,dimension:'ROWS',startIndex:i,endIndex:i+1}}}]}
+        });
+        break;
+      }
+    }
+  } catch(e) { console.error('Error deleting personnel',e); }
+}
+
 async function saveAccount() {
   var before = window._editSnapshot || {};
   collectEditFields();
   var rowNum = sheetRowMap[currentAccount.account_id];
   if (!rowNum) { showToast('Row not found','error'); return; }
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
+
+  // Collect activity log entries from modal date inputs
+  var activityEntries = [];
+  ACTIVITY_FIELDS.forEach(function(f){
+    var dateEl = document.getElementById('e_activity_'+f.key);
+    var notesEl = document.getElementById('e_activity_'+f.key+'_notes');
+    if (dateEl && dateEl.value) {
+      activityEntries.push({field_key:f.key, field_label:f.label,
+        date:dateEl.value, notes:notesEl?notesEl.value:''});
+    }
+  });
+
+  // Collect new personnel entry if name is filled
+  var newPerName = document.getElementById('new_per_name');
+  var newPersonnel = null;
+  if (newPerName && newPerName.value.trim()) {
+    newPersonnel = {
+      role:  (document.getElementById('new_per_role')||{value:''}).value.trim(),
+      name:  newPerName.value.trim(),
+      phone: (document.getElementById('new_per_phone')||{value:''}).value.trim(),
+      email: (document.getElementById('new_per_email')||{value:''}).value.trim(),
+    };
+  }
+
   try {
     await gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId:SHEET_ID, range:'Accounts!A'+rowNum,
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     await logChangedFields(before, currentAccount);
+
+    // Write activity log entries
+    for (var i=0; i<activityEntries.length; i++) {
+      var ae = activityEntries[i];
+      var aid = 'AL'+Date.now()+i;
+      var aRow = [aid, currentAccount.account_id, currentAccount.business_name,
+                  currentTerritory, ae.field_key, ae.field_label, ae.date, ae.notes];
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId:SHEET_ID, range:'Activity Log!A:H',
+        valueInputOption:'RAW', resource:{values:[aRow]}
+      });
+      // Update cache column on Accounts sheet
+      if (COL[ae.field_key] !== undefined) {
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId:SHEET_ID,
+          range:'Accounts!'+colLetter(COL[ae.field_key])+rowNum,
+          valueInputOption:'RAW', resource:{values:[[ae.date]]}
+        });
+        currentAccount[ae.field_key] = ae.date;
+      }
+      allActivityLog.push({activity_id:aid, account_id:currentAccount.account_id,
+        account_name:currentAccount.business_name, territory:currentTerritory,
+        field_key:ae.field_key, field_label:ae.field_label,
+        date_performed:ae.date, notes:ae.notes});
+    }
+
+    // Write new personnel entry
+    if (newPersonnel) {
+      var pid = 'PER'+Date.now();
+      var pRow = [pid, currentAccount.account_id, currentAccount.business_name,
+                  currentTerritory, newPersonnel.role, newPersonnel.name,
+                  newPersonnel.phone, newPersonnel.email];
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId:SHEET_ID, range:'Personnel!A:H',
+        valueInputOption:'RAW', resource:{values:[pRow]}
+      });
+      allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
+        account_name:currentAccount.business_name, territory:currentTerritory,
+        role:newPersonnel.role, name:newPersonnel.name,
+        phone:newPersonnel.phone, email:newPersonnel.email});
+    }
+
     showToast('Saved ✓'); closeModal('modalEdit'); selectedRating=null; renderDetail();
   } catch(e) { showToast('Error saving','error'); console.error(e); }
 }
