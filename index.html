@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v2.3 - built 2026-07-06 -->
+<!-- Drayton CRM v2.4 - built 2026-07-06 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1104,10 +1104,17 @@ function renderList() {
     var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
     var typeBadge = a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':'';
     var lastVisitStr = a.last_visit?'Last visit: '+a.last_visit:'No visits logged';
-    var isSelected = selectMode && !!(window._selectedAccountIds||{})[a.account_id];
-    return '<div class="account-row'+(isSelected?' selected':'')+'" data-id="'+a.account_id+'">'+
-      (selectMode?'<input type="checkbox" class="select-checkbox" data-id="'+a.account_id+'"'+(isSelected?' checked':'')+'>':'')+
-      '<div style="flex:1"><div class="name">'+a.business_name+' '+typeBadge+'</div>'+
+    var selectState = selectMode ? (window._selectedAccountIds||{})[a.account_id] : null;
+    var isExisting  = selectState === 'existing';   // already in the list
+    var isSelected  = !!selectState;                 // checked for any reason
+    return '<div class="account-row'+(isSelected?' selected':'')+'" data-id="'+a.account_id+'" '+
+        (isExisting?'title="Already in this list"':'')+'>'+
+      (selectMode?'<input type="checkbox" class="select-checkbox" data-id="'+a.account_id+'"'+
+        (isSelected?' checked':'')+
+        (isExisting?' disabled style="opacity:0.4" title="Already in this list"':'')+'>':'')+
+      '<div style="flex:1"><div class="name">'+a.business_name+' '+typeBadge+
+        (isExisting?' <span style="font-size:10px;color:var(--gray-3);font-weight:400">✓ In list</span>':'')+
+      '</div>'+
       '<div class="meta">'+[a.town,a.state].filter(Boolean).join(', ')+(a.owner_name?' · '+a.owner_name:a.sm_name?' · '+a.sm_name:'')+' · <span style="color:var(--gray-3)">'+lastVisitStr+'</span></div></div>'+
       '<div class="right">'+(selectMode?'':
         '<span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+a.status+'</span>'+
@@ -1116,12 +1123,13 @@ function renderList() {
   }).join('');
 
   if (selectMode) {
-    // In select mode — clicks toggle checkbox, don't navigate
     document.querySelectorAll('#accountList .account-row').forEach(function(el){
       el.addEventListener('click', function(e){
-        if (e.target.classList.contains('select-checkbox')) return; // let checkbox handle itself
+        if (e.target.classList.contains('select-checkbox')) return;
         var aid = el.dataset.id;
-        if ((window._selectedAccountIds||{})[aid]) {
+        var cur = (window._selectedAccountIds||{})[aid];
+        if (cur === 'existing') return;   // already in list — don't toggle
+        if (cur) {
           delete window._selectedAccountIds[aid];
         } else {
           window._selectedAccountIds = window._selectedAccountIds || {};
@@ -1129,11 +1137,11 @@ function renderList() {
         }
         el.classList.toggle('selected', !!(window._selectedAccountIds||{})[aid]);
         var cb = el.querySelector('.select-checkbox');
-        if (cb) cb.checked = !!(window._selectedAccountIds||{})[aid];
+        if (cb && !cb.disabled) cb.checked = !!(window._selectedAccountIds||{})[aid];
         updateBulkBar();
       });
     });
-    document.querySelectorAll('#accountList .select-checkbox').forEach(function(cb){
+    document.querySelectorAll('#accountList .select-checkbox:not([disabled])').forEach(function(cb){
       cb.addEventListener('change', function(e){
         e.stopPropagation();
         var aid = cb.dataset.id;
@@ -1745,11 +1753,15 @@ function openAddToList(account) {
 }
 
 function openAddToListByListId(listId) {
-  // Enter selection mode on the dashboard so the rep can bulk-pick accounts
   window._selectingForListId = listId;
+  // Pre-populate selection with accounts already in this list so they
+  // show as checked (and get skipped on add rather than duplicated).
   window._selectedAccountIds = {};
+  allListItems.filter(function(i){ return i.list_id===listId; }).forEach(function(i){
+    window._selectedAccountIds[i.account_id] = 'existing';  // 'existing' vs true = already in list
+  });
   showScreen('screenDashboard');
-  renderList();   // re-renders with checkboxes
+  renderList();
   updateBulkBar();
 }
 
@@ -1762,30 +1774,39 @@ function exitSelectMode() {
   var returnToList = currentList;
   window._selectingForListId = null;
   window._selectedAccountIds = {};
+  // Always re-render the list so checkboxes are removed from the DOM,
+  // regardless of which screen we navigate to next.
+  renderList();
   document.getElementById('bulkActionBar').classList.remove('visible');
   console.log('[exitSelectMode] isSelectMode now:', isSelectMode());
   if (returnToList) {
     showScreen('screenListDetail');
     renderListStops();
-  } else {
-    renderList();
   }
   console.log('[exitSelectMode] complete');
 }
 
 function updateBulkBar() {
-  var count = Object.keys(window._selectedAccountIds || {}).length;
+  // Only count newly selected accounts, not ones already in the list
+  var ids = Object.keys(window._selectedAccountIds || {});
+  var newCount = ids.filter(function(id){ return window._selectedAccountIds[id] !== 'existing'; }).length;
   var bar = document.getElementById('bulkActionBar');
   bar.classList.toggle('visible', isSelectMode());
-  document.getElementById('bulkCount').textContent = count+' selected';
-  document.getElementById('bulkAddBtn').textContent = count ? 'Add '+count+' stop'+(count!==1?'s':'') : 'Add to List';
-  document.getElementById('bulkAddBtn').disabled = count === 0;
+  document.getElementById('bulkCount').textContent = newCount
+    ? newCount+' selected'
+    : 'Tap accounts to select';
+  document.getElementById('bulkAddBtn').textContent = newCount
+    ? 'Add '+newCount+' stop'+(newCount!==1?'s':'')
+    : 'Add to List';
+  document.getElementById('bulkAddBtn').disabled = newCount === 0;
 }
 
 async function bulkAddSelectedToList() {
   var listId = window._selectingForListId;
   if (!listId) return;
-  var ids = Object.keys(window._selectedAccountIds || {});
+  var ids = Object.keys(window._selectedAccountIds || {}).filter(function(id){
+    return window._selectedAccountIds[id] !== 'existing';
+  });
   if (!ids.length) { showToast('Select at least one account first','error'); return; }
   var list = allLists.find(function(l){ return l.list_id===listId; });
   if (!list) return;
