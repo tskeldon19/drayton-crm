@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.0 - built 2026-07-07 -->
+<!-- Drayton CRM v3.1 - built 2026-07-07 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -815,9 +815,9 @@ BG_PRODUCTS.forEach(function(p){
 // Fields shown in Weekly Recap Key Field Changes — everything else is
 // logged to the Change Log for audit but filtered from recap display.
 const RECAP_FIELDS = new Set([
-  // Personnel changes
+  // Personnel — name changes only, no phone/email/role
   'personnel_added','personnel_changed',
-  'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
+  'sm_name','owner_name',
   // Store Information activity log fields
   'menus_paper','menus_paper_notes','menus_vma','menus_vma_notes',
   'smoke_burns','smoke_burns_notes','lpp_training','lpp_training_notes',
