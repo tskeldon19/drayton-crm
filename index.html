@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.1 - built 2026-07-07 -->
+<!-- Drayton CRM v3.2 - built 2026-07-07 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1028,12 +1028,15 @@ async function fetchData() {
 // (only Visit Log entries carry a rep-editable date, since reps may log a
 // whole week of visits in one sitting and the visit_date must reflect when
 // the visit actually happened, not when it was typed in).
-async function logFieldChange(account, fieldKey, oldVal, newVal) {
+async function logFieldChange(account, fieldKey, oldVal, newVal, timestamp) {
   var label = TRACKED_FIELDS[fieldKey];
-  if (!label) return;            // not a tracked field — skip silently
-  if ((oldVal||'') === (newVal||'')) return;  // no actual change — skip
+  if (!label) return;
+  if ((oldVal||'') === (newVal||'')) return;
+  // Use provided timestamp (for rep-dated events like activity log entries)
+  // or fall back to current time for administrative field changes.
+  var ts = timestamp ? (timestamp+'T00:00:00.000Z') : new Date().toISOString();
   var row = [
-    new Date().toISOString(), account.account_id, account.business_name,
+    ts, account.account_id, account.business_name,
     account.territory||currentTerritory, fieldKey, label, oldVal||'', newVal||''
   ];
   try {
@@ -1742,9 +1745,10 @@ async function saveActivityLog() {
       account_name:currentAccount.business_name, territory:currentTerritory,
       field_key:_activityLogFieldKey, field_label:_activityLogFieldLabel,
       date_performed:date, notes:notes});
-    // Log to Change Log so it surfaces in the Weekly Recap
+    // Log to Change Log using the rep-selected date so the recap shows
+    // when the event actually happened, not when it was typed in.
     await logFieldChange(currentAccount, _activityLogFieldKey,
-      currentAccount[_activityLogFieldKey]||'', date);
+      currentAccount[_activityLogFieldKey]||'', date, date);
     showToast('Activity logged ✓');
     closeModal('modalActivityLog');
     renderDetail();
@@ -3187,9 +3191,9 @@ async function saveAccount() {
         account_name:currentAccount.business_name, territory:currentTerritory,
         field_key:ae.field_key, field_label:ae.field_label,
         date_performed:ae.date, notes:ae.notes});
-      // Log to Change Log so it shows in the Weekly Recap
+      // Log to Change Log using the rep-selected date, not save time
       await logFieldChange(currentAccount, ae.field_key,
-        before[ae.field_key]||'', ae.date);
+        before[ae.field_key]||'', ae.date, ae.date);
     }
 
     // Write new personnel entry
