@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v2.2 - built 2026-07-06 -->
+<!-- Drayton CRM v2.3 - built 2026-07-06 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1663,18 +1663,25 @@ async function saveNewList() {
   var name = document.getElementById('newListName').value.trim();
   if (!name) { showToast('Please enter a list name','error'); return; }
   var lid = 'LL'+Date.now();
-  var created = new Date().toISOString().split('T')[0];  // just the date, cleaner display
+  var created = new Date().toISOString().split('T')[0];
   var row = [lid, name, currentTerritory, '', created];
+  console.log('[saveNewList] Attempting to save:', row);
+  console.log('[saveNewList] SHEET_ID:', SHEET_ID);
+  console.log('[saveNewList] Token present:', !!gapi.client.getToken());
   try {
-    await gapi.client.sheets.spreadsheets.values.append({
+    var res = await gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:SHEET_ID, range:'Lead Lists!A:E',
       valueInputOption:'RAW', resource:{values:[row]}
     });
+    console.log('[saveNewList] Sheet write succeeded:', res);
     allLists.push({list_id:lid,list_name:name,territory:currentTerritory,created_by:'',created_date:created});
     closeModal('modalNewList');
     showToast('List created ✓');
     openListDetail(lid);
-  } catch(e) { showToast('Error creating list','error'); console.error(e); }
+  } catch(e) {
+    console.error('[saveNewList] Sheet write FAILED:', e);
+    showToast('Error creating list','error');
+  }
 }
 
 async function deleteCurrentList() {
@@ -1751,16 +1758,19 @@ function isSelectMode() {
 }
 
 function exitSelectMode() {
+  console.log('[exitSelectMode] called. currentList:', currentList ? currentList.list_name : 'none', '| selectingForList:', window._selectingForListId);
   var returnToList = currentList;
   window._selectingForListId = null;
   window._selectedAccountIds = {};
   document.getElementById('bulkActionBar').classList.remove('visible');
+  console.log('[exitSelectMode] isSelectMode now:', isSelectMode());
   if (returnToList) {
     showScreen('screenListDetail');
     renderListStops();
   } else {
     renderList();
   }
+  console.log('[exitSelectMode] complete');
 }
 
 function updateBulkBar() {
