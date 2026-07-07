@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v2.9 - built 2026-07-06 -->
+<!-- Drayton CRM v3.0 - built 2026-07-07 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -773,10 +773,12 @@ const CLCOL = {timestamp:0,account_id:1,account_name:2,territory:3,field_key:4,f
 // ask; Store Information and Product Information are included too so the log
 // stays comprehensive rather than needing another retrofit later.
 const TRACKED_FIELDS = {
-  // Account lifecycle — status changes (esp. prospect→active conversions)
-  // get flagged distinctly in the Weekly Recap rather than as a generic edit.
+  // Account lifecycle
   status:'Account Status',
-  // Personnel
+  // Personnel changes (SM/Owner edits tracked via logChangedFields; additional contacts via these keys)
+  personnel_added:'Contact Added',
+  personnel_changed:'Contact Updated',
+  // Personnel (SM/Owner on Accounts sheet)
   sm_name:'SM Name', sm_phone:'SM Phone', sm_email:'SM Email',
   owner_name:'Owner Name', owner_phone:'Owner Phone', owner_email:'Owner Email',
   other1_role:'Other Contact Role', other1_name:'Other Contact Name',
@@ -813,9 +815,15 @@ BG_PRODUCTS.forEach(function(p){
 // Fields shown in Weekly Recap Key Field Changes — everything else is
 // logged to the Change Log for audit but filtered from recap display.
 const RECAP_FIELDS = new Set([
+  // Personnel changes
+  'personnel_added','personnel_changed',
+  'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
+  // Store Information activity log fields
   'menus_paper','menus_paper_notes','menus_vma','menus_vma_notes',
   'smoke_burns','smoke_burns_notes','lpp_training','lpp_training_notes',
+  'contest_promo','role_play',
   'rating','status',
+  // Product carrying — active accounts only, new Yes values only
   'bg_transmission_carrying','bg_coolant_carrying','bg_diff_carrying',
   'bg_induction_carrying','bg_injection_carrying','bg_gdi_carrying',
   'bg_brake_carrying','bg_ac_carrying','bg_moa_efl_carrying','bg_epr_carrying',
@@ -1734,6 +1742,9 @@ async function saveActivityLog() {
       account_name:currentAccount.business_name, territory:currentTerritory,
       field_key:_activityLogFieldKey, field_label:_activityLogFieldLabel,
       date_performed:date, notes:notes});
+    // Log to Change Log so it surfaces in the Weekly Recap
+    await logFieldChange(currentAccount, _activityLogFieldKey,
+      currentAccount[_activityLogFieldKey]||'', date);
     showToast('Activity logged ✓');
     closeModal('modalActivityLog');
     renderDetail();
@@ -1765,7 +1776,6 @@ async function savePersonnel() {
              currentTerritory, role, name, phone, email];
   try {
     if (_editingPersonnelId) {
-      // Find and update the existing row
       var allRows = (await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId:SHEET_ID, range:'Personnel!A:H'
       })).result.values || [];
@@ -1776,7 +1786,10 @@ async function savePersonnel() {
             valueInputOption:'RAW', resource:{values:[row]}
           });
           var p = allPersonnel.find(function(x){ return x.personnel_id===_editingPersonnelId; });
+          var oldName = p ? (p.name+(p.role?' ('+p.role+')':'')) : '';
           if (p) { p.role=role; p.name=name; p.phone=phone; p.email=email; }
+          await logFieldChange(currentAccount, 'personnel_changed',
+            oldName, name+(role?' ('+role+')':''));
           break;
         }
       }
@@ -1788,6 +1801,8 @@ async function savePersonnel() {
       allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
         account_name:currentAccount.business_name, territory:currentTerritory,
         role:role, name:name, phone:phone, email:email});
+      await logFieldChange(currentAccount, 'personnel_added',
+        '', name+(role?' ('+role+')':''));
     }
     showToast('Contact saved ✓');
     closeModal('modalPersonnel');
@@ -3172,6 +3187,9 @@ async function saveAccount() {
         account_name:currentAccount.business_name, territory:currentTerritory,
         field_key:ae.field_key, field_label:ae.field_label,
         date_performed:ae.date, notes:ae.notes});
+      // Log to Change Log so it shows in the Weekly Recap
+      await logFieldChange(currentAccount, ae.field_key,
+        before[ae.field_key]||'', ae.date);
     }
 
     // Write new personnel entry
@@ -3188,6 +3206,9 @@ async function saveAccount() {
         account_name:currentAccount.business_name, territory:currentTerritory,
         role:newPersonnel.role, name:newPersonnel.name,
         phone:newPersonnel.phone, email:newPersonnel.email});
+      // Log personnel addition to Change Log
+      await logFieldChange(currentAccount, 'personnel_added',
+        '', newPersonnel.role ? newPersonnel.name+' ('+newPersonnel.role+')' : newPersonnel.name);
     }
 
     showToast('Saved ✓'); closeModal('modalEdit'); selectedRating=null; renderDetail();
