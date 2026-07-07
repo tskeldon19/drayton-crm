@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v2.5 - built 2026-07-06 -->
+<!-- Drayton CRM v2.6 - built 2026-07-06 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -611,6 +611,45 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalActivityLog">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="activityLogTitle">Log Activity</h3>
+      <button class="modal-close" id="activityLogClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Date Performed</label><input type="date" id="activityLogDate"></div>
+      <div class="form-row"><label>Notes</label><input type="text" id="activityLogNotes" placeholder="Optional notes..."></div>
+      <div id="activityLogHistory" style="margin-top:16px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="activityLogCancel">Cancel</button>
+      <button class="btn btn-gold" id="activityLogSave">Log Event</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalPersonnel">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="personnelModalTitle">Add Contact</h3>
+      <button class="modal-close" id="personnelModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Role</label><input type="text" id="personnelRole" placeholder="e.g. Service Advisor, Parts Manager..."></div>
+      <div class="form-row"><label>Name</label><input type="text" id="personnelName"></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Phone</label><input type="text" id="personnelPhone"></div>
+        <div class="form-row"><label>Email</label><input type="text" id="personnelEmail"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="personnelCancel">Cancel</button>
+      <button class="btn btn-gold" id="personnelSave">Save Contact</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalEdit">
   <div class="modal">
     <div class="modal-header">
@@ -770,8 +809,29 @@ BG_PRODUCTS.forEach(function(p){
   TRACKED_FIELDS[p.key+'_part_notes']      = p.label + ' — Notes';
 });
 
+// Fields shown in Weekly Recap Key Field Changes — everything else is
+// logged to the Change Log for audit but filtered from recap display.
+const RECAP_FIELDS = new Set([
+  'menus_paper','menus_paper_notes','menus_vma','menus_vma_notes',
+  'smoke_burns','smoke_burns_notes','lpp_training','lpp_training_notes',
+  'rating','status',
+  'bg_transmission_carrying','bg_coolant_carrying','bg_diff_carrying',
+  'bg_induction_carrying','bg_injection_carrying','bg_gdi_carrying',
+  'bg_brake_carrying','bg_ac_carrying','bg_moa_efl_carrying','bg_epr_carrying',
+  'bg_battery_carrying','bg_fuel_carrying','bg_diesel_carrying','bg_misc_carrying',
+]);
+
+// Activity Log fields — stored in Activity Log tab, not as Yes/No on Accounts
+const ACTIVITY_FIELDS = [
+  {key:'smoke_burns',   label:'Smoke and Burns'},
+  {key:'lpp_training',  label:'LPP Training'},
+  {key:'contest_promo', label:'Contest / Promo'},
+  {key:'role_play',     label:'Role-Play'},
+];
+
 let gapiReady=false, gisReady=false, tokenClient;
 let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={};
+let allActivityLog=[], allPersonnel=[];
 let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
 
@@ -820,6 +880,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitEditClose').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
   document.getElementById('visitEditCancel').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
   document.getElementById('visitEditSave').addEventListener('click', saveVisitEdit);
+  document.getElementById('activityLogClose').addEventListener('click', function(){ closeModal('modalActivityLog'); });
+  document.getElementById('activityLogCancel').addEventListener('click', function(){ closeModal('modalActivityLog'); });
+  document.getElementById('activityLogSave').addEventListener('click', saveActivityLog);
+  document.getElementById('personnelModalClose').addEventListener('click', function(){ closeModal('modalPersonnel'); });
+  document.getElementById('personnelCancel').addEventListener('click', function(){ closeModal('modalPersonnel'); });
+  document.getElementById('personnelSave').addEventListener('click', savePersonnel);
   document.getElementById('bulkAddBtn').addEventListener('click', bulkAddSelectedToList);
   document.querySelectorAll('.subfilter-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -907,10 +973,15 @@ async function fetchData() {
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FH'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Activity Log!A:H'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Personnel!A:H'}),
     ]);
     var accRows = results[0].result.values || [];
     var visRows = results[1].result.values || [];
     var clRows  = results[2].result.values || [];
+    var alRows  = results[3].result.values || [];
+    var perRows = results[4].result.values || [];
+
     sheetRowMap = {};
     accRows.forEach(function(r,i){ if(r[0]) sheetRowMap[r[0]] = i+1; });
     allAccounts = accRows.slice(1).filter(function(r){ return r[COL.territory]===currentTerritory; }).map(rowToAcc);
@@ -923,12 +994,23 @@ async function fetchData() {
                followup_notes:r[8]||'', is_highlight:r[9]||'' };
     });
 
-    // Change Log isn't filtered by territory here since the Weekly Recap can
-    // span All Territories; filtering happens at render time instead.
     allChangeLog = clRows.slice(1).map(function(r){
       return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
                field_key:r[4]||'', field_label:r[5]||'', old_value:r[6]||'', new_value:r[7]||'' };
     });
+
+    // Activity Log — territory-scoped like Visits
+    allActivityLog = alRows.slice(1).filter(function(r){ return r[3]===currentTerritory; }).map(function(r){
+      return { activity_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+               field_key:r[4]||'', field_label:r[5]||'', date_performed:r[6]||'', notes:r[7]||'' };
+    });
+
+    // Personnel — territory-scoped
+    allPersonnel = perRows.slice(1).filter(function(r){ return r[3]===currentTerritory; }).map(function(r){
+      return { personnel_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+               role:r[4]||'', name:r[5]||'', phone:r[6]||'', email:r[7]||'' };
+    });
+
   } catch(e) { showToast('Error loading data','error'); console.error(e); }
 }
 
@@ -1296,29 +1378,59 @@ function renderDetail() {
     '<div class="field-row"><span class="field-label">Last Visit</span>'+fv(a.last_visit)+'</div>'+
     '<div class="field-row"><span class="field-label">Next Follow-Up</span>'+fv(a.next_followup)+'</div>'+
     '</div></div>'+
-    '<div class="card"><div class="card-header">👤 Key Personnel</div><div class="card-body">'+
+    '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center">'+
+      '<span>👤 Key Personnel</span>'+
+      '<button type="button" class="btn btn-secondary btn-sm" id="addPersonnelBtn" style="font-size:11px;padding:4px 10px">＋ Add Contact</button>'+
+    '</div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">SM Name</span>'+fv(a.sm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">SM Phone</span>'+fv(a.sm_phone)+'</div>'+
     '<div class="field-row"><span class="field-label">SM Email</span>'+fv(a.sm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Phone</span>'+fv(a.owner_phone)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Email</span>'+fv(a.owner_email)+'</div>'+
-    (a.other1_name?'<div class="field-row"><span class="field-label">'+(a.other1_role||'Other')+'</span>'+fv(a.other1_name)+'</div>':'')+
+    (a.other1_name?'<div class="field-row"><span class="field-label">'+(a.other1_role||'Other')+'</span><div style="flex:1">'+fv(a.other1_name)+(a.other1_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other1_phone)+'</span>':'')+'</div></div>':'')+
+    (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+'</div></div>':'')+
+    function(){
+      var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
+      if (!extraPersonnel.length) return '';
+      return extraPersonnel.map(function(p){
+        return '<div class="field-row"><span class="field-label">'+(p.role||'Other')+'</span>'+
+          '<div style="flex:1;display:flex;align-items:center;justify-content:space-between">'+
+          '<div>'+fv(p.name)+(p.phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.phone)+'</span>':'')+
+          (p.email?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.email)+'</span>':'')+'</div>'+
+          '<button type="button" class="btn btn-danger btn-sm personnel-delete-btn" data-pid="'+p.personnel_id+'" style="padding:3px 8px;font-size:11px">✕</button>'+
+          '</div></div>';
+      }).join('');
+    }()+
     '</div></div></div>';
 
-  var storeFieldsWithData = STORE_FIELDS.filter(function(f){ return a[f.key] || a[f.key+'_notes']; });
+  // Store Information — activity log fields get a "Log" button + history
+  var activityFieldKeys = new Set(ACTIVITY_FIELDS.map(function(f){ return f.key; }));
+  var storeFieldsWithData = STORE_FIELDS.filter(function(f){ return a[f.key] || a[f.key+'_notes'] || activityFieldKeys.has(f.key); });
   if (storeFieldsWithData.length) {
     html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🏪 Store Information</div><div class="card-body">'+
       storeFieldsWithData.map(function(f){
         var val = a[f.key] || '';
         var note = a[f.key+'_notes'] || '';
+        var isActivityField = activityFieldKeys.has(f.key);
         var valDisplay;
-        if (f.type === 'yn') {
+        if (isActivityField) {
+          // Show last performed date (cached) + Log button
+          var history = allActivityLog.filter(function(e){ return e.account_id===a.account_id && e.field_key===f.key; })
+            .sort(function(x,y){ return (y.date_performed||'').localeCompare(x.date_performed||''); });
+          valDisplay = (val?'<span class="field-value">Last: '+esc(val)+'</span>':'<span class="field-value empty">Not logged yet</span>')+
+            ' <button type="button" class="btn btn-secondary btn-sm activity-log-btn" data-fkey="'+f.key+'" data-flabel="'+esc(f.label)+'" style="padding:3px 8px;font-size:11px;margin-left:6px">＋ Log</button>';
+          if (history.length) {
+            valDisplay += '<div style="margin-top:8px">'+history.map(function(e){
+              return '<div style="font-size:12px;color:var(--gray-3);padding:3px 0">'+esc(e.date_performed)+(e.notes?' — '+esc(e.notes):'')+'</div>';
+            }).join('')+'</div>';
+          }
+        } else if (f.type === 'yn') {
           var lv = val.toLowerCase();
-          var badgeClass = lv==='yes' ? 'yes' : (lv==='no' ? 'no' : '');
-          valDisplay = val ? '<span class="product-chip '+badgeClass+'" style="display:inline-block;padding:2px 10px;font-size:11px">'+esc(val)+'</span>' : '<span class="field-value empty">—</span>';
+          var badgeClass = lv==='yes'?'yes':(lv==='no'?'no':'');
+          valDisplay = val?'<span class="product-chip '+badgeClass+'" style="display:inline-block;padding:2px 10px;font-size:11px">'+esc(val)+'</span>':'<span class="field-value empty">—</span>';
         } else {
-          valDisplay = val ? '<span class="field-value">'+esc(val)+'</span>' : '<span class="field-value empty">—</span>';
+          valDisplay = val?'<span class="field-value">'+esc(val)+'</span>':'<span class="field-value empty">—</span>';
         }
         return '<div class="field-row" style="align-items:flex-start">'+
           '<span class="field-label" style="padding-top:2px">'+f.label+'</span>'+
@@ -1409,6 +1521,14 @@ function renderDetail() {
 
   // Wire up detail buttons
   var eb = document.getElementById('editBtn'); if(eb) eb.addEventListener('click', openEditModal);
+  var apb = document.getElementById('addPersonnelBtn');
+  if (apb) apb.addEventListener('click', function(){ openPersonnelModal(null); });
+  document.querySelectorAll('.personnel-delete-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){ e.stopPropagation(); deletePersonnel(btn.dataset.pid); });
+  });
+  document.querySelectorAll('.activity-log-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){ e.stopPropagation(); openActivityLog(btn.dataset.fkey, btn.dataset.flabel); });
+  });
   var lb = document.getElementById('logVisitBtn'); if(lb) lb.addEventListener('click', openVisitModal);
   var db = document.getElementById('deleteBtn'); if(db) db.addEventListener('click', softDelete);
   var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreAccount);
@@ -1553,6 +1673,148 @@ async function toggleVisitHighlight(vid) {
     } catch(e) { showToast('Error updating highlight','error'); console.error(e); }
   }
   renderDetail();
+}
+
+// ── Activity Log ──────────────────────────────────────────────────────────────
+var _activityLogFieldKey = null, _activityLogFieldLabel = null;
+
+function openActivityLog(fieldKey, fieldLabel) {
+  _activityLogFieldKey   = fieldKey;
+  _activityLogFieldLabel = fieldLabel;
+  document.getElementById('activityLogTitle').textContent = 'Log: '+fieldLabel;
+  document.getElementById('activityLogDate').value  = new Date().toISOString().split('T')[0];
+  document.getElementById('activityLogNotes').value = '';
+
+  // Show history for this field on this account
+  var history = allActivityLog.filter(function(e){
+    return e.account_id===currentAccount.account_id && e.field_key===fieldKey;
+  }).sort(function(a,b){ return (b.date_performed||'').localeCompare(a.date_performed||''); });
+
+  var histEl = document.getElementById('activityLogHistory');
+  if (history.length) {
+    histEl.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">Previous entries</div>'+
+      history.map(function(e){
+        return '<div style="font-size:12px;color:var(--gray-4);padding:6px 0;border-bottom:1px solid var(--gray-1)">'+
+          '<span style="color:var(--white);font-weight:600">'+esc(e.date_performed)+'</span>'+
+          (e.notes?' — '+esc(e.notes):'')+'</div>';
+      }).join('');
+  } else {
+    histEl.innerHTML = '<div style="font-size:12px;color:var(--gray-3)">No previous entries.</div>';
+  }
+  document.getElementById('modalActivityLog').classList.add('open');
+}
+
+async function saveActivityLog() {
+  var date  = document.getElementById('activityLogDate').value;
+  var notes = document.getElementById('activityLogNotes').value.trim();
+  if (!date) { showToast('Please select a date','error'); return; }
+  var aid = 'AL'+Date.now();
+  var row = [aid, currentAccount.account_id, currentAccount.business_name,
+             currentTerritory, _activityLogFieldKey, _activityLogFieldLabel, date, notes];
+  try {
+    await gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId:SHEET_ID, range:'Activity Log!A:H',
+      valueInputOption:'RAW', resource:{values:[row]}
+    });
+    // Update the cache field on the Accounts sheet with the new date
+    var rowNum = sheetRowMap[currentAccount.account_id];
+    if (rowNum && COL[_activityLogFieldKey] !== undefined) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId:SHEET_ID,
+        range:'Accounts!'+colLetter(COL[_activityLogFieldKey])+rowNum,
+        valueInputOption:'RAW', resource:{values:[[date]]}
+      });
+      currentAccount[_activityLogFieldKey] = date;
+    }
+    allActivityLog.push({activity_id:aid, account_id:currentAccount.account_id,
+      account_name:currentAccount.business_name, territory:currentTerritory,
+      field_key:_activityLogFieldKey, field_label:_activityLogFieldLabel,
+      date_performed:date, notes:notes});
+    showToast('Activity logged ✓');
+    closeModal('modalActivityLog');
+    renderDetail();
+  } catch(e) { showToast('Error saving activity','error'); console.error(e); }
+}
+
+// ── Personnel ─────────────────────────────────────────────────────────────────
+var _editingPersonnelId = null;
+
+function openPersonnelModal(personnelId) {
+  _editingPersonnelId = personnelId;
+  var existing = personnelId ? allPersonnel.find(function(p){ return p.personnel_id===personnelId; }) : null;
+  document.getElementById('personnelModalTitle').textContent = personnelId ? 'Edit Contact' : 'Add Contact';
+  document.getElementById('personnelRole').value  = existing ? existing.role  : '';
+  document.getElementById('personnelName').value  = existing ? existing.name  : '';
+  document.getElementById('personnelPhone').value = existing ? existing.phone : '';
+  document.getElementById('personnelEmail').value = existing ? existing.email : '';
+  document.getElementById('modalPersonnel').classList.add('open');
+}
+
+async function savePersonnel() {
+  var role  = document.getElementById('personnelRole').value.trim();
+  var name  = document.getElementById('personnelName').value.trim();
+  var phone = document.getElementById('personnelPhone').value.trim();
+  var email = document.getElementById('personnelEmail').value.trim();
+  if (!name) { showToast('Please enter a name','error'); return; }
+  var pid = _editingPersonnelId || ('PER'+Date.now());
+  var row = [pid, currentAccount.account_id, currentAccount.business_name,
+             currentTerritory, role, name, phone, email];
+  try {
+    if (_editingPersonnelId) {
+      // Find and update the existing row
+      var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId:SHEET_ID, range:'Personnel!A:H'
+      })).result.values || [];
+      for (var i=1; i<allRows.length; i++) {
+        if (allRows[i][0]===_editingPersonnelId) {
+          await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId:SHEET_ID, range:'Personnel!A'+(i+1)+':H'+(i+1),
+            valueInputOption:'RAW', resource:{values:[row]}
+          });
+          var p = allPersonnel.find(function(x){ return x.personnel_id===_editingPersonnelId; });
+          if (p) { p.role=role; p.name=name; p.phone=phone; p.email=email; }
+          break;
+        }
+      }
+    } else {
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId:SHEET_ID, range:'Personnel!A:H',
+        valueInputOption:'RAW', resource:{values:[row]}
+      });
+      allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
+        account_name:currentAccount.business_name, territory:currentTerritory,
+        role:role, name:name, phone:phone, email:email});
+    }
+    showToast('Contact saved ✓');
+    closeModal('modalPersonnel');
+    renderDetail();
+  } catch(e) { showToast('Error saving contact','error'); console.error(e); }
+}
+
+async function deletePersonnel(personnelId) {
+  if (!confirm('Remove this contact?')) return;
+  try {
+    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SHEET_ID});
+    var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
+    var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId:SHEET_ID, range:'Personnel!A:H'
+    })).result.values || [];
+    for (var i=1; i<allRows.length; i++) {
+      if (allRows[i][0]===personnelId) {
+        await gapi.client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId:SHEET_ID,
+          resource:{requests:[{deleteDimension:{range:{
+            sheetId:perSheet.properties.sheetId,
+            dimension:'ROWS', startIndex:i, endIndex:i+1
+          }}}]}
+        });
+        break;
+      }
+    }
+    allPersonnel = allPersonnel.filter(function(p){ return p.personnel_id!==personnelId; });
+    showToast('Contact removed ✓');
+    renderDetail();
+  } catch(e) { showToast('Error removing contact','error'); console.error(e); }
 }
 
 // ── Territory Updates ─────────────────────────────────────────────────────────
@@ -2346,7 +2608,18 @@ async function runWeeklyRecap() {
   };
   var inTerritory = function(t){ return territory==='ALL' || t===territory; };
 
-  var changesInRange  = changeRows.filter(function(c){ return inTerritory(c.territory) && inRange(c.timestamp); });
+  var changesInRange = changeRows.filter(function(c){
+    if (!inTerritory(c.territory) || !inRange(c.timestamp)) return false;
+    // Only surface whitelisted fields
+    if (!RECAP_FIELDS.has(c.field_key)) return false;
+    // For product carrying fields: only show when new value is 'Yes' on active account
+    if (c.field_key.endsWith('_carrying')) {
+      if ((c.new_value||'').toLowerCase() !== 'yes') return false;
+      var accInfo = accountStatusMap[c.account_id];
+      if (!accInfo || accInfo.status !== 'active') return false;
+    }
+    return true;
+  });
   var visitsInRange   = visitRows.filter(function(v){ return inTerritory(v.territory) && inRange(v.visit_date); });
   var tuInRange       = (tuRows||[]).filter(function(u){ return inTerritory(u.territory) && inRange(u.timestamp); })
     .sort(function(a,b){
@@ -2709,8 +2982,6 @@ function openEditModal() {
     '<div class="form-section"><div class="form-section-title">Account Rating</div>'+
     '<div class="rating-input">'+[1,2,3,4,5].map(function(n){ return '<div class="rating-opt'+(selectedRating===n?' selected':'')+'" data-val="'+n+'">'+n+' ★</div>'; }).join('')+'</div>'+
     '<div style="font-size:11px;color:var(--gray-3);margin-top:6px">1=Low priority · 3=Good prospect · 5=High priority</div></div>'+
-    '<div class="form-section"><div class="form-section-title">BG Products Discussed</div>'+
-    '<div class="products-check-grid">'+BG_PRODUCTS.map(function(p){ return '<label class="product-check"><input type="checkbox" id="e_'+p.key+'"'+(a[p.key]&&a[p.key].toLowerCase()==='yes'?' checked':'')+'>'+p.label+'</label>'; }).join('')+'</div></div>'+
     '<div class="form-section"><div class="form-section-title">General Notes</div>'+
     '<div class="form-row"><textarea id="e_general_notes" style="min-height:100px">'+esc(a.general_notes)+'</textarea></div></div>';
 
