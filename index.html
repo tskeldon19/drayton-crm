@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v2.4 - built 2026-07-06 -->
+<!-- Drayton CRM v2.5 - built 2026-07-06 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -235,6 +235,15 @@
   .account-type-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 6px; }
   .type-active   { background: #1a3d25; color: #5dba7d; }
   .type-prospect { background: var(--gold-dim); color: var(--gold); }
+  .tu-entry { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 8px; margin-bottom: 8px; padding: 14px 16px; }
+  .tu-entry.highlighted { border-left: 3px solid var(--gold); background: rgba(232,200,74,0.04); }
+  .tu-category { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.4px; margin-right:8px; }
+  .cat-win       { background:#1a3d25; color:#5dba7d; }
+  .cat-challenge { background:#3d1a1a; color:#d47070; }
+  .cat-competitor{ background:#3d1a3d; color:#c07dc0; }
+  .cat-personnel { background:var(--gray-2); color:var(--gray-4); }
+  .cat-market    { background:#1a2f3d; color:#70a8d4; }
+  .cat-misc      { background:var(--gold-dim); color:var(--gold); }
   .conversion-flag { background: #1a3d25; border: 1px solid #2a6040; border-radius: 5px; padding: 8px 12px; margin: 0 16px 10px; font-size: 12px; color: #5dba7d; font-weight: 600; }
   .reversion-flag  { background: #3d1a1a; border: 1px solid #6b2a2a; border-radius: 5px; padding: 8px 12px; margin: 0 16px 10px; font-size: 12px; color: #d47070; font-weight: 600; }
 
@@ -380,6 +389,7 @@
     <div class="tab-row">
       <button class="tab active" id="tabProspect">🔍 Prospective</button>
       <button class="tab" id="tabActive">✅ Active Clients</button>
+      <button class="tab" id="tabTerritoryUpdates">📌 Territory Updates</button>
       <button class="tab" id="tabMyLists" style="margin-left:auto">📋 My Lists</button>
     </div>
     <div class="subfilter-row" id="subfilterRow">
@@ -532,6 +542,71 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="addToListCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screenTerritoryUpdates">
+  <div class="account-detail">
+    <button class="back-btn" id="tuBackBtn">← Back to dashboard</button>
+    <div class="detail-header">
+      <div>
+        <h2>📌 Territory Updates</h2>
+        <div class="meta" id="tuSubtitle"></div>
+      </div>
+      <button class="btn btn-gold btn-sm" id="newTuBtn">＋ New Update</button>
+    </div>
+    <div id="tuContent"><div class="loading"><div class="spinner"></div>Loading updates...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalTuEdit">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="tuEditTitle">New Territory Update</h3>
+      <button class="modal-close" id="tuEditClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Category</label>
+        <select id="tuCategory">
+          <option value="Market Update">Market Update</option>
+          <option value="Competitor Activity">Competitor Activity</option>
+          <option value="Personnel Change">Personnel Change</option>
+          <option value="Win">Win</option>
+          <option value="Challenge">Challenge</option>
+          <option value="Misc">Misc</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Notes</label><textarea id="tuNotes" style="min-height:120px" placeholder="Describe the update..."></textarea></div>
+      <label class="product-check" style="margin-top:4px"><input type="checkbox" id="tuHighlight">⭐ Flag as key event in Weekly Recap</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="tuEditCancel">Cancel</button>
+      <button class="btn btn-gold" id="tuEditSave">Save Update</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalVisitEdit">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Edit Visit</h3>
+      <button class="modal-close" id="visitEditClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Visit Date</label><input type="date" id="visitEditDate"></div>
+      <div class="form-row"><label>Attendees</label><input type="text" id="visitEditAttendees"></div>
+      <div class="form-row"><label>Visit Notes</label><textarea id="visitEditNotes" style="min-height:80px"></textarea></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Follow-Up Date</label><input type="date" id="visitEditFollowup"></div>
+        <div class="form-row"><label>Follow-Up Notes</label><input type="text" id="visitEditFollowupNotes"></div>
+      </div>
+      <label class="product-check" style="margin-top:4px"><input type="checkbox" id="visitEditHighlight">⭐ Key event / highlight</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="visitEditCancel">Cancel</button>
+      <button class="btn btn-gold" id="visitEditSave">Save Changes</button>
     </div>
   </div>
 </div>
@@ -736,6 +811,15 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('addToListClose').addEventListener('click', function(){ closeModal('modalAddToList'); });
   document.getElementById('addToListCancel').addEventListener('click', function(){ closeModal('modalAddToList'); });
   document.getElementById('bulkCancelBtn').addEventListener('click', exitSelectMode);
+  document.getElementById('tabTerritoryUpdates').addEventListener('click', openTerritoryUpdates);
+  document.getElementById('tuBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('newTuBtn').addEventListener('click', function(){ openTuModal(null); });
+  document.getElementById('tuEditClose').addEventListener('click', function(){ closeModal('modalTuEdit'); });
+  document.getElementById('tuEditCancel').addEventListener('click', function(){ closeModal('modalTuEdit'); });
+  document.getElementById('tuEditSave').addEventListener('click', saveTerritoryUpdate);
+  document.getElementById('visitEditClose').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
+  document.getElementById('visitEditCancel').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
+  document.getElementById('visitEditSave').addEventListener('click', saveVisitEdit);
   document.getElementById('bulkAddBtn').addEventListener('click', bulkAddSelectedToList);
   document.querySelectorAll('.subfilter-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -1310,6 +1394,18 @@ function renderDetail() {
       toggleVisitHighlight(btn.dataset.vid);
     });
   });
+  document.querySelectorAll('.visit-edit-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      openVisitEdit(btn.dataset.vid);
+    });
+  });
+  document.querySelectorAll('.visit-cal-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      downloadFollowupIcs(btn.dataset.vid);
+    });
+  });
 
   // Wire up detail buttons
   var eb = document.getElementById('editBtn'); if(eb) eb.addEventListener('click', openEditModal);
@@ -1427,13 +1523,18 @@ async function saveProductDetails(pkey) {
 
 function renderVisitEntry(v) {
   var isStar = (v.is_highlight||'').toLowerCase() === 'yes';
+  var hasFollowup = v.followup_date || v.followup_notes;
   return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
     '<div class="visit-entry-top">'+
       '<div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div>'+
-      '<button type="button" class="visit-star-btn'+(isStar?' starred':'')+'" data-vid="'+v.visit_id+'" title="'+(isStar?'Remove highlight':'Mark as key event')+'">'+(isStar?'⭐':'☆')+'</button>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-cal-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up to calendar">📅</button>':'')+
+        '<button type="button" class="btn btn-secondary btn-sm visit-edit-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px">✏️</button>'+
+        '<button type="button" class="visit-star-btn'+(isStar?' starred':'')+'" data-vid="'+v.visit_id+'" title="'+(isStar?'Remove highlight':'Mark as key event')+'">'+(isStar?'⭐':'☆')+'</button>'+
+      '</div>'+
     '</div>'+
     '<div class="visit-notes">'+esc(v.notes||'—')+'</div>'+
-    (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
+    (hasFollowup?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
   '</div>';
 }
 
@@ -1454,7 +1555,240 @@ async function toggleVisitHighlight(vid) {
   renderDetail();
 }
 
-// ── Lead Lists ────────────────────────────────────────────────────────────────
+// ── Territory Updates ─────────────────────────────────────────────────────────
+var allTerritoryUpdates = [];
+var _editingTuId = null;
+
+const TUCOL = {update_id:0,territory:1,category:2,notes:3,is_highlight:4,author:5,timestamp:6,edited_at:7};
+
+function catClass(cat) {
+  var map = {'Win':'cat-win','Challenge':'cat-challenge','Competitor Activity':'cat-competitor',
+             'Personnel Change':'cat-personnel','Market Update':'cat-market','Misc':'cat-misc'};
+  return map[cat] || 'cat-misc';
+}
+
+async function fetchTerritoryUpdates() {
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId:SHEET_ID, range:'Territory Updates!A:H'
+    });
+    var rows = res.result.values || [];
+    allTerritoryUpdates = rows.slice(1).map(function(r){
+      return {update_id:r[0]||'',territory:r[1]||'',category:r[2]||'',notes:r[3]||'',
+              is_highlight:r[4]||'',author:r[5]||'',timestamp:r[6]||'',edited_at:r[7]||''};
+    }).filter(function(u){ return u.territory===currentTerritory; });
+  } catch(e) { console.error('Error loading territory updates',e); }
+}
+
+async function openTerritoryUpdates() {
+  showScreen('screenTerritoryUpdates');
+  document.getElementById('tuContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+  await fetchTerritoryUpdates();
+  renderTerritoryUpdates();
+}
+
+function renderTerritoryUpdates() {
+  var sorted = allTerritoryUpdates.slice().sort(function(a,b){
+    return (b.timestamp||'').localeCompare(a.timestamp||'');
+  });
+  document.getElementById('tuSubtitle').textContent =
+    sorted.length+' update'+(sorted.length!==1?'s':'')+' for '+currentTerritory;
+  var el = document.getElementById('tuContent');
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty-state"><div>📌</div><div style="margin-top:8px">No territory updates yet. Add one to share with your team.</div></div>';
+    return;
+  }
+  el.innerHTML = sorted.map(function(u){
+    var isStar = (u.is_highlight||'').toLowerCase()==='yes';
+    var date = u.timestamp ? u.timestamp.split('T')[0] : '';
+    var edited = u.edited_at ? ' (edited '+u.edited_at.split('T')[0]+')' : '';
+    return '<div class="tu-entry'+(isStar?' highlighted':'')+'" data-uid="'+u.update_id+'">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px">'+
+        '<div>'+
+          '<span class="tu-category '+catClass(u.category)+'">'+esc(u.category)+'</span>'+
+          (isStar?'<span style="font-size:13px">⭐</span>':'')+
+          '<span style="font-size:11px;color:var(--gray-3)">'+date+edited+'</span>'+
+        '</div>'+
+        '<button type="button" class="btn btn-secondary btn-sm tu-edit-btn" data-uid="'+u.update_id+'" style="flex-shrink:0">✏️ Edit</button>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--gray-4);line-height:1.6">'+esc(u.notes)+'</div>'+
+    '</div>';
+  }).join('');
+  document.querySelectorAll('.tu-edit-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ openTuModal(btn.dataset.uid); });
+  });
+}
+
+function openTuModal(uid) {
+  _editingTuId = uid;
+  var existing = uid ? allTerritoryUpdates.find(function(u){ return u.update_id===uid; }) : null;
+  document.getElementById('tuEditTitle').textContent = uid ? 'Edit Territory Update' : 'New Territory Update';
+  document.getElementById('tuCategory').value = existing ? existing.category : 'Market Update';
+  document.getElementById('tuNotes').value = existing ? existing.notes : '';
+  document.getElementById('tuHighlight').checked = existing ? (existing.is_highlight||'').toLowerCase()==='yes' : false;
+  document.getElementById('modalTuEdit').classList.add('open');
+}
+
+async function saveTerritoryUpdate() {
+  var category = document.getElementById('tuCategory').value;
+  var notes    = document.getElementById('tuNotes').value.trim();
+  var hl       = document.getElementById('tuHighlight').checked ? 'Yes' : '';
+  if (!notes) { showToast('Please enter notes','error'); return; }
+  var now = new Date().toISOString();
+
+  if (_editingTuId) {
+    // Edit existing — find and update the row
+    var u = allTerritoryUpdates.find(function(x){ return x.update_id===_editingTuId; });
+    if (!u) return;
+    u.category = category; u.notes = notes; u.is_highlight = hl; u.edited_at = now;
+    try {
+      var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId:SHEET_ID, range:'Territory Updates!A:H'
+      })).result.values || [];
+      for (var i=1; i<allRows.length; i++) {
+        if (allRows[i][0]===_editingTuId) {
+          await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId:SHEET_ID, range:'Territory Updates!C'+(i+1)+':E'+(i+1),
+            valueInputOption:'RAW', resource:{values:[[category,notes,hl]]}
+          });
+          await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId:SHEET_ID, range:'Territory Updates!H'+(i+1),
+            valueInputOption:'RAW', resource:{values:[[now]]}
+          });
+          break;
+        }
+      }
+      showToast('Update saved ✓');
+    } catch(e) { showToast('Error saving','error'); console.error(e); return; }
+  } else {
+    // New entry
+    var uid = 'TU'+Date.now();
+    var row = [uid, currentTerritory, category, notes, hl, '', now, ''];
+    try {
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId:SHEET_ID, range:'Territory Updates!A:H',
+        valueInputOption:'RAW', resource:{values:[row]}
+      });
+      allTerritoryUpdates.push({update_id:uid,territory:currentTerritory,category:category,
+        notes:notes,is_highlight:hl,author:'',timestamp:now,edited_at:''});
+      showToast('Update posted ✓');
+    } catch(e) { showToast('Error saving','error'); console.error(e); return; }
+  }
+  closeModal('modalTuEdit');
+  renderTerritoryUpdates();
+}
+
+// ── Editable Visit Logs ───────────────────────────────────────────────────────
+var _editingVisitId = null;
+
+function openVisitEdit(vid) {
+  var v = allVisits.find(function(x){ return x.visit_id===vid; });
+  if (!v) return;
+  _editingVisitId = vid;
+  document.getElementById('visitEditDate').value         = v.visit_date||'';
+  document.getElementById('visitEditAttendees').value    = v.attendees||'';
+  document.getElementById('visitEditNotes').value        = v.notes||'';
+  document.getElementById('visitEditFollowup').value     = v.followup_date||'';
+  document.getElementById('visitEditFollowupNotes').value= v.followup_notes||'';
+  document.getElementById('visitEditHighlight').checked  = (v.is_highlight||'').toLowerCase()==='yes';
+  document.getElementById('modalVisitEdit').classList.add('open');
+}
+
+async function saveVisitEdit() {
+  var v = allVisits.find(function(x){ return x.visit_id===_editingVisitId; });
+  if (!v) return;
+  var date    = document.getElementById('visitEditDate').value;
+  var attend  = document.getElementById('visitEditAttendees').value;
+  var notes   = document.getElementById('visitEditNotes').value;
+  var fu      = document.getElementById('visitEditFollowup').value;
+  var fuN     = document.getElementById('visitEditFollowupNotes').value;
+  var hl      = document.getElementById('visitEditHighlight').checked ? 'Yes' : '';
+  if (!notes) { showToast('Visit notes cannot be empty','error'); return; }
+  if (!date)  { showToast('Please enter a visit date','error'); return; }
+
+  v.visit_date=date; v.attendees=attend; v.notes=notes;
+  v.followup_date=fu; v.followup_notes=fuN; v.is_highlight=hl;
+
+  var rowNum = visitRowMap[v.visit_id];
+  if (rowNum) {
+    try {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId:SHEET_ID, range:'Visits!E'+rowNum+':J'+rowNum,
+        valueInputOption:'RAW', resource:{values:[[date,attend,notes,fu,fuN,hl]]}
+      });
+      showToast('Visit updated ✓');
+    } catch(e) { showToast('Error saving visit','error'); console.error(e); return; }
+  }
+  // Also update last_visit and next_followup on account if these changed
+  var accRowNum = sheetRowMap[currentAccount.account_id];
+  if (accRowNum) {
+    if (date) { currentAccount.last_visit = date; }
+    if (fu)   { currentAccount.next_followup = fu; }
+    try {
+      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId:SHEET_ID, resource:{valueInputOption:'RAW', data:[
+          {range:'Accounts!'+colLetter(COL.last_visit)+accRowNum,    values:[[currentAccount.last_visit||'']]},
+          {range:'Accounts!'+colLetter(COL.next_followup)+accRowNum, values:[[currentAccount.next_followup||'']]}
+        ]}
+      });
+    } catch(e) { console.error('Error updating account dates',e); }
+  }
+  closeModal('modalVisitEdit');
+  renderDetail();
+}
+
+// ── Outlook / Calendar .ics Download ─────────────────────────────────────────
+function downloadFollowupIcs(vid) {
+  var v = allVisits.find(function(x){ return x.visit_id===vid; });
+  if (!v || !v.followup_date) { showToast('No follow-up date on this visit','error'); return; }
+  var acc = currentAccount;
+  var dateStr = v.followup_date.replace(/-/g,'');        // YYYYMMDD
+  var summary = 'Follow-Up: '+acc.business_name;
+  var description = [
+    'Account: '+acc.business_name,
+    acc.town ? 'Town: '+acc.town : '',
+    v.followup_notes ? 'Notes: '+v.followup_notes : '',
+    v.notes ? 'Visit recap: '+v.notes : ''
+  ].filter(Boolean).join('\\n');
+  var location = [acc.address,acc.town,acc.state].filter(Boolean).join(', ');
+  var uid = vid+'@drayton-crm';
+  var now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15)+'Z';
+
+  var ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Drayton CRM//EN',
+    'BEGIN:VEVENT',
+    'UID:'+uid,
+    'DTSTAMP:'+now,
+    'DTSTART;VALUE=DATE:'+dateStr,
+    'DTEND;VALUE=DATE:'+dateStr,
+    'SUMMARY:'+summary,
+    'DESCRIPTION:'+description,
+    'LOCATION:'+location,
+    'BEGIN:VALARM',
+    'TRIGGER:-PT30M',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:Reminder: '+summary,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  var blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'followup-'+acc.business_name.replace(/[^a-z0-9]/gi,'-').toLowerCase()+'-'+v.followup_date+'.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Calendar event downloaded ✓');
+}
+
+// ── Weekly Recap — Territory Updates section ──────────────────────────────────
+// (wired into runWeeklyRecap below via fetchTuForRecap)
 var allLists = [];        // loaded from 'Lead Lists' sheet
 var allListItems = [];    // loaded from 'Lead List Items' sheet
 var currentList = null;   // list object currently being viewed
@@ -1964,23 +2298,24 @@ async function runWeeklyRecap() {
   document.getElementById('recapContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading recap...</div>';
 
   try {
-    var changeRows, visitRows, accountStatusMap;
+    var changeRows, visitRows, accountStatusMap, tuRows;
     if (territory === currentTerritory && allAccounts.length) {
-      // Already have it loaded for the active territory session.
       changeRows = allChangeLog;
       visitRows  = allVisits;
+      tuRows     = allTerritoryUpdates;
       accountStatusMap = {};
       allAccounts.forEach(function(a){ accountStatusMap[a.account_id] = { status:a.status, town:a.town }; });
     } else {
-      // Pull fresh — either a different single territory or All Territories.
       var results = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FH'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Territory Updates!A:H'}),
       ]);
       var visRaw = results[0].result.values || [];
       var clRaw  = results[1].result.values || [];
       var accRaw = results[2].result.values || [];
+      var tuRaw  = results[3].result.values || [];
       visitRows = visRaw.slice(1).map(function(r){
         return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
                  visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
@@ -1989,6 +2324,10 @@ async function runWeeklyRecap() {
       changeRows = clRaw.slice(1).map(function(r){
         return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
                  field_key:r[4]||'', field_label:r[5]||'', old_value:r[6]||'', new_value:r[7]||'' };
+      });
+      tuRows = tuRaw.slice(1).map(function(r){
+        return { update_id:r[0]||'', territory:r[1]||'', category:r[2]||'', notes:r[3]||'',
+                 is_highlight:r[4]||'', author:r[5]||'', timestamp:r[6]||'', edited_at:r[7]||'' };
       });
       accountStatusMap = {};
       accRaw.slice(1).forEach(function(r){
@@ -2007,8 +2346,14 @@ async function runWeeklyRecap() {
   };
   var inTerritory = function(t){ return territory==='ALL' || t===territory; };
 
-  var changesInRange = changeRows.filter(function(c){ return inTerritory(c.territory) && inRange(c.timestamp); });
+  var changesInRange  = changeRows.filter(function(c){ return inTerritory(c.territory) && inRange(c.timestamp); });
   var visitsInRange   = visitRows.filter(function(v){ return inTerritory(v.territory) && inRange(v.visit_date); });
+  var tuInRange       = (tuRows||[]).filter(function(u){ return inTerritory(u.territory) && inRange(u.timestamp); })
+    .sort(function(a,b){
+      var ah=(a.is_highlight||'').toLowerCase()==='yes', bh=(b.is_highlight||'').toLowerCase()==='yes';
+      if (ah!==bh) return ah?-1:1;
+      return (b.timestamp||'').localeCompare(a.timestamp||'');
+    });
 
   // Attach current account status + town for the type tag and search.
   changesInRange.forEach(function(c){
@@ -2045,6 +2390,7 @@ async function runWeeklyRecap() {
   // instantly without another round-trip to the sheet.
   window._recapChanges = changesInRange;
   window._recapVisits  = visitsInRange;
+  window._recapTu      = tuInRange;
   window._recapMeta    = { start: start, end: end, territory: territory };
 
   applyRecapSearch();
@@ -2053,13 +2399,15 @@ async function runWeeklyRecap() {
 function applyRecapSearch() {
   var changes = window._recapChanges || [];
   var visits  = window._recapVisits  || [];
+  var tu      = window._recapTu      || [];
   var meta    = window._recapMeta    || {};
   var q = (document.getElementById('recapSearchInput').value || '').toLowerCase().trim();
   var conversionsOnly = document.getElementById('conversionsOnlyToggle').checked;
 
   if (conversionsOnly) {
     changes = changes.filter(function(c){ return c.is_conversion || c.is_reversion; });
-    visits = [];   // milestone-only view, not visit activity
+    visits = [];
+    tu = [];
   }
 
   if (q) {
@@ -2077,19 +2425,49 @@ function applyRecapSearch() {
              v.attendees.toLowerCase().includes(q) ||
              (v.followup_notes||'').toLowerCase().includes(q);
     });
+    tu = tu.filter(function(u){
+      return u.category.toLowerCase().includes(q) ||
+             u.notes.toLowerCase().includes(q);
+    });
   }
 
-  renderWeeklyRecap(changes, visits, meta.start, meta.end, meta.territory, conversionsOnly);
+  renderWeeklyRecap(changes, visits, tu, meta.start, meta.end, meta.territory, conversionsOnly);
 }
 
-function renderWeeklyRecap(changes, visits, start, end, territory, conversionsOnly) {
+function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversionsOnly) {
   var fmtDate = function(s){
     if (!s) return '';
     var parts = s.split('T')[0].split('-');
     return parts[1]+'/'+parts[2]+'/'+parts[0];
   };
 
-  var html = '<div class="card" style="margin-bottom:16px">'+
+  var html = '';
+
+  // ── Territory Updates section (always shown first when present) ──
+  if (tu && tu.length && !conversionsOnly) {
+    html += '<div class="card" style="margin-bottom:16px">'+
+      '<div class="card-header">📌 Territory Updates'+
+      (territory==='ALL'?' — All Territories':' — '+territory)+
+      '<span style="float:right;font-weight:400;opacity:0.7">'+tu.length+' update'+(tu.length!==1?'s':'')+'</span></div>'+
+      '<div class="card-body" style="padding:0">'+
+      tu.map(function(u){
+        var isStar = (u.is_highlight||'').toLowerCase()==='yes';
+        var ts = u.timestamp ? u.timestamp.split('T')[0] : '';
+        return '<div class="field-row" style="padding:10px 16px;align-items:flex-start">'+
+          '<div style="width:90px;flex-shrink:0;font-size:11px;color:var(--gray-3);padding-top:2px">'+fmtDate(ts)+
+          (territory==='ALL'?'<div style="color:var(--gold);font-weight:600;margin-top:2px">'+esc(u.territory)+'</div>':'')+
+          '</div>'+
+          '<div style="flex:1">'+
+            '<span class="tu-category '+catClass(u.category)+'">'+esc(u.category)+'</span>'+
+            (isStar?'⭐ ':'')+
+            '<span style="font-size:13px;color:var(--gray-4)">'+esc(u.notes)+'</span>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+      '</div></div>';
+  }
+
+  html += '<div class="card" style="margin-bottom:16px">'+
     '<div class="card-header">'+(conversionsOnly?'🎉 Conversions & Reversions':'📋 Key Field Changes')+' ('+fmtDate(start)+' – '+fmtDate(end)+')'+
     (territory==='ALL'?' — All Territories':' — '+territory)+
     '<span style="float:right;font-weight:400;opacity:0.7">'+changes.length+(conversionsOnly?' event':' change')+(changes.length!==1?'s':'')+'</span></div>'+
