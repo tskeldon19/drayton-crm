@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.4 - built 2026-07-07 -->
+<!-- Drayton CRM v3.6 - built 2026-07-08 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -247,6 +247,22 @@
   .conversion-flag { background: #1a3d25; border: 1px solid #2a6040; border-radius: 5px; padding: 8px 12px; margin: 0 16px 10px; font-size: 12px; color: #5dba7d; font-weight: 600; }
   .reversion-flag  { background: #3d1a1a; border: 1px solid #6b2a2a; border-radius: 5px; padding: 8px 12px; margin: 0 16px 10px; font-size: 12px; color: #d47070; font-weight: 600; }
 
+  .report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .report-table th { background: var(--black); color: var(--gold); padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid var(--gold-dim); cursor: pointer; white-space: nowrap; }
+  .report-table th:hover { color: var(--white); }
+  .report-table td { padding: 10px 12px; border-bottom: 1px solid var(--gray-1); color: var(--gray-4); vertical-align: top; }
+  .report-table tr:hover td { background: var(--black-soft); color: var(--white); cursor: pointer; }
+  .report-table .rank-num { font-size: 16px; font-weight: 700; color: var(--gold); }
+  .report-table .rank-1 { color: #FFD700; }
+  .report-table .rank-2 { color: #C0C0C0; }
+  .report-table .rank-3 { color: #CD7F32; }
+  .machine-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; margin-top: 4px; }
+  .machine-cell { background: var(--gray-1); border-radius: 3px; padding: 3px 5px; font-size: 10px; text-align: center; color: var(--gray-3); }
+  .machine-cell.has-data { background: var(--gold-dim); color: var(--gold); }
+  .upload-preview-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
+  .upload-preview-row .filename { color: var(--gold); font-weight: 600; }
+  .upload-preview-row .match-count { color: var(--gray-3); font-size: 12px; }
+
   .visit-card { background: var(--black-soft); border: 1px solid var(--gray-1); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
   .visit-card-header { background: var(--black); color: var(--gold); padding: 10px 16px; font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; border-bottom: 1px solid var(--gold-dim); }
   .visit-entry { padding: 12px 16px; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
@@ -366,6 +382,12 @@
         <div class="stat"><div class="num" id="statHot">—</div><div class="lbl">Hot (4-5★)</div></div>
       </div>
       <button class="btn btn-primary btn-sm" id="weeklyRecapBtn">📊 Weekly Recap</button>
+      <button class="btn btn-primary btn-sm" id="rankingsViewBtn">🏆 Rankings</button>
+      <button class="btn btn-primary btn-sm" id="machinesViewBtn">⚙️ Machines</button>
+      <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" title="Upload ranking files">↑ Rankings</button>
+      <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" title="Upload machine report">↑ Machines</button>
+      <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
+      <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
     </div>
     <div class="metric-row" id="metricRow">
       <button type="button" class="metric-card" id="metricYtdConversions" data-metric="ytd_conversions">
@@ -547,6 +569,47 @@
   </div>
 </div>
 
+<div class="screen" id="screenRankings">
+  <div class="account-detail">
+    <button class="back-btn" id="rankingsBackBtn">← Back to dashboard</button>
+    <div class="detail-header">
+      <div><h2>🏆 Territory Rankings</h2><div class="meta" id="rankingsMeta"></div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="rankingsSearch" placeholder="Search accounts..." style="width:200px">
+      </div>
+    </div>
+    <div id="rankingsContent"><div class="loading"><div class="spinner"></div>Loading rankings...</div></div>
+  </div>
+</div>
+
+<div class="screen" id="screenMachines">
+  <div class="account-detail">
+    <button class="back-btn" id="machinesBackBtn">← Back to dashboard</button>
+    <div class="detail-header">
+      <div><h2>⚙️ Machine Reports</h2><div class="meta" id="machinesMeta"></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="machinesTypeFilter" style="min-width:140px"><option value="ALL">All Report Types</option></select>
+        <input type="text" id="machinesSearch" placeholder="Search accounts..." style="width:180px">
+      </div>
+    </div>
+    <div id="machinesContent"><div class="loading"><div class="spinner"></div>Loading machine data...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalUploadPreview">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h3 id="uploadPreviewTitle">Upload Preview</h3>
+      <button class="modal-close" id="uploadPreviewClose">✕</button>
+    </div>
+    <div class="modal-body" id="uploadPreviewBody" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="uploadPreviewCancel">Cancel</button>
+      <button class="btn btn-gold" id="uploadPreviewConfirm">Confirm Upload</button>
+    </div>
+  </div>
+</div>
+
 <div class="screen" id="screenTerritoryUpdates">
   <div class="account-detail">
     <button class="back-btn" id="tuBackBtn">← Back to dashboard</button>
@@ -691,6 +754,30 @@
 <script>
 const CLIENT_ID = '237629763930-6q7ue607d2u1ka1ortgmlg9on0jhikss.apps.googleusercontent.com';
 const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
+// Separate shared sheet for machine reports — replace with real ID after creating the sheet
+const MACHINES_SHEET_ID = '1hwK0ZRlx7uxBuf1LRs9pLNZfPi08kzVH66v_EwPuCtg';
+
+// Territory → Sheet ID map (add entries as territories are onboarded)
+const TERRITORY_SHEET_IDS = {
+  'Route 105': '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA',
+  // 'Route 101': 'SHEET_ID_FOR_101',
+  // 'Route 102': 'SHEET_ID_FOR_102',
+  // Add others as territory sheets are created
+};
+
+// Route number patterns for auto-detecting territory from filename
+const ROUTE_PATTERNS = [
+  {pattern:/101/, territory:'Route 101'},
+  {pattern:/102/, territory:'Route 102'},
+  {pattern:/105/, territory:'Route 105'},
+  {pattern:/111/, territory:'Route 111'},
+  {pattern:/112/, territory:'Route 112'},
+  {pattern:/135/, territory:'Route 135'},
+  {pattern:/137/, territory:'Route 137'},
+  {pattern:/141/, territory:'Route 141'},
+  {pattern:/143/, territory:'Route 143'},
+  {pattern:/147/, territory:'Route 147'},
+];
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const DISCOVERY = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
 
@@ -843,6 +930,7 @@ let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={
 let allActivityLog=[], allPersonnel=[];
 let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
+let allRankings=[], allMachines=[];
 
 // ── Wire up all buttons via addEventListener — no inline onclick ──────────────
 document.addEventListener('DOMContentLoaded', function() {
@@ -860,6 +948,19 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitCancelBtn').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitSaveBtn').addEventListener('click', saveVisit);
   document.getElementById('weeklyRecapBtn').addEventListener('click', openWeeklyRecap);
+  document.getElementById('rankingsViewBtn').addEventListener('click', openRankingsView);
+  document.getElementById('machinesViewBtn').addEventListener('click', openMachinesView);
+  document.getElementById('uploadRankingsBtn').addEventListener('click', function(){ document.getElementById('rankingsFileInput').click(); });
+  document.getElementById('uploadMachinesBtn').addEventListener('click', function(){ document.getElementById('machinesFileInput').click(); });
+  document.getElementById('rankingsFileInput').addEventListener('change', handleRankingsUpload);
+  document.getElementById('machinesFileInput').addEventListener('change', handleMachinesUpload);
+  document.getElementById('rankingsBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('machinesBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('uploadPreviewClose').addEventListener('click', function(){ closeModal('modalUploadPreview'); });
+  document.getElementById('uploadPreviewCancel').addEventListener('click', function(){ closeModal('modalUploadPreview'); });
+  document.getElementById('rankingsSearch').addEventListener('input', renderRankingsTable);
+  document.getElementById('machinesSearch').addEventListener('input', renderMachinesTable);
+  document.getElementById('machinesTypeFilter').addEventListener('change', renderMachinesTable);
   document.getElementById('recapBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('recapRunBtn').addEventListener('click', runWeeklyRecap);
   document.getElementById('recapSearchInput').addEventListener('input', applyRecapSearch);
@@ -981,6 +1082,7 @@ async function loadTerritory() {
   document.getElementById('dashTerritoryName').textContent = sel;
   document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading accounts...</div>';
   await fetchData();
+  await fetchRankings();
   updateStats(); renderList();
 }
 
@@ -1506,6 +1608,50 @@ function renderDetail() {
         '</div>';
       }).join('')+
       '</div></div>';
+  }
+
+  // Rankings card
+  var ranking = allRankings.find(function(r){ return r.account_id===a.account_id; });
+  if (ranking) {
+    var pct = parseFloat(ranking.pct_change)||0;
+    var pctColor = pct>0?'color:#5dba7d':pct<0?'color:#d47070':'';
+    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🏆 Rankings</div><div class="card-body">'+
+      '<div class="field-row"><span class="field-label">Rank</span><span class="field-value" style="font-size:18px;font-weight:700;color:var(--gold)">#'+ranking.rank+'</span></div>'+
+      '<div class="field-row"><span class="field-label">PTD Sales</span>'+fv(ranking.sales_ptd)+'</div>'+
+      '<div class="field-row"><span class="field-label">YTD Sales</span>'+fv(ranking.sales_ytd)+'</div>'+
+      '<div class="field-row"><span class="field-label">Last Year YTD</span>'+fv(ranking.sales_lastyear)+'</div>'+
+      '<div class="field-row"><span class="field-label">% Change</span><span class="field-value" style="'+pctColor+'">'+esc(ranking.pct_change)+'</span></div>'+
+      '<div class="field-row"><span class="field-label">Report</span>'+fv(ranking.report_month)+'</div>'+
+      '</div></div>';
+  }
+
+  // Machines card — show all machines for this account across all report types
+  var accountMachines = allMachines.filter(function(m){ return m.account_id===a.account_id; });
+  if (accountMachines.length) {
+    var MONTHS_LABEL = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+    var MONTHS_KEY2  = ['apr','may','jun','jul','aug','sep','oct','nov','dec','jan','feb','mar'];
+    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">⚙️ Machine Data</div><div class="card-body" style="padding:0">'+
+      accountMachines.map(function(m){
+        var diff = parseFloat(m.difference)||0;
+        var diffColor = diff<0?'color:#d47070':diff>0?'color:#5dba7d':'';
+        return '<div style="padding:12px 16px;border-bottom:1px solid var(--gray-1)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+            '<div><span style="font-size:11px;background:var(--gray-2);padding:2px 6px;border-radius:4px;color:var(--gray-4)">'+esc(m.report_code)+'</span>'+
+            ' <span style="font-size:12px;color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</span></div>'+
+            '<div style="font-size:12px;color:var(--gray-3)">Req: '+esc(m.required)+' · Total: '+esc(m.total_sold)+' · <span style="'+diffColor+'">Diff: '+esc(m.difference)+'</span></div>'+
+          '</div>'+
+          '<div class="machine-grid">'+
+            MONTHS_LABEL.map(function(mo,idx){
+              var val = m[MONTHS_KEY2[idx]];
+              return '<div class="machine-cell'+(val&&val!=='0'?' has-data':'')+'" title="'+mo+'">'+
+                '<div style="font-size:9px;opacity:0.7">'+mo+'</div>'+
+                '<div>'+(val||'—')+'</div>'+
+              '</div>';
+            }).join('')+
+          '</div>'+
+        '</div>';
+      }).join('')+
+    '</div></div>';
   }
 
   if (a.general_notes) html += '<div class="card" style="margin-bottom:16px"><div class="card-header">📝 General Notes</div><div class="card-body" style="font-size:13px;line-height:1.6;color:var(--gray-4)">'+esc(a.general_notes)+'</div></div>';
@@ -2085,6 +2231,540 @@ function downloadFollowupIcs(vid) {
 
 // ── Weekly Recap — Territory Updates section ──────────────────────────────────
 // (wired into runWeeklyRecap below via fetchTuForRecap)
+// ── Rankings ──────────────────────────────────────────────────────────────────
+const RANK_COLS = {
+  account_id:0,account_name:1,customer_number:2,rank:3,
+  sales_ptd:4,sales_ytd:5,sales_lastyear:6,pct_change:7,
+  report_month:8,uploaded_at:9
+};
+var _rankSortCol = 'rank', _rankSortAsc = true;
+var _pendingRankingsUpload = null;  // parsed data awaiting confirm
+
+function normName(s) {
+  return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+
+function fuzzyMatchAccount(name) {
+  var n = normName(name);
+  // Exact norm match first
+  var exact = allAccounts.find(function(a){ return normName(a.business_name)===n; });
+  if (exact) return { account: exact, confidence: 1.0 };
+  // 3-gram similarity
+  var grams = function(s){ var g=new Set(); for(var i=0;i<s.length-2;i++) g.add(s.slice(i,i+3)); return g; };
+  var ga = grams(n);
+  var best = null, bestScore = 0;
+  allAccounts.forEach(function(a){
+    var gb = grams(normName(a.business_name));
+    var inter = 0; ga.forEach(function(g){ if(gb.has(g)) inter++; });
+    var score = inter / Math.max(ga.size, gb.size, 1);
+    if (score > bestScore) { bestScore = score; best = a; }
+  });
+  return bestScore >= 0.6 ? { account: best, confidence: bestScore } : null;
+}
+
+async function fetchRankings() {
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID, range: 'Rankings!A:J'
+    });
+    var rows = res.result.values || [];
+    allRankings = rows.slice(1).map(function(r){
+      return { account_id:r[0]||'', account_name:r[1]||'', customer_number:r[2]||'',
+               rank:parseInt(r[3])||0, sales_ptd:r[4]||'', sales_ytd:r[5]||'',
+               sales_lastyear:r[6]||'', pct_change:r[7]||'',
+               report_month:r[8]||'', uploaded_at:r[9]||'' };
+    });
+  } catch(e) { console.error('Error loading rankings',e); }
+}
+
+async function openRankingsView() {
+  showScreen('screenRankings');
+  document.getElementById('rankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings...</div>';
+  await fetchRankings();
+  renderRankingsTable();
+}
+
+function renderRankingsTable() {
+  var q = (document.getElementById('rankingsSearch').value||'').toLowerCase();
+  var data = allRankings.filter(function(r){
+    return !q || r.account_name.toLowerCase().includes(q);
+  });
+  // Sort
+  data.sort(function(a,b){
+    var av = a[_rankSortCol], bv = b[_rankSortCol];
+    if (_rankSortCol === 'rank' || _rankSortCol.startsWith('sales')) {
+      av = parseFloat(String(av).replace(/[^0-9.-]/g,''))||0;
+      bv = parseFloat(String(bv).replace(/[^0-9.-]/g,''))||0;
+    }
+    if (av < bv) return _rankSortAsc ? -1 : 1;
+    if (av > bv) return _rankSortAsc ? 1 : -1;
+    return 0;
+  });
+
+  var latest = allRankings.length ? allRankings[0].report_month : '';
+  document.getElementById('rankingsMeta').textContent =
+    allRankings.length+' accounts ranked · '+currentTerritory+(latest?' · Report: '+latest:'');
+
+  if (!data.length) {
+    document.getElementById('rankingsContent').innerHTML =
+      '<div class="empty-state"><div>🏆</div><div style="margin-top:8px">No rankings loaded yet. Use ↑ Rankings to upload a file.</div></div>';
+    return;
+  }
+
+  function thSort(col, label) {
+    var arrow = _rankSortCol===col ? (_rankSortAsc?'↑':'↓') : '';
+    return '<th data-col="'+col+'">'+label+' '+arrow+'</th>';
+  }
+
+  var html = '<div style="overflow-x:auto"><table class="report-table">'+
+    '<thead><tr>'+
+    thSort('rank','Rank')+thSort('account_name','Account')+
+    thSort('sales_ptd','PTD Sales')+thSort('sales_ytd','YTD Sales')+
+    thSort('sales_lastyear','Last Year YTD')+thSort('pct_change','% Change')+
+    '</tr></thead><tbody>'+
+    data.map(function(r){
+      var rankClass = r.rank===1?'rank-1':r.rank===2?'rank-2':r.rank===3?'rank-3':'';
+      var pct = parseFloat(r.pct_change)||0;
+      var pctColor = pct>0?'color:#5dba7d':pct<0?'color:#d47070':'';
+      return '<tr class="ranking-row" data-aid="'+r.account_id+'">'+
+        '<td><span class="rank-num '+rankClass+'">#'+r.rank+'</span></td>'+
+        '<td style="font-weight:600;color:var(--white)">'+esc(r.account_name)+'</td>'+
+        '<td>'+esc(r.sales_ptd)+'</td>'+
+        '<td>'+esc(r.sales_ytd)+'</td>'+
+        '<td>'+esc(r.sales_lastyear)+'</td>'+
+        '<td style="'+pctColor+'">'+esc(r.pct_change)+'</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+
+  document.getElementById('rankingsContent').innerHTML = html;
+  // Sort headers
+  document.querySelectorAll('.report-table th[data-col]').forEach(function(th){
+    th.addEventListener('click', function(){
+      if (_rankSortCol===th.dataset.col) _rankSortAsc=!_rankSortAsc;
+      else { _rankSortCol=th.dataset.col; _rankSortAsc=true; }
+      renderRankingsTable();
+    });
+  });
+  // Click row → open account
+  document.querySelectorAll('.ranking-row').forEach(function(row){
+    row.addEventListener('click', function(){
+      if (row.dataset.aid) openAccount(row.dataset.aid);
+    });
+  });
+}
+
+async function handleRankingsUpload(evt) {
+  var files = Array.from(evt.target.files);
+  evt.target.value = '';
+  if (!files.length) return;
+  showToast('Parsing '+files.length+' file'+(files.length!==1?'s':'')+'...');
+  _pendingRankingsUpload = [];
+  var previewRows = [];
+
+  for (var fi=0; fi<files.length; fi++) {
+    var file = files[fi];
+    // Detect territory from filename
+    var territory = null;
+    for (var pi=0; pi<ROUTE_PATTERNS.length; pi++) {
+      if (ROUTE_PATTERNS[pi].pattern.test(file.name)) {
+        territory = ROUTE_PATTERNS[pi].territory;
+        break;
+      }
+    }
+    if (!territory) {
+      previewRows.push('<div class="upload-preview-row"><span class="filename">'+esc(file.name)+'</span><span style="color:#d47070">⚠️ Could not detect territory from filename</span></div>');
+      continue;
+    }
+    var sheetId = TERRITORY_SHEET_IDS[territory];
+    if (!sheetId) {
+      previewRows.push('<div class="upload-preview-row"><span class="filename">'+esc(file.name)+'</span><span style="color:#d47070">⚠️ No sheet ID configured for '+territory+'</span></div>');
+      continue;
+    }
+
+    // Parse XLS
+    var parsed = await parseRankingXLS(file);
+    if (!parsed) {
+      previewRows.push('<div class="upload-preview-row"><span class="filename">'+esc(file.name)+'</span><span style="color:#d47070">⚠️ Could not parse file</span></div>');
+      continue;
+    }
+
+    // Fuzzy match to accounts — only do this for current territory since
+    // allAccounts is scoped to the loaded territory
+    var matched = 0, unmatched = [];
+    parsed.rows.forEach(function(r){
+      if (territory === currentTerritory) {
+        var m = fuzzyMatchAccount(r.account_name);
+        if (m) { r.account_id = m.account.account_id; matched++; }
+        else { unmatched.push(r.account_name); }
+      }
+    });
+
+    _pendingRankingsUpload.push({ file: file, territory: territory, sheetId: sheetId, parsed: parsed });
+
+    var statusColor = matched===parsed.rows.length ? '#5dba7d' : '#d4ac0d';
+    previewRows.push('<div class="upload-preview-row">'+
+      '<div><div class="filename">'+esc(file.name)+'</div>'+
+      '<div class="match-count">'+territory+' · '+parsed.rows.length+' accounts · '+
+      '<span style="color:'+statusColor+'">'+matched+' matched</span>'+
+      (unmatched.length?' · <span style="color:#d47070">'+unmatched.length+' unmatched</span>':'')+
+      '</div></div>'+
+      '<span style="color:#5dba7d">✓ Ready</span></div>');
+  }
+
+  document.getElementById('uploadPreviewTitle').textContent = 'Ranking Upload Preview';
+  document.getElementById('uploadPreviewBody').innerHTML =
+    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">Review before confirming. Existing ranking data for these territories will be replaced.</p>'+
+    previewRows.join('');
+  document.getElementById('uploadPreviewConfirm').onclick = confirmRankingsUpload;
+  document.getElementById('modalUploadPreview').classList.add('open');
+}
+
+async function parseRankingXLS(file) {
+  return new Promise(function(resolve){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, {type:'array'});
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        // Find header row — look for row containing 'Rank' or 'Customer'
+        var headerRow = -1;
+        for (var i=0; i<Math.min(10, rows.length); i++) {
+          var r = rows[i].map(function(c){ return String(c).toLowerCase(); });
+          if (r.some(function(c){ return c.includes('rank') || c.includes('customer'); })) {
+            headerRow = i; break;
+          }
+        }
+        if (headerRow < 0) { resolve(null); return; }
+        var headers = rows[headerRow].map(function(c){ return String(c).toLowerCase().trim(); });
+        var colIdx = {};
+        headers.forEach(function(h,i){
+          if (h.includes('customer') && h.includes('name')) colIdx.name = i;
+          else if (h.includes('customer') && h.includes('#')) colIdx.custno = i;
+          else if (h.includes('ptd')) colIdx.ptd = i;
+          else if (h.includes('ytd') && !h.includes('last')) colIdx.ytd = i;
+          else if (h.includes('last')) colIdx.lastyear = i;
+          else if (h.includes('%') || h.includes('change') || h.includes('pct')) colIdx.pct = i;
+          else if (h.includes('rank')) colIdx.rank = i;
+        });
+
+        // Get report month from earlier rows
+        var reportMonth = '';
+        for (var j=0; j<headerRow; j++) {
+          var cell = String(rows[j][0]||'');
+          if (/\d{4}/.test(cell) || /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(cell)) {
+            reportMonth = cell.trim(); break;
+          }
+        }
+
+        var dataRows = [];
+        for (var k=headerRow+1; k<rows.length; k++) {
+          var row = rows[k];
+          var name = String(row[colIdx.name]||'').trim();
+          if (!name || name.toLowerCase().includes('total')) continue;
+          dataRows.push({
+            account_id: '',
+            account_name: name,
+            customer_number: String(row[colIdx.custno]||'').trim(),
+            rank: parseInt(row[colIdx.rank])||0,
+            sales_ptd: String(row[colIdx.ptd]||'').trim(),
+            sales_ytd: String(row[colIdx.ytd]||'').trim(),
+            sales_lastyear: String(row[colIdx.lastyear]||'').trim(),
+            pct_change: String(row[colIdx.pct]||'').trim(),
+            report_month: reportMonth,
+          });
+        }
+        resolve({ rows: dataRows, reportMonth: reportMonth });
+      } catch(err) { console.error('Parse error',err); resolve(null); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function confirmRankingsUpload() {
+  if (!_pendingRankingsUpload || !_pendingRankingsUpload.length) return;
+  closeModal('modalUploadPreview');
+  showToast('Uploading rankings...');
+  var now = new Date().toISOString();
+
+  for (var i=0; i<_pendingRankingsUpload.length; i++) {
+    var item = _pendingRankingsUpload[i];
+    try {
+      // Clear existing rankings for this territory
+      await gapi.client.sheets.spreadsheets.values.clear({
+        spreadsheetId: item.sheetId, range: 'Rankings!A2:J'
+      });
+      // Write new data
+      var rows = item.parsed.rows.map(function(r){
+        return [r.account_id, r.account_name, r.customer_number,
+                r.rank, r.sales_ptd, r.sales_ytd, r.sales_lastyear,
+                r.pct_change, r.report_month, now];
+      });
+      if (rows.length) {
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: item.sheetId, range: 'Rankings!A2',
+          valueInputOption: 'RAW', resource: {values: rows}
+        });
+      }
+      // If this is the current territory, also update account profile ranking fields
+      if (item.territory === currentTerritory) {
+        allRankings = item.parsed.rows.map(function(r,idx){
+          return Object.assign({}, r, {uploaded_at: now});
+        });
+      }
+    } catch(e) { showToast('Error uploading '+item.territory,'error'); console.error(e); }
+  }
+  showToast('Rankings uploaded ✓');
+  _pendingRankingsUpload = null;
+  if (document.getElementById('screenRankings').classList.contains('active')) renderRankingsTable();
+}
+
+// ── Machines ──────────────────────────────────────────────────────────────────
+var MACHINE_REPORT_LABELS = {
+  'C937':'C937 — BG Machine','C938':'C938 — BG Machine 2',
+  'CCT2':'CCT2 — Machine Type 2','CCT4':'CCT4 — Machine Type 4',
+  'CPF5':'CPF5 — Machine Type 5','CPF7':'CPF7 — Machine Type 7',
+  'CPXT':'CPXT — Machine Extended'
+};
+var _machineSortCol = 'account_name', _machineSortAsc = true;
+var _pendingMachinesUpload = null;
+
+async function fetchMachines() {
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A:Y'
+    });
+    var rows = res.result.values || [];
+    allMachines = rows.slice(1).filter(function(r){
+      return r[5]===currentTerritory; // territory col
+    }).map(function(r){
+      return {
+        record_id:r[0]||'', report_code:r[1]||'', report_label:r[2]||'',
+        account_id:r[3]||'', account_name:r[4]||'', territory:r[5]||'',
+        machine_id:r[6]||'',
+        apr:r[7]||'',may:r[8]||'',jun:r[9]||'',jul:r[10]||'',
+        aug:r[11]||'',sep:r[12]||'',oct:r[13]||'',nov:r[14]||'',
+        dec:r[15]||'',jan:r[16]||'',feb:r[17]||'',mar:r[18]||'',
+        required:r[19]||'',total_sold:r[20]||'',difference:r[21]||'',
+        report_month:r[22]||'',uploaded_at:r[23]||''
+      };
+    });
+
+    // Populate type filter
+    var types = [...new Set(allMachines.map(function(m){ return m.report_code; }))].sort();
+    var sel = document.getElementById('machinesTypeFilter');
+    sel.innerHTML = '<option value="ALL">All Report Types</option>'+
+      types.map(function(t){ return '<option value="'+t+'">'+esc(MACHINE_REPORT_LABELS[t]||t)+'</option>'; }).join('');
+  } catch(e) { console.error('Error loading machines',e); }
+}
+
+async function openMachinesView() {
+  showScreen('screenMachines');
+  document.getElementById('machinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data...</div>';
+  if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
+    document.getElementById('machinesContent').innerHTML = '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">Machine sheet not configured yet. Add the MACHINES_SHEET_ID to the app config.</div></div>';
+    return;
+  }
+  await fetchMachines();
+  renderMachinesTable();
+}
+
+function renderMachinesTable() {
+  var q = (document.getElementById('machinesSearch').value||'').toLowerCase();
+  var typeFilter = document.getElementById('machinesTypeFilter').value;
+  var MONTHS = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
+  var data = allMachines.filter(function(m){
+    if (typeFilter !== 'ALL' && m.report_code !== typeFilter) return false;
+    if (q && !m.account_name.toLowerCase().includes(q) && !m.machine_id.includes(q)) return false;
+    return true;
+  });
+
+  var latest = allMachines.length ? allMachines[0].report_month : '';
+  document.getElementById('machinesMeta').textContent =
+    allMachines.length+' machine records · '+currentTerritory+(latest?' · Report: '+latest:'');
+
+  if (!data.length) {
+    document.getElementById('machinesContent').innerHTML =
+      '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">No machine data for this view. Try adjusting filters or upload a machine report.</div></div>';
+    return;
+  }
+
+  var html = '<div style="overflow-x:auto"><table class="report-table">'+
+    '<thead><tr>'+
+    '<th>Account</th><th>Report Type</th><th>Machine ID</th>'+
+    MONTHS.map(function(m){ return '<th>'+m+'</th>'; }).join('')+
+    '<th>Req</th><th>Total</th><th>Diff</th>'+
+    '</tr></thead><tbody>'+
+    data.map(function(m){
+      var monthVals = [m.apr,m.may,m.jun,m.jul,m.aug,m.sep,m.oct,m.nov,m.dec,m.jan,m.feb,m.mar];
+      var diff = parseFloat(m.difference)||0;
+      var diffColor = diff<0?'color:#d47070':diff>0?'color:#5dba7d':'';
+      return '<tr class="machine-row" data-aid="'+m.account_id+'">'+
+        '<td style="font-weight:600;color:var(--white);white-space:nowrap">'+esc(m.account_name)+'</td>'+
+        '<td><span style="font-size:11px;background:var(--gray-2);padding:2px 6px;border-radius:4px">'+esc(m.report_code)+'</span></td>'+
+        '<td style="color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</td>'+
+        monthVals.map(function(v){ return '<td style="font-size:12px;text-align:center">'+(v||'—')+'</td>'; }).join('')+
+        '<td style="font-size:12px;text-align:center">'+esc(m.required)+'</td>'+
+        '<td style="font-size:12px;text-align:center">'+esc(m.total_sold)+'</td>'+
+        '<td style="font-size:12px;text-align:center;'+diffColor+'">'+esc(m.difference)+'</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+
+  document.getElementById('machinesContent').innerHTML = html;
+  document.querySelectorAll('.machine-row').forEach(function(row){
+    row.addEventListener('click', function(){
+      if (row.dataset.aid) openAccount(row.dataset.aid);
+    });
+  });
+}
+
+async function handleMachinesUpload(evt) {
+  var file = evt.target.files[0];
+  evt.target.value = '';
+  if (!file) return;
+  showToast('Parsing machine report...');
+
+  var parsed = await parseMachineXLS(file);
+  if (!parsed) { showToast('Could not parse machine file','error'); return; }
+
+  _pendingMachinesUpload = parsed;
+  var territorySummary = {};
+  parsed.forEach(function(r){
+    if (!territorySummary[r.territory]) territorySummary[r.territory] = {types:new Set(), count:0};
+    territorySummary[r.territory].types.add(r.report_code);
+    territorySummary[r.territory].count++;
+  });
+
+  var previewRows = Object.entries(territorySummary).map(function(entry){
+    var terr=entry[0], s=entry[1];
+    return '<div class="upload-preview-row">'+
+      '<div><div class="filename">'+esc(terr)+'</div>'+
+      '<div class="match-count">'+s.count+' machine records · '+[...s.types].join(', ')+'</div></div>'+
+      '<span style="color:#5dba7d">✓ Ready</span></div>';
+  });
+
+  document.getElementById('uploadPreviewTitle').textContent = 'Machine Report Upload Preview';
+  document.getElementById('uploadPreviewBody').innerHTML =
+    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+parsed.length+' total records across '+Object.keys(territorySummary).length+' territories. Existing machine data will be replaced.</p>'+
+    previewRows.join('');
+  document.getElementById('uploadPreviewConfirm').onclick = confirmMachinesUpload;
+  document.getElementById('modalUploadPreview').classList.add('open');
+}
+
+async function parseMachineXLS(file) {
+  return new Promise(function(resolve){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, {type:'array'});
+        var records = [];
+        var MONTHS_KEY = ['apr','may','jun','jul','aug','sep','oct','nov','dec','jan','feb','mar'];
+
+        // Territory code → route name mapping (0101 = Route 101, etc.)
+        function codeToTerritory(code) {
+          var num = String(code).replace(/^0+/,'');
+          return 'Route '+num;
+        }
+
+        wb.SheetNames.forEach(function(sheetName){
+          var ws = wb.Sheets[sheetName];
+          var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+          if (!rows.length) return;
+
+          var currentReportCode = sheetName.trim(); // sheet name = report code
+          var currentTerrCode = '';
+          var reportMonth = '';
+          var headerRowIdx = -1;
+
+          // Find report month and section headers
+          for (var i=0; i<rows.length; i++) {
+            var r = rows[i];
+            var r0 = String(r[0]||'').trim();
+            // Report code header row
+            if (/^[A-Z]{2,5}\d*\s+Report/.test(r0)) {
+              currentReportCode = r0.split(' ')[0];
+            }
+            // Territory/rep row — looks like "0101 Rep Name" or numeric prefix
+            if (/^\d{4}\s+/.test(r0)) {
+              currentTerrCode = r0.split(/\s+/)[0];
+            }
+            // Date row
+            if (/\d{1,2}\/\d{1,2}\/\d{4}/.test(r0) || /\d{4}/.test(r0) && !reportMonth) {
+              reportMonth = r0;
+            }
+            // Header row — has month names
+            var rStr = r.join(' ').toLowerCase();
+            if ((rStr.includes('apr') || rStr.includes('jan')) && rStr.includes('req')) {
+              headerRowIdx = i;
+            }
+            // Data rows — machine ID is first col (numeric 4-5 digits)
+            if (headerRowIdx >= 0 && /^\d{4,6}$/.test(r0)) {
+              var acctName = String(r[1]||'').trim();
+              if (!acctName) continue;
+              var record = {
+                record_id: 'MR'+Date.now()+Math.random().toString(36).slice(2,6),
+                report_code: currentReportCode,
+                report_label: MACHINE_REPORT_LABELS[currentReportCode]||currentReportCode,
+                account_id: '', account_name: acctName,
+                territory: codeToTerritory(currentTerrCode),
+                machine_id: r0,
+                report_month: reportMonth,
+              };
+              MONTHS_KEY.forEach(function(m,idx){ record[m] = String(r[idx+2]||'').trim(); });
+              record.required    = String(r[14]||'').trim();
+              record.total_sold  = String(r[15]||'').trim();
+              record.difference  = String(r[16]||'').trim();
+              records.push(record);
+            }
+          }
+        });
+        resolve(records.length ? records : null);
+      } catch(err) { console.error('Machine parse error',err); resolve(null); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function confirmMachinesUpload() {
+  if (!_pendingMachinesUpload) return;
+  if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
+    showToast('Machines sheet ID not configured yet','error');
+    closeModal('modalUploadPreview');
+    return;
+  }
+  closeModal('modalUploadPreview');
+  showToast('Uploading machine data...');
+  var now = new Date().toISOString();
+  try {
+    await gapi.client.sheets.spreadsheets.values.clear({
+      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A2:Y'
+    });
+    var rows = _pendingMachinesUpload.map(function(r){
+      return [r.record_id, r.report_code, r.report_label,
+              r.account_id, r.account_name, r.territory, r.machine_id,
+              r.apr,r.may,r.jun,r.jul,r.aug,r.sep,r.oct,r.nov,r.dec,
+              r.jan,r.feb,r.mar,
+              r.required, r.total_sold, r.difference, r.report_month, now];
+    });
+    if (rows.length) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A2',
+        valueInputOption: 'RAW', resource: {values: rows}
+      });
+    }
+    showToast('Machine data uploaded — '+rows.length+' records ✓');
+    _pendingMachinesUpload = null;
+    if (document.getElementById('screenMachines').classList.contains('active')) {
+      await fetchMachines(); renderMachinesTable();
+    }
+  } catch(e) { showToast('Error uploading machine data','error'); console.error(e); }
+}
+
 var allLists = [];        // loaded from 'Lead Lists' sheet
 var allListItems = [];    // loaded from 'Lead List Items' sheet
 var currentList = null;   // list object currently being viewed
