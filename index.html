@@ -2429,11 +2429,13 @@ async function parseRankingXLS(file) {
         var wb = XLSX.read(data, {type:'array'});
         var ws = wb.Sheets[wb.SheetNames[0]];
         var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-        // Find header row — look for row containing 'Rank' or 'Customer'
+        // Find header row — look for a row with multiple populated columns
+        // (title/route/date rows above it are single-cell and would false-match on 'customer'/'rank')
         var headerRow = -1;
         for (var i=0; i<Math.min(10, rows.length); i++) {
           var r = rows[i].map(function(c){ return String(c).toLowerCase(); });
-          if (r.some(function(c){ return c.includes('rank') || c.includes('customer'); })) {
+          var nonEmpty = r.filter(function(c){ return c.trim() !== ''; }).length;
+          if (nonEmpty >= 3 && r.some(function(c){ return c.includes('rank') || c.includes('customer'); })) {
             headerRow = i; break;
           }
         }
@@ -2442,10 +2444,13 @@ async function parseRankingXLS(file) {
         var colIdx = {};
         headers.forEach(function(h,i){
           if (h.includes('customer') && h.includes('name')) colIdx.name = i;
-          else if (h.includes('customer') && h.includes('#')) colIdx.custno = i;
+          else if (h.includes('cust') && h.includes('#')) colIdx.custno = i;
           else if (h.includes('ptd')) colIdx.ptd = i;
-          else if (h.includes('ytd') && !h.includes('last')) colIdx.ytd = i;
-          else if (h.includes('last')) colIdx.lastyear = i;
+          // 'last' or 'year' catches the last-year-comparison column even when the
+          // 'Sales Last' prefix got orphaned onto the row above (Crystal Reports merged-cell
+          // split) leaving only 'Year YTD' here — must be checked before the generic ytd test
+          else if ((h.includes('last') || h.includes('year')) && h.includes('ytd')) colIdx.lastyear = i;
+          else if (h.includes('ytd')) colIdx.ytd = i;
           else if (h.includes('%') || h.includes('change') || h.includes('pct')) colIdx.pct = i;
           else if (h.includes('rank')) colIdx.rank = i;
         });
