@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.2 - built 2026-07-07 -->
+<!-- Drayton CRM v3.3 - built 2026-07-07 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2777,20 +2777,20 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
       var typeTag = c.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
                   : c.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
       if (c.is_conversion) {
-        return '<div class="conversion-flag" style="margin:8px 16px">'+
+        return '<div class="conversion-flag recap-acct-link" data-aid="'+c.account_id+'" style="margin:8px 16px;cursor:pointer">'+
           '🎉 <strong>'+esc(c.account_name)+'</strong> converted from Prospect to Active'+
           (territory==='ALL'?' <span style="opacity:0.8">('+esc(c.territory)+')</span>':'')+
           ' — <span style="opacity:0.85">'+fmtDate(ts)+'</span>'+
         '</div>';
       }
       if (c.is_reversion) {
-        return '<div class="reversion-flag" style="margin:8px 16px">'+
+        return '<div class="reversion-flag recap-acct-link" data-aid="'+c.account_id+'" style="margin:8px 16px;cursor:pointer">'+
           '⚠️ <strong>'+esc(c.account_name)+'</strong> reverted from Active back to Prospect'+
           (territory==='ALL'?' <span style="opacity:0.8">('+esc(c.territory)+')</span>':'')+
           ' — <span style="opacity:0.85">'+fmtDate(ts)+'</span>'+
         '</div>';
       }
-      return '<div class="field-row" style="padding:10px 16px;align-items:flex-start">'+
+      return '<div class="field-row recap-acct-link" data-aid="'+c.account_id+'" style="padding:10px 16px;align-items:flex-start;cursor:pointer" title="Open '+esc(c.account_name)+'">'+
         '<div style="width:90px;flex-shrink:0;font-size:11px;color:var(--gray-3);padding-top:1px">'+fmtDate(ts)+
         (territory==='ALL'?'<div style="color:var(--gold);font-weight:600;margin-top:2px">'+esc(c.territory)+'</div>':'')+'</div>'+
         '<div style="flex:1">'+
@@ -2799,7 +2799,9 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
             (c.old_value?'<span style="color:var(--gray-3);text-decoration:line-through">'+esc(c.old_value)+'</span> → ':'')+
             '<span style="color:var(--white)">'+(esc(c.new_value)||'<em style="color:var(--gray-3)">cleared</em>')+'</span>'+
           '</div>'+
-        '</div></div>';
+        '</div>'+
+        '<span style="color:var(--gold);font-size:16px;padding-left:8px">›</span>'+
+      '</div>';
     }).join('');
   }
   html += '</div></div>';
@@ -2817,10 +2819,11 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
         var isStar = (v.is_highlight||'').toLowerCase()==='yes';
         var typeTag = v.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
                     : v.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
-        return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
+        return '<div class="visit-entry recap-acct-link'+(isStar?' highlighted':'')+'" data-aid="'+v.account_id+'" style="cursor:pointer" title="Open '+esc(v.account_name)+'">'+
           '<div class="visit-entry-top">'+
             '<div class="visit-date">'+(isStar?'⭐ ':'')+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+
             (territory==='ALL'?' <span style="color:var(--gold)">· '+esc(v.territory)+'</span>':'')+'</div>'+
+            '<span style="color:var(--gold);font-size:16px">›</span>'+
           '</div>'+
           '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+typeTag+'</div>'+
           '<div class="visit-notes" style="margin-top:4px">'+esc(v.notes||'—')+'</div>'+
@@ -2832,6 +2835,21 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
   }
 
   document.getElementById('recapContent').innerHTML = html;
+
+  // Wire click-through to account pages
+  document.querySelectorAll('.recap-acct-link').forEach(function(el){
+    el.addEventListener('click', function(){
+      var aid = el.dataset.aid;
+      if (!aid) return;
+      // If the account isn't in the current territory's loaded data, we need
+      // to navigate to the dashboard first so the account list is available.
+      if (currentTerritory && allAccounts.some(function(a){ return a.account_id===aid; })) {
+        openAccount(aid);
+      } else {
+        showToast('Switch to the account\'s territory to open it','error');
+      }
+    });
+  });
 }
 
 function toggleVisits() {
