@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.3 - built 2026-07-07 -->
+<!-- Drayton CRM v3.4 - built 2026-07-07 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -952,9 +952,17 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
 }
+var previousScreen = 'screenDashboard';
+
 function goBack() {
   if (isSelectMode()) { exitSelectMode(); return; }
-  showScreen('screenDashboard'); renderList();
+  var dest = previousScreen || 'screenDashboard';
+  previousScreen = 'screenDashboard';
+  if (dest === 'screenRecap') {
+    showScreen('screenRecap');
+  } else {
+    showScreen('screenDashboard'); renderList();
+  }
 }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
@@ -1342,6 +1350,9 @@ function renderList() {
 function openAccount(id) {
   currentAccount = allAccounts.find(function(a){ return a.account_id===id; });
   if (!currentAccount) return;
+  // Track where we came from so the back button returns correctly
+  var active = document.querySelector('.screen.active');
+  previousScreen = active ? active.id : 'screenDashboard';
   renderDetail(); showScreen('screenDetail');
 }
 
