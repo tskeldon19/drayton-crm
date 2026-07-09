@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.8 - built 2026-07-09 -->
+<!-- Drayton CRM v3.9 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -95,9 +95,6 @@
   }
   .territory-bar h2 { font-size: 18px; color: var(--gold); }
   .territory-bar .sub { color: var(--gray-3); font-size: 12px; margin-top: 2px; }
-  .territory-bar .stats { display: flex; gap: 28px; }
-  .territory-bar .stat .num { font-size: 24px; font-weight: 700; color: var(--gold); }
-  .territory-bar .stat .lbl { font-size: 11px; color: var(--gray-3); }
 
   .metric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
   .metric-card {
@@ -377,11 +374,6 @@
         <h2 id="dashTerritoryName">Route 105</h2>
         <div class="sub">BG Products Territory</div>
       </div>
-      <div class="stats">
-        <div class="stat"><div class="num" id="statActive">—</div><div class="lbl">Active</div></div>
-        <div class="stat"><div class="num" id="statProspect">—</div><div class="lbl">Prospects</div></div>
-        <div class="stat"><div class="num" id="statHot">—</div><div class="lbl">Hot (4-5★)</div></div>
-      </div>
       <button class="btn btn-primary btn-sm" id="weeklyRecapBtn">📊 Weekly Recap</button>
       <button class="btn btn-primary btn-sm" id="rankingsViewBtn">🏆 Rankings</button>
       <button class="btn btn-primary btn-sm" id="machinesViewBtn">⚙️ Machines</button>
@@ -391,6 +383,15 @@
       <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
     </div>
     <div class="metric-row" id="metricRow">
+      <button type="button" class="metric-card" id="metricActive" data-metric="active_accounts">
+        <div class="metric-num">—</div><div class="metric-lbl">Active</div>
+      </button>
+      <button type="button" class="metric-card" id="metricProspect" data-metric="prospect_accounts">
+        <div class="metric-num">—</div><div class="metric-lbl">Prospects</div>
+      </button>
+      <button type="button" class="metric-card" id="metricHot" data-metric="hot_accounts">
+        <div class="metric-num">—</div><div class="metric-lbl">Hot (4-5★)</div>
+      </button>
       <button type="button" class="metric-card" id="metricYtdConversions" data-metric="ytd_conversions">
         <div class="metric-num">—</div><div class="metric-lbl">Converted YTD</div>
       </button>
@@ -928,7 +929,7 @@ const ACTIVITY_FIELDS = [
 ];
 
 let gapiReady=false, gisReady=false, tokenClient;
-let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={};
+let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={}, allAliases=[];
 let allActivityLog=[], allPersonnel=[];
 let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
@@ -1085,7 +1086,25 @@ async function loadTerritory() {
   document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading accounts...</div>';
   await fetchData();
   await fetchRankings();
+  await fetchAliases();
   updateStats(); renderList();
+}
+
+// Account Aliases — remembers how raw names from machine/ranking reports map to
+// real accounts, so repeat uploads don't need to re-guess via fuzzy matching.
+// Tab: raw_name | account_id | account_name | territory | status | confidence | created_at
+async function fetchAliases() {
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID, range: 'Account Aliases!A:H'
+    });
+    var rows = res.result.values || [];
+    allAliases = rows.slice(1).map(function(r){
+      return { alias_id:r[0]||'', raw_name:r[1]||'', account_id:r[2]||'',
+               account_name:r[3]||'', territory:r[4]||'', status:r[5]||'',
+               confidence:r[6]||'', created_at:r[7]||'' };
+    });
+  } catch(e) { console.error('Error loading account aliases — is the "Account Aliases" tab set up?', e); allAliases = []; }
 }
 
 async function fetchData() {
@@ -1265,9 +1284,9 @@ function updateStats() {
   var active   = allAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allAccounts.filter(function(a){ return a.status==='prospect'; }).length;
   var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; }).length;
-  document.getElementById('statActive').textContent   = active;
-  document.getElementById('statProspect').textContent = prospect;
-  document.getElementById('statHot').textContent      = hot;
+  document.getElementById('metricActive').querySelector('.metric-num').textContent   = active;
+  document.getElementById('metricProspect').querySelector('.metric-num').textContent = prospect;
+  document.getElementById('metricHot').querySelector('.metric-num').textContent      = hot;
 
   var m = computeMetrics();
   window._dashboardMetrics = m;   // cached for openMetricFilter
@@ -1298,7 +1317,22 @@ function openMetricFilter(metricKey) {
   }
 
   var title, subtitle, accounts;
-  if (metricKey === 'ytd_conversions') {
+  if (metricKey === 'active_accounts') {
+    var activeAccts = allAccounts.filter(function(a){ return a.status==='active'; });
+    title = 'Active Clients';
+    subtitle = activeAccts.length + ' active account'+(activeAccts.length!==1?'s':'');
+    accounts = activeAccts;
+  } else if (metricKey === 'prospect_accounts') {
+    var prospectAccts = allAccounts.filter(function(a){ return a.status==='prospect'; });
+    title = 'Prospective Accounts';
+    subtitle = prospectAccts.length + ' prospect'+(prospectAccts.length!==1?'s':'');
+    accounts = prospectAccts;
+  } else if (metricKey === 'hot_accounts') {
+    var hotAccts = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; });
+    title = 'Hot Accounts (4–5★)';
+    subtitle = hotAccts.length + ' account'+(hotAccts.length!==1?'s':'')+' rated 4 or 5 stars';
+    accounts = hotAccts;
+  } else if (metricKey === 'ytd_conversions') {
     title = 'Converted to Active — Year to Date';
     subtitle = m.conversionCount + ' account'+(m.conversionCount!==1?'s':'')+' converted in '+thisYear();
     accounts = allAccounts.filter(function(a){ return m.conversionIds[a.account_id]; });
@@ -2622,6 +2656,7 @@ var MACHINE_REPORT_LABELS = {
 };
 var _machineSortCol = 'account_name', _machineSortAsc = true;
 var _pendingMachinesUpload = null;
+var _pendingAliasWrites = [];
 
 async function fetchMachines() {
   try {
@@ -2731,15 +2766,48 @@ async function handleMachinesUpload(evt) {
   var parsed = await parseMachineXLS(file);
   if (!parsed) { showToast('Could not parse machine file','error'); return; }
 
-  // Fuzzy match to accounts — only reliable for the currently loaded territory,
-  // since allAccounts is scoped to it (same approach as the rankings upload)
-  var matched = 0;
+  // Resolve accounts: check the alias table first (instant, trusted — including
+  // any corrections you've made by hand), and only fall back to fresh fuzzy
+  // matching for names never seen before. Only reliable for the currently loaded
+  // territory, since allAccounts/allAliases are scoped to it.
+  var matched = 0, fuzzyCount = 0, unmatchedCount = 0;
+  var pendingAliases = [];
   parsed.forEach(function(r){
-    if (r.territory === currentTerritory) {
-      var m = fuzzyMatchAccount(r.account_name);
-      if (m) { r.account_id = m.account.account_id; matched++; }
+    if (r.territory !== currentTerritory) return;
+    var key = normName(r.account_name);
+    var existing = allAliases.find(function(al){ return al.territory===currentTerritory && normName(al.raw_name)===key; });
+
+    if (existing && existing.account_id) {
+      r.account_id = existing.account_id;
+      matched++;
+      return;
+    }
+
+    var m = fuzzyMatchAccount(r.account_name);
+    if (m) {
+      r.account_id = m.account.account_id;
+      matched++;
+      if (!existing) {
+        var isExact = m.confidence >= 0.999;
+        if (!isExact) fuzzyCount++;
+        pendingAliases.push({
+          raw_name: r.account_name, account_id: m.account.account_id,
+          account_name: m.account.business_name, territory: currentTerritory,
+          status: isExact ? 'confirmed' : 'fuzzy', confidence: m.confidence.toFixed(2)
+        });
+      }
+    } else {
+      r._unmatched = true;
+      unmatchedCount++;
+      if (!existing) {
+        pendingAliases.push({
+          raw_name: r.account_name, account_id: '', account_name: '',
+          territory: currentTerritory, status: 'unmatched', confidence: ''
+        });
+      }
     }
   });
+  _pendingAliasWrites = pendingAliases;
 
   _pendingMachinesUpload = parsed;
   var territorySummary = {};
@@ -2757,9 +2825,13 @@ async function handleMachinesUpload(evt) {
       '<span style="color:#5dba7d">✓ Ready</span></div>';
   });
 
+  var terrCount = territorySummary[currentTerritory] ? territorySummary[currentTerritory].count : 0;
   document.getElementById('uploadPreviewTitle').textContent = 'Machine Report Upload Preview';
   document.getElementById('uploadPreviewBody').innerHTML =
-    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+parsed.length+' total records across '+Object.keys(territorySummary).length+' territories. '+matched+' of '+(territorySummary[currentTerritory]?territorySummary[currentTerritory].count:0)+' records for '+esc(currentTerritory)+' matched to existing accounts. Existing machine data will be replaced.</p>'+
+    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+parsed.length+' total records across '+Object.keys(territorySummary).length+' territories, for '+esc(currentTerritory)+': '+
+    '<span style="color:#5dba7d">'+matched+' matched</span>'+(fuzzyCount?' <span style="color:#d4b95d">('+fuzzyCount+' low-confidence — check Account Aliases tab)</span>':'')+
+    (unmatchedCount?', <span style="color:#d47070">'+unmatchedCount+' unmatched</span> (will upload without an account link — add them to the Account Aliases tab to fix)':'')+
+    '. Existing machine data will be replaced.</p>'+
     previewRows.join('');
   document.getElementById('uploadPreviewConfirm').onclick = confirmMachinesUpload;
   document.getElementById('modalUploadPreview').classList.add('open');
@@ -2896,6 +2968,23 @@ async function confirmMachinesUpload() {
         spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A2',
         valueInputOption: 'RAW', resource: {values: rows}
       });
+    }
+    if (_pendingAliasWrites && _pendingAliasWrites.length) {
+      var aliasRows = _pendingAliasWrites.map(function(al){
+        return ['AL'+Date.now()+Math.random().toString(36).slice(2,6), al.raw_name, al.account_id,
+                al.account_name, al.territory, al.status, al.confidence, now];
+      });
+      try {
+        await gapi.client.sheets.spreadsheets.values.append({
+          spreadsheetId: SHEET_ID, range: 'Account Aliases!A:H',
+          valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: aliasRows}
+        });
+        await fetchAliases();
+      } catch(aliasErr) {
+        console.error('Could not write to Account Aliases tab — has it been created yet?', aliasErr);
+        showToast('Machine data uploaded, but could not save to Account Aliases (tab missing?)','error');
+      }
+      _pendingAliasWrites = [];
     }
     showToast('Machine data uploaded — '+rows.length+' records ✓');
     _pendingMachinesUpload = null;
