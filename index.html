@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.0 - built 2026-07-09 -->
+<!-- Drayton CRM v4.1 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -62,7 +62,7 @@
   .landing h2 { font-size: 26px; color: var(--gold); margin-bottom: 8px; }
   .landing p  { color: var(--gray-3); font-size: 14px; margin-bottom: 32px; }
 
-  select, input[type=text], input[type=date], textarea {
+  select, input[type=text], input[type=date], input[type=number], textarea {
     width: 100%; padding: 10px 12px;
     border: 1.5px solid var(--gray-2); border-radius: 6px;
     font-size: 14px; font-family: var(--font);
@@ -424,7 +424,6 @@
       </select>
     </div>
     <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
-    <button type="button" id="gmMigrationBtn" style="margin-top:16px;background:none;border:none;color:var(--gray-3);font-size:11px;text-decoration:underline;cursor:pointer">One-time: migrate Other Contact → GM field</button>
   </div>
 </div>
 
@@ -1016,7 +1015,6 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('signInBtn').addEventListener('click', doSignIn);
   document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
   document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
-  document.getElementById('gmMigrationBtn').addEventListener('click', runGmMigration);
   document.getElementById('backBtn').addEventListener('click', goBack);
   document.getElementById('newAccountBtn').addEventListener('click', openNewAccount);
   document.getElementById('tabProspect').addEventListener('click', function(){ switchTab('prospect'); });
@@ -1164,71 +1162,7 @@ function showToast(msg, type) {
 
 // One-time migration: "Other 1" used to be a free-text role slot; now it's a
 // fixed General Manager field (same columns, re-read as gm_name/phone/email).
-// Any existing Other 1 data that wasn't already labeled GM gets moved into the
-// existing Other 2 slot instead, so nothing is lost. Safe to run once; rows
-// that would conflict with existing Other 2 data are skipped and reported.
-async function runGmMigration() {
-  if (!confirm('This is a one-time migration across ALL territories.\n\nAny "Other 1" contact not already labeled General Manager will be moved into the Other 2 slot, and the GM field will be left blank for you to fill in.\n\nRun this now?')) return;
-  showToast('Running GM migration...');
-  try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID, range: 'Accounts!A:FV'
-    });
-    var rows = res.result.values || [];
-    var updates = [];
-    var skipped = [];
-    var migrated = 0;
-
-    for (var i=1; i<rows.length; i++) {
-      var r = rows[i];
-      var rowNum = i+1;
-      var oldRole  = (r[52]||'').trim();     // raw old "Other 1 Role" cell
-      var gmName   = (r[53]||'').trim();     // now read as gm_name, but this is old other1_name
-      var gmPhone  = (r[54]||'').trim();
-      var gmEmail  = (r[55]||'').trim();
-      var o2Role   = (r[56]||'').trim();
-      var o2Name   = (r[57]||'').trim();
-      var o2Phone  = (r[58]||'').trim();
-      var o2Email  = (r[59]||'').trim();
-
-      var hasOldData = gmName || gmPhone || gmEmail;
-      if (!hasOldData) continue; // nothing to migrate on this row
-
-      var isGM = /general\s*manager|^\s*gm\s*$|g\.\s*m\.?/i.test(oldRole);
-      if (isGM) continue; // already correctly in the GM slot, leave as-is
-
-      var o2Empty = !o2Role && !o2Name && !o2Phone && !o2Email;
-      if (!o2Empty) {
-        skipped.push((r[3]||'Row '+rowNum)+' (row '+rowNum+') — Other 2 already has data, GM migration skipped, please resolve by hand');
-        continue;
-      }
-
-      // Move old Other 1 data into Other 2, clear the GM slot
-      updates.push({range:'Accounts!'+colLetter(56)+rowNum, values:[[oldRole]]});
-      updates.push({range:'Accounts!'+colLetter(57)+rowNum, values:[[gmName]]});
-      updates.push({range:'Accounts!'+colLetter(58)+rowNum, values:[[gmPhone]]});
-      updates.push({range:'Accounts!'+colLetter(59)+rowNum, values:[[gmEmail]]});
-      updates.push({range:'Accounts!'+colLetter(53)+rowNum, values:[['']]});
-      updates.push({range:'Accounts!'+colLetter(54)+rowNum, values:[['']]});
-      updates.push({range:'Accounts!'+colLetter(55)+rowNum, values:[['']]});
-      migrated++;
-    }
-
-    if (updates.length) {
-      // Sheets batchUpdate caps around 100 ranges comfortably per call — chunk to be safe
-      for (var c=0; c<updates.length; c+=200) {
-        await gapi.client.sheets.spreadsheets.values.batchUpdate({
-          spreadsheetId: SHEET_ID, resource: { valueInputOption:'RAW', data: updates.slice(c,c+200) }
-        });
-      }
-    }
-
-    var msg = 'GM migration complete — '+migrated+' account(s) moved to Other 2.';
-    if (skipped.length) msg += ' '+skipped.length+' skipped (conflict) — see console for details.';
-    showToast(msg);
-    if (skipped.length) console.log('GM migration — rows needing manual review:\n'+skipped.join('\n'));
-  } catch(e) { showToast('Migration error — see console','error'); console.error(e); }
-}
+// Migration completed — function removed after use.
 
 async function loadTerritory() {
   var sel = document.getElementById('territorySelect').value;
@@ -1362,7 +1296,7 @@ function statusLabel(code) {
 }
 
 // Every product status change is already logged with a timestamp in the Change
-// Log (see saveProductStatus/saveProductDetails) — this just surfaces that
+// Log (see saveProductDetails) — this just surfaces that
 // history per product so growth speed (discussed → carrying, etc.) is visible.
 function getProductStatusHistory(accountId, pkey) {
   return allChangeLog.filter(function(c){
@@ -1697,6 +1631,7 @@ function renderList() {
 function openAccount(id) {
   currentAccount = allAccounts.find(function(a){ return a.account_id===id; });
   if (!currentAccount) return;
+  window._productStatusSnapshot = {};
   // Track where we came from so the back button returns correctly
   var active = document.querySelector('.screen.active');
   previousScreen = active ? active.id : 'screenDashboard';
@@ -2056,60 +1991,60 @@ function renderDetail() {
       headEl.closest('.product-row').classList.toggle('expanded');
     });
   });
-  // Status quick-set buttons
+  // Status quick-set buttons — local only, nothing is saved/logged until Save is pressed
   document.querySelectorAll('.status-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
       var pkey = btn.dataset.pkey, status = btn.dataset.status;
-      saveProductStatus(pkey, status);
+      setProductStatusPending(pkey, status);
     });
   });
-  // Save button inside expanded product row
+  // Save button inside expanded product row — this is the only place that writes to the sheet
   document.querySelectorAll('[data-action="save-product"]').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
       saveProductDetails(btn.dataset.pkey);
     });
   });
-  // Explicit close button — guaranteed way to collapse the panel back down
+  // Explicit close button — discards any unsaved status change and collapses the panel
   document.querySelectorAll('[data-action="close-product"]').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
+      var pkey = btn.dataset.pkey;
+      if (window._productStatusSnapshot && (pkey in window._productStatusSnapshot)) {
+        currentAccount[pkey+'_status'] = window._productStatusSnapshot[pkey];
+        delete window._productStatusSnapshot[pkey];
+        renderDetail();
+        return;
+      }
       var row = btn.closest('.product-row');
       if (row) row.classList.remove('expanded');
     });
   });
 }
 
-async function saveProductStatus(pkey, status) {
+function setProductStatusPending(pkey, status) {
   var a = currentAccount;
-  var oldStatus = a[pkey+'_status'];
-  var oldCarrying = a[pkey+'_carrying'] || '';
-  var newCarrying = status==='green' ? 'Yes' : '';
-  a[pkey+'_status'] = status;
-  a[pkey+'_carrying'] = newCarrying;
-  var rowNum = sheetRowMap[a.account_id];
-  if (rowNum) {
-    try {
-      await gapi.client.sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: SHEET_ID, resource: { valueInputOption: 'RAW', data: [
-          { range: 'Accounts!'+colLetter(COL[pkey+'_status'])+rowNum,   values: [[status]] },
-          { range: 'Accounts!'+colLetter(COL[pkey+'_carrying'])+rowNum, values: [[newCarrying]] }
-        ]}
-      });
-      await logFieldChange(a, pkey+'_status', oldStatus, status);
-      if (oldCarrying !== newCarrying) await logFieldChange(a, pkey+'_carrying', oldCarrying, newCarrying);
-      showToast('Updated ✓');
-    } catch(e) { showToast('Error saving','error'); console.error(e); }
+  window._productStatusSnapshot = window._productStatusSnapshot || {};
+  // Capture the original (saved) status the first time it's touched this session,
+  // so Save can log an accurate before → after diff even after multiple clicks.
+  if (!(pkey in window._productStatusSnapshot)) {
+    window._productStatusSnapshot[pkey] = a[pkey+'_status'] || 'gray';
   }
+  a[pkey+'_status'] = status;
   renderDetail();
-  // Re-expand the row the user was just working in
   var row = document.querySelector('.product-row[data-pkey="'+pkey+'"]');
   if (row) row.classList.add('expanded');
 }
 
 async function saveProductDetails(pkey) {
   var a = currentAccount;
+  var statusBefore = (window._productStatusSnapshot && (pkey in window._productStatusSnapshot))
+    ? window._productStatusSnapshot[pkey] : a[pkey+'_status'];
+  var statusAfter = a[pkey+'_status'];
+  var carryingBefore = a[pkey+'_carrying'] || '';
+  var carryingAfter = statusAfter==='green' ? 'Yes' : '';
+
   var before = {
     pricing: a[pkey+'_profile_pricing'], training: a[pkey+'_training'],
     partNum: a[pkey+'_part_number'], partNotes: a[pkey+'_part_notes'], spiff: a[pkey+'_spiff']
@@ -2125,10 +2060,11 @@ async function saveProductDetails(pkey) {
   a[pkey+'_part_number'] = partNum;
   a[pkey+'_part_notes'] = partNotes;
   a[pkey+'_spiff'] = spiff;
+  a[pkey+'_carrying'] = carryingAfter;
 
   var rowNum = sheetRowMap[a.account_id];
   if (rowNum) {
-    var fields = [pkey+'_profile_pricing', pkey+'_training', pkey+'_part_number', pkey+'_part_notes', pkey+'_spiff'];
+    var fields = [pkey+'_profile_pricing', pkey+'_training', pkey+'_part_number', pkey+'_part_notes', pkey+'_spiff', pkey+'_status', pkey+'_carrying'];
     var data = fields.map(function(f){
       return { range: 'Accounts!'+colLetter(COL[f])+rowNum, values: [[a[f]||'']] };
     });
@@ -2141,6 +2077,9 @@ async function saveProductDetails(pkey) {
       await logFieldChange(a, pkey+'_part_number',     before.partNum,   partNum);
       await logFieldChange(a, pkey+'_part_notes',      before.partNotes, partNotes);
       await logFieldChange(a, pkey+'_spiff',           before.spiff,     spiff);
+      if (statusBefore !== statusAfter) await logFieldChange(a, pkey+'_status', statusBefore, statusAfter);
+      if (carryingBefore !== carryingAfter) await logFieldChange(a, pkey+'_carrying', carryingBefore, carryingAfter);
+      if (window._productStatusSnapshot) delete window._productStatusSnapshot[pkey];
       showToast('Product info saved ✓');
     } catch(e) { showToast('Error saving','error'); console.error(e); }
   }
@@ -3985,6 +3924,9 @@ async function runWeeklyRecap() {
     // The reverse: active→prospect is a reversion — flagged separately so
     // management catches it the same way they catch a new conversion.
     c.is_reversion = (c.field_key === 'status' && (c.old_value||'').toLowerCase() === 'active' && (c.new_value||'').toLowerCase() === 'prospect');
+    // Deletions get the same red-flag treatment as reversions, and are
+    // included alongside conversions/reversions in the filtered view.
+    c.is_deletion = (c.field_key === 'status' && (c.new_value||'').toLowerCase() === 'deleted');
   });
   visitsInRange.forEach(function(v){
     var info = accountStatusMap[v.account_id] || {};
@@ -3998,9 +3940,9 @@ async function runWeeklyRecap() {
     if (ah !== bh) return ah ? -1 : 1;
     return (b.visit_date||'').localeCompare(a.visit_date||'');
   });
-  // Sort: conversions and reversions first (key milestones), then by timestamp descending.
+  // Sort: conversions, reversions, and deletions first (key milestones), then by timestamp descending.
   changesInRange.sort(function(a,b){
-    var aFlag = a.is_conversion || a.is_reversion, bFlag = b.is_conversion || b.is_reversion;
+    var aFlag = a.is_conversion || a.is_reversion || a.is_deletion, bFlag = b.is_conversion || b.is_reversion || b.is_deletion;
     if (aFlag !== bFlag) return aFlag ? -1 : 1;
     return (b.timestamp||'').localeCompare(a.timestamp||'');
   });
@@ -4024,7 +3966,7 @@ function applyRecapSearch() {
   var conversionsOnly = document.getElementById('conversionsOnlyToggle').checked;
 
   if (conversionsOnly) {
-    changes = changes.filter(function(c){ return c.is_conversion || c.is_reversion; });
+    changes = changes.filter(function(c){ return c.is_conversion || c.is_reversion || c.is_deletion; });
     visits = [];
     tu = [];
   }
@@ -4109,6 +4051,14 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
       if (c.is_reversion) {
         return '<div class="reversion-flag recap-acct-link" data-aid="'+c.account_id+'" style="margin:8px 16px;cursor:pointer">'+
           '⚠️ <strong>'+esc(c.account_name)+'</strong> reverted from Active back to Prospect'+
+          (territory==='ALL'?' <span style="opacity:0.8">('+esc(c.territory)+')</span>':'')+
+          ' — <span style="opacity:0.85">'+fmtDate(ts)+'</span>'+
+        '</div>';
+      }
+      if (c.is_deletion) {
+        var wasLbl = (c.old_value||'').toLowerCase()==='active' ? 'an Active account' : (c.old_value||'').toLowerCase()==='prospect' ? 'a Prospect' : 'an account';
+        return '<div class="reversion-flag recap-acct-link" data-aid="'+c.account_id+'" style="margin:8px 16px;cursor:pointer">'+
+          '🗑️ <strong>'+esc(c.account_name)+'</strong> deleted (was '+wasLbl+')'+
           (territory==='ALL'?' <span style="opacity:0.8">('+esc(c.territory)+')</span>':'')+
           ' — <span style="opacity:0.85">'+fmtDate(ts)+'</span>'+
         '</div>';
