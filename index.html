@@ -1471,6 +1471,32 @@ function fmtPct(v) {
   if (isNaN(n)) return esc(v);
   return n.toFixed(2);
 }
+// Converts an Excel serial date number or M/D/YYYY string into a real ISO date (YYYY-MM-DD)
+// so report dates sort correctly and behave as an actual date value, not a loose string.
+function toISODate(input) {
+  if (input === null || input === undefined || input === '') return '';
+  if (typeof input === 'number' && input > 20000 && input < 60000) {
+    var d = new Date(Date.UTC(1899,11,30) + input*86400000);
+    return d.toISOString().slice(0,10);
+  }
+  var s = String(input).trim();
+  var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return m[3]+'-'+('0'+m[1]).slice(-2)+'-'+('0'+m[2]).slice(-2);
+  var d2 = new Date(s);
+  if (!isNaN(d2.getTime()) && /\d{4}/.test(s)) return d2.toISOString().slice(0,10);
+  return s;
+}
+// Displays an ISO date (or legacy M/D/YYYY string from older uploads) as "Mon D, YYYY"
+function fmtDateDisplay(v) {
+  if (!v) return '';
+  var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var s = String(v).trim();
+  var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return MONTHS[parseInt(iso[2],10)-1]+' '+parseInt(iso[3],10)+', '+iso[1];
+  var us = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (us) return MONTHS[parseInt(us[1],10)-1]+' '+parseInt(us[2],10)+', '+us[3];
+  return esc(s);
+}
 
 function renderDetail() {
   var a = currentAccount;
@@ -1552,7 +1578,7 @@ function renderDetail() {
       '<div class="field-row"><span class="field-label">YTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ytd)+'</span></div>'+
       '<div class="field-row"><span class="field-label">Last Year YTD</span><span class="field-value">'+fmtNum(ranking.sales_lastyear)+'</span></div>'+
       '<div class="field-row"><span class="field-label">% Change</span><span class="field-value" style="'+pctColor+'">'+fmtPct(ranking.pct_change)+'</span></div>'+
-      '<div class="field-row"><span class="field-label">Report</span>'+fv(ranking.report_month)+'</div>'+
+      '<div class="field-row"><span class="field-label">Report</span>'+fv(fmtDateDisplay(ranking.report_month))+'</div>'+
       '</div></div>';
   }
 
@@ -2315,7 +2341,7 @@ function renderRankingsTable() {
 
   var latest = allRankings.length ? allRankings[0].report_month : '';
   document.getElementById('rankingsMeta').textContent =
-    allRankings.length+' accounts ranked · '+currentTerritory+(latest?' · Report: '+latest:'');
+    allRankings.length+' accounts ranked · '+currentTerritory+(latest?' · Report: '+fmtDateDisplay(latest):'');
 
   if (!data.length) {
     document.getElementById('rankingsContent').innerHTML =
@@ -2468,17 +2494,16 @@ async function parseRankingXLS(file) {
         });
 
         // Get report date from earlier rows — Crystal Reports stores this as a raw
-        // Excel serial date number (e.g. 46022), so convert it to a real date
+        // Excel serial date number (e.g. 46022), so convert it to a real ISO date
         var reportMonth = '';
         for (var j=0; j<headerRow; j++) {
           var cellRaw = rows[j][0];
           var cell = String(cellRaw||'');
           if (typeof cellRaw === 'number' && cellRaw > 20000 && cellRaw < 60000) {
-            var d = new Date(Date.UTC(1899,11,30) + cellRaw*86400000);
-            reportMonth = (d.getUTCMonth()+1)+'/'+d.getUTCDate()+'/'+d.getUTCFullYear();
+            reportMonth = toISODate(cellRaw);
             break;
           } else if (/\d{4}/.test(cell) || /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(cell)) {
-            reportMonth = cell.trim(); break;
+            reportMonth = toISODate(cell.trim()); break;
           }
         }
 
@@ -2607,7 +2632,7 @@ function renderMachinesTable() {
 
   var latest = allMachines.length ? allMachines[0].report_month : '';
   document.getElementById('machinesMeta').textContent =
-    allMachines.length+' machine records · '+currentTerritory+(latest?' · Report: '+latest:'');
+    allMachines.length+' machine records · '+currentTerritory+(latest?' · Report: '+fmtDateDisplay(latest):'');
 
   if (!data.length) {
     document.getElementById('machinesContent').innerHTML =
@@ -2687,6 +2712,7 @@ async function parseMachineXLS(file) {
         var wb = XLSX.read(data, {type:'array'});
         var records = [];
         var MONTHS_KEY = ['apr','may','jun','jul','aug','sep','oct','nov','dec','jan','feb','mar'];
+        var MONTH_SET = {jan:1,feb:1,mar:1,apr:1,may:1,jun:1,jul:1,aug:1,sep:1,oct:1,nov:1,dec:1};
 
         // Territory code → route name mapping (0101 = Route 101, etc.)
         function codeToTerritory(code) {
@@ -2694,41 +2720,70 @@ async function parseMachineXLS(file) {
           return 'Route '+num;
         }
 
+        // Reads a value at a header-derived column index, tolerating the 1-column
+        // offset some columns have between their header label and the data cell
+        // beneath it (a Crystal Reports merged-cell quirk seen on 'Mar' and 'Req').
+        function pickVal(row, idx) {
+          if (idx==null) return '';
+          if (typeof row[idx] === 'number') return row[idx];
+          if (typeof row[idx-1] === 'number') return row[idx-1];
+          if (typeof row[idx+1] === 'number') return row[idx+1];
+          return '';
+        }
+
         wb.SheetNames.forEach(function(sheetName){
           var ws = wb.Sheets[sheetName];
           var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
           if (!rows.length) return;
 
-          var currentReportCode = sheetName.trim(); // sheet name = report code
+          var currentReportCode = '';
           var currentTerrCode = '';
           var reportMonth = '';
-          var headerRowIdx = -1;
+          var colIdx = {}; // month/req/sold/diff -> column index, rebuilt per section
 
-          // Find report month and section headers
           for (var i=0; i<rows.length; i++) {
             var r = rows[i];
             var r0 = String(r[0]||'').trim();
-            // Report code header row
-            if (/^[A-Z]{2,5}\d*\s+Report/.test(r0)) {
-              currentReportCode = r0.split(' ')[0];
+            var rJoined = r.join(' ');
+
+            // New report-code section — a short code in col 0 plus a 'Report' cell
+            // elsewhere in the same row (e.g. 'C937' ... 'Report'). Sections repeat
+            // per territory, so reset the column map each time one starts.
+            if (r0 && /^[A-Z0-9-]{2,15}$/i.test(r0) && r.some(function(c){ return String(c).trim().toLowerCase()==='report'; })) {
+              currentReportCode = r0;
+              colIdx = {};
+              continue;
             }
-            // Territory/rep row — looks like "0101 Rep Name" or numeric prefix
-            if (/^\d{4}\s+/.test(r0)) {
-              currentTerrCode = r0.split(/\s+/)[0];
+
+            // Territory/rep code row (e.g. '0101') — only valid before this
+            // section's header row has been found, since machine IDs can also be
+            // bare 4-digit numbers once data rows start.
+            if (!colIdx.req && /^\d{4}$/.test(r0)) {
+              currentTerrCode = r0;
+              continue;
             }
-            // Date row
-            if (/\d{1,2}\/\d{1,2}\/\d{4}/.test(r0) || /\d{4}/.test(r0) && !reportMonth) {
-              reportMonth = r0;
+
+            // Report date, wherever it sits in the row
+            var dateMatch = rJoined.match(/\d{1,2}\/\d{1,2}\/\d{4}/);
+            if (dateMatch && !reportMonth) reportMonth = toISODate(dateMatch[0]);
+
+            // Header row — month names plus Req/Ttl Sold/Diff, scattered across columns
+            var rStrLower = rJoined.toLowerCase();
+            if (rStrLower.indexOf('req')>=0 && (rStrLower.indexOf('jan')>=0 || rStrLower.indexOf('apr')>=0)) {
+              colIdx = {};
+              r.forEach(function(cell,ci){
+                var c = String(cell).trim().toLowerCase();
+                if (MONTH_SET[c]) colIdx[c]=ci;
+                else if (c==='req') colIdx.req=ci;
+                else if (c.indexOf('sold')>=0) colIdx.sold=ci;
+                else if (c==='diff') colIdx.diff=ci;
+              });
+              continue;
             }
-            // Header row — has month names
-            var rStr = r.join(' ').toLowerCase();
-            if ((rStr.includes('apr') || rStr.includes('jan')) && rStr.includes('req')) {
-              headerRowIdx = i;
-            }
-            // Data rows — machine ID is first col (numeric 4-5 digits)
-            if (headerRowIdx >= 0 && /^\d{4,6}$/.test(r0)) {
-              var acctName = String(r[1]||'').trim();
-              if (!acctName) continue;
+
+            // Data row — has a machine ID (col 0) and an account name (col 6)
+            if (colIdx.req!=null && r0 && String(r[6]||'').trim()) {
+              var acctName = String(r[6]||'').trim();
               var record = {
                 record_id: 'MR'+Date.now()+Math.random().toString(36).slice(2,6),
                 report_code: currentReportCode,
@@ -2738,10 +2793,10 @@ async function parseMachineXLS(file) {
                 machine_id: r0,
                 report_month: reportMonth,
               };
-              MONTHS_KEY.forEach(function(m,idx){ record[m] = String(r[idx+2]||'').trim(); });
-              record.required    = String(r[14]||'').trim();
-              record.total_sold  = String(r[15]||'').trim();
-              record.difference  = String(r[16]||'').trim();
+              MONTHS_KEY.forEach(function(m){ record[m] = String(pickVal(r, colIdx[m])).trim(); });
+              record.required   = String(pickVal(r, colIdx.req)).trim();
+              record.total_sold = String(pickVal(r, colIdx.sold)).trim();
+              record.difference = String(pickVal(r, colIdx.diff)).trim();
               records.push(record);
             }
           }
