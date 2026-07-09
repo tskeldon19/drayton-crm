@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.16 - built 2026-07-09 -->
+<!-- Drayton CRM v4.0 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -243,6 +243,10 @@
   .product-row.expanded .product-row-body { display: block; }
   .product-row.expanded { border-color: var(--gold); }
   .product-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .spiff-badge { font-size: 11px; background: var(--gold-dim); color: var(--gold); padding: 2px 7px; border-radius: 10px; font-weight: 700; }
+  .product-status-history { margin: 10px 0; padding: 10px 12px; background: var(--gray-1); border-radius: 6px; }
+  .product-status-history label { display: block; font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .history-row { font-size: 12px; color: var(--white); padding: 2px 0; }
   .product-detail-field label { display: block; font-size: 11px; color: var(--gray-3); margin-bottom: 4px; }
   .status-btn-row { display: flex; gap: 6px; margin-bottom: 12px; }
   .status-btn {
@@ -352,6 +356,27 @@
   .loading { text-align: center; padding: 48px; color: var(--gray-3); }
   .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .print-only { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea {
+      display: block; position: absolute; top: 0; left: 0; width: 100%;
+      background: #fff; color: #000; padding: 20px; font-family: Arial, sans-serif;
+    }
+    #printArea h1 { font-size: 20px; margin-bottom: 4px; color: #000; }
+    #printArea .print-meta { font-size: 12px; color: #444; margin-bottom: 16px; }
+    #printArea .print-table { width: 100%; border-collapse: collapse; }
+    #printArea .print-table th {
+      text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 2px solid #000; padding: 6px 8px; color: #000;
+    }
+    #printArea .print-table td { border-bottom: 1px solid #ccc; padding: 8px; vertical-align: top; color: #000; font-size: 13px; }
+    #printArea .print-stop-num { font-weight: 700; width: 30px; }
+    #printArea .print-stop-name { font-weight: 700; }
+    #printArea .print-stop-notes { font-size: 11px; color: #555; margin-top: 2px; }
+    #printArea .print-check { width: 50px; text-align: center; font-size: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -399,6 +424,7 @@
       </select>
     </div>
     <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
+    <button type="button" id="gmMigrationBtn" style="margin-top:16px;background:none;border:none;color:var(--gray-3);font-size:11px;text-decoration:underline;cursor:pointer">One-time: migrate Other Contact → GM field</button>
   </div>
 </div>
 
@@ -575,6 +601,7 @@
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gold btn-sm" id="listOpenMapsBtn">🗺 Open in Maps</button>
+        <button class="btn btn-secondary btn-sm" id="listPrintBtn">🖨 Print Route</button>
         <button class="btn btn-primary btn-sm" id="listAddStopBtn">＋ Add Stop</button>
         <button class="btn btn-danger btn-sm" id="listDeleteBtn">🗑 Delete List</button>
       </div>
@@ -623,6 +650,7 @@
         <input type="text" id="rankingsSearch" placeholder="Search accounts..." style="width:200px">
       </div>
     </div>
+    <div id="rankingsStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
     <div id="rankingsContent"><div class="loading"><div class="spinner"></div>Loading rankings...</div></div>
   </div>
 </div>
@@ -865,7 +893,7 @@ const COL = {
   claims:40,claims_notes:41,hyperbi:42,hyperbi_notes:43,
   competitor_product:44,competitor_name:45,
   sm_name:46,sm_phone:47,sm_email:48,owner_name:49,owner_phone:50,owner_email:51,
-  other1_role:52,other1_name:53,other1_phone:54,other1_email:55,
+  gm_name:53,gm_phone:54,gm_email:55,
   other2_role:56,other2_name:57,other2_phone:58,other2_email:59,
   rating:60,
   bg_transmission:61,bg_coolant:62,bg_diff:63,bg_induction:64,bg_injection:65,bg_gdi:66,
@@ -884,7 +912,11 @@ const COL = {
   bg_fuel_status:141,bg_fuel_carrying:142,bg_fuel_profile_pricing:143,bg_fuel_training:144,bg_fuel_part_number:145,bg_fuel_part_notes:146,
   bg_diesel_status:147,bg_diesel_carrying:148,bg_diesel_profile_pricing:149,bg_diesel_training:150,bg_diesel_part_number:151,bg_diesel_part_notes:152,
   bg_misc_status:153,bg_misc_carrying:154,bg_misc_profile_pricing:155,bg_misc_training:156,bg_misc_part_number:157,bg_misc_part_notes:158,
-  products_offered:159,general_notes:160,interested:161,last_visit:162,next_followup:163
+  products_offered:159,general_notes:160,interested:161,last_visit:162,next_followup:163,
+  bg_transmission_spiff:164,bg_coolant_spiff:165,bg_diff_spiff:166,bg_induction_spiff:167,
+  bg_injection_spiff:168,bg_gdi_spiff:169,bg_brake_spiff:170,bg_ac_spiff:171,
+  bg_moa_efl_spiff:172,bg_epr_spiff:173,bg_battery_spiff:174,bg_fuel_spiff:175,
+  bg_diesel_spiff:176,bg_misc_spiff:177
 };
 
 function colLetter(idx) {
@@ -914,8 +946,8 @@ const TRACKED_FIELDS = {
   // Personnel (SM/Owner on Accounts sheet)
   sm_name:'SM Name', sm_phone:'SM Phone', sm_email:'SM Email',
   owner_name:'Owner Name', owner_phone:'Owner Phone', owner_email:'Owner Email',
-  other1_role:'Other Contact Role', other1_name:'Other Contact Name',
-  other1_phone:'Other Contact Phone', other1_email:'Other Contact Email',
+  gm_name:'General Manager Name',
+  gm_phone:'General Manager Phone', gm_email:'General Manager Email',
   // Store Information (includes Smoke and Burns + LPP Training)
   penetration_pct:'Penetration %', penetration_pct_notes:'Penetration % Notes',
   mpi:'MPI', mpi_notes:'MPI Notes',
@@ -943,6 +975,7 @@ BG_PRODUCTS.forEach(function(p){
   TRACKED_FIELDS[p.key+'_training']        = p.label + ' — Training Performed';
   TRACKED_FIELDS[p.key+'_part_number']     = p.label + ' — Part Number';
   TRACKED_FIELDS[p.key+'_part_notes']      = p.label + ' — Notes';
+  TRACKED_FIELDS[p.key+'_spiff']           = p.label + ' — Spiff';
 });
 
 // Fields shown in Weekly Recap Key Field Changes — everything else is
@@ -983,6 +1016,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('signInBtn').addEventListener('click', doSignIn);
   document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
   document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
+  document.getElementById('gmMigrationBtn').addEventListener('click', runGmMigration);
   document.getElementById('backBtn').addEventListener('click', goBack);
   document.getElementById('newAccountBtn').addEventListener('click', openNewAccount);
   document.getElementById('tabProspect').addEventListener('click', function(){ switchTab('prospect'); });
@@ -1128,6 +1162,74 @@ function showToast(msg, type) {
   setTimeout(function(){ t.className='toast'; }, 3000);
 }
 
+// One-time migration: "Other 1" used to be a free-text role slot; now it's a
+// fixed General Manager field (same columns, re-read as gm_name/phone/email).
+// Any existing Other 1 data that wasn't already labeled GM gets moved into the
+// existing Other 2 slot instead, so nothing is lost. Safe to run once; rows
+// that would conflict with existing Other 2 data are skipped and reported.
+async function runGmMigration() {
+  if (!confirm('This is a one-time migration across ALL territories.\n\nAny "Other 1" contact not already labeled General Manager will be moved into the Other 2 slot, and the GM field will be left blank for you to fill in.\n\nRun this now?')) return;
+  showToast('Running GM migration...');
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID, range: 'Accounts!A:FV'
+    });
+    var rows = res.result.values || [];
+    var updates = [];
+    var skipped = [];
+    var migrated = 0;
+
+    for (var i=1; i<rows.length; i++) {
+      var r = rows[i];
+      var rowNum = i+1;
+      var oldRole  = (r[52]||'').trim();     // raw old "Other 1 Role" cell
+      var gmName   = (r[53]||'').trim();     // now read as gm_name, but this is old other1_name
+      var gmPhone  = (r[54]||'').trim();
+      var gmEmail  = (r[55]||'').trim();
+      var o2Role   = (r[56]||'').trim();
+      var o2Name   = (r[57]||'').trim();
+      var o2Phone  = (r[58]||'').trim();
+      var o2Email  = (r[59]||'').trim();
+
+      var hasOldData = gmName || gmPhone || gmEmail;
+      if (!hasOldData) continue; // nothing to migrate on this row
+
+      var isGM = /general\s*manager|^\s*gm\s*$|g\.\s*m\.?/i.test(oldRole);
+      if (isGM) continue; // already correctly in the GM slot, leave as-is
+
+      var o2Empty = !o2Role && !o2Name && !o2Phone && !o2Email;
+      if (!o2Empty) {
+        skipped.push((r[3]||'Row '+rowNum)+' (row '+rowNum+') — Other 2 already has data, GM migration skipped, please resolve by hand');
+        continue;
+      }
+
+      // Move old Other 1 data into Other 2, clear the GM slot
+      updates.push({range:'Accounts!'+colLetter(56)+rowNum, values:[[oldRole]]});
+      updates.push({range:'Accounts!'+colLetter(57)+rowNum, values:[[gmName]]});
+      updates.push({range:'Accounts!'+colLetter(58)+rowNum, values:[[gmPhone]]});
+      updates.push({range:'Accounts!'+colLetter(59)+rowNum, values:[[gmEmail]]});
+      updates.push({range:'Accounts!'+colLetter(53)+rowNum, values:[['']]});
+      updates.push({range:'Accounts!'+colLetter(54)+rowNum, values:[['']]});
+      updates.push({range:'Accounts!'+colLetter(55)+rowNum, values:[['']]});
+      migrated++;
+    }
+
+    if (updates.length) {
+      // Sheets batchUpdate caps around 100 ranges comfortably per call — chunk to be safe
+      for (var c=0; c<updates.length; c+=200) {
+        await gapi.client.sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: SHEET_ID, resource: { valueInputOption:'RAW', data: updates.slice(c,c+200) }
+        });
+      }
+    }
+
+    var msg = 'GM migration complete — '+migrated+' account(s) moved to Other 2.';
+    if (skipped.length) msg += ' '+skipped.length+' skipped (conflict) — see console for details.';
+    showToast(msg);
+    if (skipped.length) console.log('GM migration — rows needing manual review:\n'+skipped.join('\n'));
+  } catch(e) { showToast('Migration error — see console','error'); console.error(e); }
+}
+
 async function loadTerritory() {
   var sel = document.getElementById('territorySelect').value;
   if (!sel) { showToast('Please select a territory','error'); return; }
@@ -1162,7 +1264,7 @@ async function fetchAliases() {
 async function fetchData() {
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FH'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FV'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Activity Log!A:H'}),
@@ -1252,6 +1354,20 @@ function rowToAcc(r) {
   var o={};
   Object.entries(COL).forEach(function(e){ o[e[0]] = r[e[1]]||''; });
   return o;
+}
+
+function statusLabel(code) {
+  code = (code||'').toLowerCase();
+  return code==='green'?'Carrying':code==='yellow'?'Discussed':code==='red'?'Declined':'Not Discussed';
+}
+
+// Every product status change is already logged with a timestamp in the Change
+// Log (see saveProductStatus/saveProductDetails) — this just surfaces that
+// history per product so growth speed (discussed → carrying, etc.) is visible.
+function getProductStatusHistory(accountId, pkey) {
+  return allChangeLog.filter(function(c){
+    return c.account_id === accountId && c.field_key === pkey+'_status';
+  }).sort(function(a,b){ return a.timestamp.localeCompare(b.timestamp); });
 }
 
 var staleThresholdDays = 90;   // default per user direction; adjustable via prompt on the metric card
@@ -1689,7 +1805,7 @@ function renderDetail() {
     '<div class="field-row"><span class="field-label">Website</span>'+fv(a.website)+'</div>'+
     '<div class="field-row"><span class="field-label">Bays</span>'+fv(a.bays)+'</div>'+
     '<div class="field-row"><span class="field-label">Advisors</span>'+fv(a.advisors)+'</div>'+
-    '<div class="field-row"><span class="field-label">Monthly RO</span>'+fv(a.monthly_ro)+'</div>'+
+    '<div class="field-row"><span class="field-label">Monthly CP RO</span>'+fv(a.monthly_ro)+'</div>'+
     '<div class="field-row"><span class="field-label">Door Rate</span>'+fv(a.door_rate)+'</div>'+
     '<div class="field-row"><span class="field-label">Maint. Rate</span>'+fv(a.maint_rate)+'</div>'+
     '<div class="field-row"><span class="field-label">Competitor</span>'+fv(a.competitor_name||a.competitor_product)+'</div>'+
@@ -1707,7 +1823,9 @@ function renderDetail() {
     '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Phone</span>'+fv(a.owner_phone)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Email</span>'+fv(a.owner_email)+'</div>'+
-    (a.other1_name?'<div class="field-row"><span class="field-label">'+(a.other1_role||'Other')+'</span><div style="flex:1">'+fv(a.other1_name)+(a.other1_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other1_phone)+'</span>':'')+'</div></div>':'')+
+    '<div class="field-row"><span class="field-label">GM Name</span>'+fv(a.gm_name)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Phone</span>'+fv(a.gm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Email</span>'+fv(a.gm_email)+'</div>'+
     (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+'</div></div>':'')+
     function(){
       var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
@@ -1804,9 +1922,13 @@ function renderDetail() {
       BG_PRODUCTS.map(function(p){
         var status = a[p.key+'_status'] || 'gray';
         var tagText = status==='green'?'Carrying':status==='yellow'?'Discussed':status==='red'?'Declined':'Not Discussed';
+        var spiff = parseFloat(a[p.key+'_spiff'])||0;
+        var history = getProductStatusHistory(a.account_id, p.key);
         return '<div class="product-row" data-pkey="'+p.key+'">'+
           '<div class="product-row-head">'+
-            '<span class="product-row-name"><span class="dot dot-'+status+'"></span>'+p.label+'</span>'+
+            '<span class="product-row-name"><span class="dot dot-'+status+'"></span>'+p.label+
+              (spiff>0?' <span class="spiff-badge" title="Spiffed">💰 $'+spiff.toFixed(2)+'</span>':'')+
+            '</span>'+
             '<span class="product-row-tag tag-'+status+'">'+tagText+'</span>'+
           '</div>'+
           '<div class="product-row-body">'+
@@ -1817,9 +1939,6 @@ function renderDetail() {
               }).join('')+
             '</div>'+
             '<div class="product-detail-grid">'+
-              '<div class="product-detail-field"><label>Carrying</label><select id="pf_'+p.key+'_carrying">'+
-                ['','Yes','No'].map(function(o){ var cur=(a[p.key+'_carrying']||''); return '<option value="'+o+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>'; }).join('')+
-              '</select></div>'+
               '<div class="product-detail-field"><label>Profile Pricing</label><select id="pf_'+p.key+'_profile_pricing">'+
                 ['','Yes','No'].map(function(o){ var cur=(a[p.key+'_profile_pricing']||''); return '<option value="'+o+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>'; }).join('')+
               '</select></div>'+
@@ -1827,8 +1946,15 @@ function renderDetail() {
                 ['','Yes','No'].map(function(o){ var cur=(a[p.key+'_training']||''); return '<option value="'+o+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>'; }).join('')+
               '</select></div>'+
               '<div class="product-detail-field"><label>Part Number</label><input type="text" id="pf_'+p.key+'_part_number" value="'+esc(a[p.key+'_part_number'])+'"></div>'+
+              '<div class="product-detail-field"><label>Spiff ($)</label><input type="number" step="0.01" min="0" id="pf_'+p.key+'_spiff" value="'+esc(a[p.key+'_spiff'])+'" placeholder="0"></div>'+
             '</div>'+
             '<div class="product-detail-field" style="margin-bottom:10px"><label>Notes</label><input type="text" id="pf_'+p.key+'_part_notes" value="'+esc(a[p.key+'_part_notes'])+'" placeholder="Notes for this part..."></div>'+
+            (history.length ? '<div class="product-status-history"><label>Status History</label>'+
+              history.map(function(h){
+                var fromLbl = statusLabel(h.old_value), toLbl = statusLabel(h.new_value);
+                return '<div class="history-row">'+fromLbl+' → <strong>'+toLbl+'</strong> <span style="color:var(--gray-3)">'+fmtDateDisplay(h.timestamp.split('T')[0])+'</span></div>';
+              }).join('')+
+            '</div>' : '')+
             '<button type="button" class="btn btn-gold btn-sm" data-pkey="'+p.key+'" data-action="save-product">Save</button>'+
             '<button type="button" class="btn btn-secondary btn-sm" data-pkey="'+p.key+'" data-action="close-product" style="margin-left:6px">Close</button>'+
           '</div>'+
@@ -1958,15 +2084,21 @@ function renderDetail() {
 async function saveProductStatus(pkey, status) {
   var a = currentAccount;
   var oldStatus = a[pkey+'_status'];
+  var oldCarrying = a[pkey+'_carrying'] || '';
+  var newCarrying = status==='green' ? 'Yes' : '';
   a[pkey+'_status'] = status;
+  a[pkey+'_carrying'] = newCarrying;
   var rowNum = sheetRowMap[a.account_id];
   if (rowNum) {
     try {
-      await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: SHEET_ID, range: 'Accounts!'+colLetter(COL[pkey+'_status'])+rowNum,
-        valueInputOption: 'RAW', resource: {values: [[status]]}
+      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SHEET_ID, resource: { valueInputOption: 'RAW', data: [
+          { range: 'Accounts!'+colLetter(COL[pkey+'_status'])+rowNum,   values: [[status]] },
+          { range: 'Accounts!'+colLetter(COL[pkey+'_carrying'])+rowNum, values: [[newCarrying]] }
+        ]}
       });
       await logFieldChange(a, pkey+'_status', oldStatus, status);
+      if (oldCarrying !== newCarrying) await logFieldChange(a, pkey+'_carrying', oldCarrying, newCarrying);
       showToast('Updated ✓');
     } catch(e) { showToast('Error saving','error'); console.error(e); }
   }
@@ -1979,32 +2111,24 @@ async function saveProductStatus(pkey, status) {
 async function saveProductDetails(pkey) {
   var a = currentAccount;
   var before = {
-    carrying: a[pkey+'_carrying'], pricing: a[pkey+'_profile_pricing'],
-    training: a[pkey+'_training'], partNum: a[pkey+'_part_number'],
-    partNotes: a[pkey+'_part_notes'], status: a[pkey+'_status']
+    pricing: a[pkey+'_profile_pricing'], training: a[pkey+'_training'],
+    partNum: a[pkey+'_part_number'], partNotes: a[pkey+'_part_notes'], spiff: a[pkey+'_spiff']
   };
-  var carrying = document.getElementById('pf_'+pkey+'_carrying').value;
   var pricing  = document.getElementById('pf_'+pkey+'_profile_pricing').value;
   var training = document.getElementById('pf_'+pkey+'_training').value;
   var partNum  = document.getElementById('pf_'+pkey+'_part_number').value;
   var partNotes= document.getElementById('pf_'+pkey+'_part_notes').value;
+  var spiff    = document.getElementById('pf_'+pkey+'_spiff').value;
 
-  a[pkey+'_carrying'] = carrying;
   a[pkey+'_profile_pricing'] = pricing;
   a[pkey+'_training'] = training;
   a[pkey+'_part_number'] = partNum;
   a[pkey+'_part_notes'] = partNotes;
-
-  // If rep confirms Carrying = Yes, auto-promote status to green.
-  // If rep sets Carrying = No on a product that was previously discussed (yellow),
-  // leave the status decision to them via the status buttons (could be red/declined
-  // or just not-yet-confirmed), so we don't auto-overwrite status here unless
-  // they explicitly say Yes.
-  if (carrying === 'Yes') a[pkey+'_status'] = 'green';
+  a[pkey+'_spiff'] = spiff;
 
   var rowNum = sheetRowMap[a.account_id];
   if (rowNum) {
-    var fields = [pkey+'_carrying', pkey+'_profile_pricing', pkey+'_training', pkey+'_part_number', pkey+'_part_notes', pkey+'_status'];
+    var fields = [pkey+'_profile_pricing', pkey+'_training', pkey+'_part_number', pkey+'_part_notes', pkey+'_spiff'];
     var data = fields.map(function(f){
       return { range: 'Accounts!'+colLetter(COL[f])+rowNum, values: [[a[f]||'']] };
     });
@@ -2012,12 +2136,11 @@ async function saveProductDetails(pkey) {
       await gapi.client.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SHEET_ID, resource: { valueInputOption: 'RAW', data: data }
       });
-      await logFieldChange(a, pkey+'_carrying',        before.carrying,  carrying);
       await logFieldChange(a, pkey+'_profile_pricing', before.pricing,   pricing);
       await logFieldChange(a, pkey+'_training',        before.training,  training);
       await logFieldChange(a, pkey+'_part_number',     before.partNum,   partNum);
       await logFieldChange(a, pkey+'_part_notes',      before.partNotes, partNotes);
-      await logFieldChange(a, pkey+'_status',          before.status,    a[pkey+'_status']);
+      await logFieldChange(a, pkey+'_spiff',           before.spiff,     spiff);
       showToast('Product info saved ✓');
     } catch(e) { showToast('Error saving','error'); console.error(e); }
   }
@@ -2494,6 +2617,8 @@ async function openRankingsView() {
   showScreen('screenRankings');
   document.getElementById('rankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings...</div>';
   await fetchRankings();
+  await fetchSalesGoal();
+  renderRankingsStatsRow();
   renderRankingsTable();
 }
 
@@ -2502,8 +2627,85 @@ async function viewFullRanking(accountName) {
   showScreen('screenRankings');
   document.getElementById('rankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings...</div>';
   await fetchRankings();
+  await fetchSalesGoal();
+  renderRankingsStatsRow();
   document.getElementById('rankingsSearch').value = accountName || '';
   renderRankingsTable();
+}
+
+// Sales Goals — one row per territory per year, stored in the shared Machines
+// spreadsheet. Goal is set once a year and rarely changes.
+var currentSalesGoal = null;
+
+async function fetchSalesGoal() {
+  var year = String(new Date().getFullYear());
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A:D'
+    });
+    var rows = res.result.values || [];
+    var match = rows.slice(1).find(function(r){ return r[0]===currentTerritory && r[1]===year; });
+    currentSalesGoal = { territory: currentTerritory, year: year, goal_amount: match ? (parseFloat(match[2])||0) : 0 };
+  } catch(e) {
+    console.error('Could not load Sales Goals — has that tab been created yet?', e);
+    currentSalesGoal = { territory: currentTerritory, year: year, goal_amount: 0 };
+  }
+}
+
+async function saveSalesGoal(newGoal) {
+  var year = String(new Date().getFullYear());
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A:D'
+    });
+    var rows = res.result.values || [];
+    var rowIdx = -1;
+    for (var i=1; i<rows.length; i++) {
+      if (rows[i][0]===currentTerritory && rows[i][1]===year) { rowIdx = i+1; break; }
+    }
+    var now = new Date().toISOString();
+    if (rowIdx > 0) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A'+rowIdx+':D'+rowIdx,
+        valueInputOption: 'RAW', resource: {values: [[currentTerritory, year, newGoal, now]]}
+      });
+    } else {
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A:D',
+        valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: [[currentTerritory, year, newGoal, now]]}
+      });
+    }
+    currentSalesGoal = { territory: currentTerritory, year: year, goal_amount: newGoal };
+    showToast('Sales goal saved ✓');
+  } catch(e) {
+    showToast('Error saving goal — has the Sales Goals tab been created?','error'); console.error(e);
+  }
+}
+
+function renderRankingsStatsRow() {
+  var ytdTotal  = allRankings.reduce(function(s,r){ return s+(parseFloat(r.sales_ytd)||0); }, 0);
+  var lastYear  = allRankings.reduce(function(s,r){ return s+(parseFloat(r.sales_lastyear)||0); }, 0);
+  var yoyPct    = lastYear>0 ? ((ytdTotal-lastYear)/lastYear*100) : null;
+  var goal      = currentSalesGoal ? currentSalesGoal.goal_amount : 0;
+  var goalPct   = goal>0 ? (ytdTotal/goal*100) : null;
+  var yoyColor  = yoyPct===null ? '' : (yoyPct>=0 ? 'color:#5dba7d' : 'color:#d47070');
+
+  document.getElementById('rankingsStatsRow').innerHTML =
+    '<div class="big-box" style="cursor:default"><div class="big-box-num">$'+fmtNum(ytdTotal)+'</div><div class="big-box-lbl">YTD Total Sales</div></div>'+
+    '<div class="big-box" style="cursor:default"><div class="big-box-num" style="'+yoyColor+'">'+(yoyPct===null?'—':(yoyPct>=0?'+':'')+yoyPct.toFixed(1)+'%')+'</div><div class="big-box-lbl">YTD YoY Change</div></div>'+
+    '<div class="big-box" style="cursor:default">'+
+      '<div class="big-box-num">'+(goalPct===null?'—':goalPct.toFixed(1)+'%')+'</div>'+
+      '<div class="big-box-lbl">YTD Goal Progress'+(goal>0?' (Goal: $'+fmtNum(goal)+')':' (no goal set)')+'</div>'+
+      '<div style="margin-top:8px;display:flex;gap:6px;align-items:center">'+
+        '<input type="number" id="salesGoalInput" placeholder="Yearly goal $" value="'+(goal>0?goal:'')+'" style="font-size:12px;padding:6px 8px;width:120px">'+
+        '<button type="button" class="btn btn-gold btn-sm" id="salesGoalSaveBtn" style="padding:6px 10px">Save</button>'+
+      '</div>'+
+    '</div>';
+
+  document.getElementById('salesGoalSaveBtn').addEventListener('click', function(){
+    var val = parseFloat(document.getElementById('salesGoalInput').value)||0;
+    saveSalesGoal(val).then(renderRankingsStatsRow);
+  });
 }
 
 function renderRankingsTable() {
@@ -3211,6 +3413,7 @@ function openListDetail(listId) {
   renderListStops();
   showScreen('screenListDetail');
   document.getElementById('listOpenMapsBtn').onclick = openListInMaps;
+  document.getElementById('listPrintBtn').onclick = printCurrentList;
   document.getElementById('listAddStopBtn').onclick = function(){ openAddToListByListId(currentList.list_id); };
   document.getElementById('listDeleteBtn').onclick = deleteCurrentList;
 }
@@ -3218,6 +3421,30 @@ function openListDetail(listId) {
 function getListItems(listId) {
   return allListItems.filter(function(i){ return i.list_id===listId; })
     .sort(function(a,b){ return a.display_order - b.display_order; });
+}
+
+function printCurrentList() {
+  if (!currentList) return;
+  var items = getListItems(currentList.list_id);
+  var rows = items.map(function(item, idx){
+    var acc = allAccounts.find(function(a){ return a.account_id===item.account_id; });
+    var addr = acc?[acc.address,acc.town,acc.state].filter(Boolean).join(', '):'';
+    return '<tr>'+
+      '<td class="print-stop-num">'+(idx+1)+'</td>'+
+      '<td><div class="print-stop-name">'+esc(item.account_name)+'</div>'+
+        (item.stop_notes?'<div class="print-stop-notes">'+esc(item.stop_notes)+'</div>':'')+'</td>'+
+      '<td>'+esc(addr)+'</td>'+
+      '<td class="print-check">☐</td>'+
+    '</tr>';
+  }).join('');
+
+  document.getElementById('printArea').innerHTML =
+    '<h1>'+esc(currentList.list_name)+'</h1>'+
+    '<div class="print-meta">'+currentTerritory+' &middot; '+items.length+' stop'+(items.length!==1?'s':'')+' &middot; Printed '+new Date().toLocaleDateString()+'</div>'+
+    '<table class="print-table"><thead><tr><th>#</th><th>Account</th><th>Address</th><th>Done</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table>';
+
+  window.print();
 }
 
 function renderListStops() {
@@ -3690,7 +3917,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FH'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FV'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Territory Updates!A:H'}),
       ]);
       var visRaw = results[0].result.values || [];
@@ -3968,8 +4195,10 @@ async function updateStatus(newStatus) {
 }
 
 async function softDelete() {
-  if (!confirm('Delete "'+currentAccount.business_name+'"? It will be hidden but recoverable.')) return;
+  if (!confirm('Delete "'+currentAccount.business_name+'"? It will be hidden but recoverable.\n\nIf this is a lost account that may come back in the future, use the Revert to Prospect button. Only delete this account if they are gone forever.')) return;
+  var before = currentAccount.status;
   await updateStatus('deleted');
+  await logFieldChange(currentAccount, 'status', before, 'deleted');
   showToast('Account deleted — recoverable from the account page');
   updateStats(); goBack();
 }
@@ -4134,7 +4363,7 @@ function openEditModal(section) {
     '</select></div>'+
     '<div class="form-grid-2"><div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="'+esc(a.bays)+'"></div>'+
     '<div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="'+esc(a.advisors)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Monthly RO</label><input type="text" id="e_monthly_ro" value="'+esc(a.monthly_ro)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Monthly CP RO</label><input type="text" id="e_monthly_ro" value="'+esc(a.monthly_ro)+'"></div>'+
     '<div class="form-row"><label>Door Rate</label><input type="text" id="e_door_rate" value="'+esc(a.door_rate)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Maint. Rate</label><input type="text" id="e_maint_rate" value="'+esc(a.maint_rate)+'"></div>'+
     '<div class="form-row"><label>Competitor Product?</label><input type="text" id="e_competitor_product" value="'+esc(a.competitor_product)+'"></div></div>'+
@@ -4147,14 +4376,13 @@ function openEditModal(section) {
     '<div class="form-grid-2"><div class="form-row"><label>Owner Name</label><input type="text" id="e_owner_name" value="'+esc(a.owner_name)+'"></div>'+
     '<div class="form-row"><label>Owner Phone</label><input type="text" id="e_owner_phone" value="'+esc(a.owner_phone)+'"></div></div>'+
     '<div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="'+esc(a.owner_email)+'"></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Other 1 Name</label><input type="text" id="e_other1_name" value="'+esc(a.other1_name)+'"></div>'+
-    '<div class="form-row"><label>Other 1 Role</label><input type="text" id="e_other1_role" value="'+esc(a.other1_role)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Other 1 Phone</label><input type="text" id="e_other1_phone" value="'+esc(a.other1_phone)+'"></div>'+
-    '<div class="form-row"><label>Other 1 Email</label><input type="text" id="e_other1_email" value="'+esc(a.other1_email)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Other 2 Name</label><input type="text" id="e_other2_name" value="'+esc(a.other2_name)+'"></div>'+
-    '<div class="form-row"><label>Other 2 Role</label><input type="text" id="e_other2_role" value="'+esc(a.other2_role)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Other 2 Phone</label><input type="text" id="e_other2_phone" value="'+esc(a.other2_phone)+'"></div>'+
-    '<div class="form-row"><label>Other 2 Email</label><input type="text" id="e_other2_email" value="'+esc(a.other2_email)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>GM Name</label><input type="text" id="e_gm_name" value="'+esc(a.gm_name)+'"></div>'+
+    '<div class="form-row"><label>GM Phone</label><input type="text" id="e_gm_phone" value="'+esc(a.gm_phone)+'"></div></div>'+
+    '<div class="form-row"><label>GM Email</label><input type="text" id="e_gm_email" value="'+esc(a.gm_email)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Other Contact Name</label><input type="text" id="e_other2_name" value="'+esc(a.other2_name)+'"></div>'+
+    '<div class="form-row"><label>Other Contact Role</label><input type="text" id="e_other2_role" value="'+esc(a.other2_role)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Other Contact Phone</label><input type="text" id="e_other2_phone" value="'+esc(a.other2_phone)+'"></div>'+
+    '<div class="form-row"><label>Other Contact Email</label><input type="text" id="e_other2_email" value="'+esc(a.other2_email)+'"></div></div>'+
     (personnelRows.length ? '<div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 8px">Additional Contacts</div>'+personnelRows : '')+
     '<div id="newPersonnelArea" style="border:1px dashed var(--gray-2);border-radius:6px;padding:12px;margin-top:8px">'+
     '<div style="font-size:12px;color:var(--gray-3);margin-bottom:8px">Add new contact</div>'+
@@ -4208,7 +4436,7 @@ function collectEditFields() {
   var fields = ['business_name','address','town','state','website','account_type','bays','advisors',
     'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
     'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
-    'other1_name','other1_role','other1_phone','other1_email',
+    'gm_name','gm_phone','gm_email',
     'other2_name','other2_role','other2_phone','other2_email',
     'general_notes'];
   fields.forEach(function(f){ var el=document.getElementById('e_'+f); if(el) a[f]=el.value; });
@@ -4338,7 +4566,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Accounts!A:FH',
+      spreadsheetId:SHEET_ID, range:'Accounts!A:FV',
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     allAccounts.push(currentAccount);
@@ -4393,6 +4621,7 @@ async function saveVisit() {
   } catch(e) { showToast('Error logging visit','error'); console.error(e); }
 }
 </script>
+<div id="printArea" class="print-only"></div>
 <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
