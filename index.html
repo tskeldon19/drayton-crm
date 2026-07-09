@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.1 - built 2026-07-09 -->
+<!-- Drayton CRM v4.2 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -664,6 +664,7 @@
         <input type="text" id="machinesSearch" placeholder="Search accounts..." style="width:180px">
       </div>
     </div>
+    <div id="machinesStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
     <div id="machinesContent"><div class="loading"><div class="spinner"></div>Loading machine data...</div></div>
   </div>
 </div>
@@ -1706,6 +1707,21 @@ function machinePerfBadge(m) {
     (detail?'<div style="font-size:11px;color:var(--gray-3);margin-top:2px">'+detail+'</div>':'');
 }
 
+// Underage charges — some machine report types have a contractual monthly
+// minimum; falling short is billed per unit under. Only CCT4 and CPXT
+// currently carry this charge.
+var UNDERAGE_RULES = {
+  'CCT4': { min: 12, rate: 6 },
+  'CPXT': { min: 20, rate: 6 }
+};
+function machineUnderageCharge(m) {
+  var rule = UNDERAGE_RULES[(m.report_code||'').toUpperCase().trim()];
+  if (!rule) return 0;
+  var sold = parseFloat(m.total_sold)||0;
+  var short = rule.min - sold;
+  return short > 0 ? short * rule.rate : 0;
+}
+
 function renderDetail() {
   var a = currentAccount;
   var visits = allVisits.filter(function(v){ return v.account_id===a.account_id; })
@@ -1794,7 +1810,8 @@ function renderDetail() {
       var accountMachinesTop = allMachines.filter(function(m){ return m.account_id===a.account_id; });
       if (!accountMachinesTop.length) return '';
       var counts = {performing:0, neutral:0, underperforming:0, 'no-quota':0};
-      accountMachinesTop.forEach(function(m){ counts[machinePerf(m).status]++; });
+      var acctUnderage = 0;
+      accountMachinesTop.forEach(function(m){ counts[machinePerf(m).status]++; acctUnderage += machineUnderageCharge(m); });
       var latestReport = accountMachinesTop.reduce(function(best,m){
         return (!best || (m.report_month||'') > (best.report_month||'')) ? m : best;
       }, null);
@@ -1804,6 +1821,7 @@ function renderDetail() {
         '<div class="field-row"><span class="field-label">Performing</span><span class="field-value" style="color:#5dba7d">'+counts.performing+'</span></div>'+
         '<div class="field-row"><span class="field-label">Neutral</span><span class="field-value" style="color:#d4b95d">'+counts.neutral+'</span></div>'+
         '<div class="field-row"><span class="field-label">Underperforming</span><span class="field-value" style="color:#d47070">'+counts.underperforming+'</span></div>'+
+        (acctUnderage>0?'<div class="field-row"><span class="field-label">Underage Owed</span><span class="field-value" style="color:#d47070;font-weight:700">$'+fmtNum(acctUnderage)+'</span></div>':'')+
         '<div style="padding-top:8px;margin-top:4px;border-top:1px solid var(--gray-1)"><a href="#" id="viewFullMachinesLink" style="font-size:12px;color:var(--gold)">See full machine report →</a></div>'+
         '</div></div>';
     }()+
@@ -2985,6 +3003,7 @@ async function openMachinesView() {
     return;
   }
   await fetchMachines();
+  renderMachinesStatsRow();
   renderMachinesTable();
 }
 
@@ -2997,8 +3016,38 @@ async function viewFullMachines(accountName) {
     return;
   }
   await fetchMachines();
+  renderMachinesStatsRow();
   document.getElementById('machinesSearch').value = accountName || '';
   renderMachinesTable();
+}
+
+// Underage charge summary — total dollars owed this month across CCT4/CPXT
+// machines that fell short of their contractual minimum.
+function renderMachinesStatsRow() {
+  var byType = {};
+  var total = 0;
+  allMachines.forEach(function(m){
+    var charge = machineUnderageCharge(m);
+    if (charge <= 0) return;
+    var code = (m.report_code||'').toUpperCase().trim();
+    byType[code] = (byType[code]||0) + charge;
+    total += charge;
+  });
+
+  var boxes = Object.keys(UNDERAGE_RULES).map(function(code){
+    var rule = UNDERAGE_RULES[code];
+    var amt = byType[code] || 0;
+    return '<div class="big-box" style="cursor:default">'+
+      '<div class="big-box-num" style="'+(amt>0?'color:#d47070':'')+'">$'+fmtNum(amt)+'</div>'+
+      '<div class="big-box-lbl">'+esc(code)+' Underage ('+rule.min+' min &middot; $'+rule.rate+'/unit)</div>'+
+    '</div>';
+  }).join('');
+
+  document.getElementById('machinesStatsRow').innerHTML = boxes +
+    '<div class="big-box" style="cursor:default">'+
+      '<div class="big-box-num" style="'+(total>0?'color:#d47070':'')+'">$'+fmtNum(total)+'</div>'+
+      '<div class="big-box-lbl">Total Underage This Month</div>'+
+    '</div>';
 }
 
 function renderMachinesTable() {
@@ -3026,6 +3075,7 @@ function renderMachinesTable() {
 
   var html = data.map(function(m){
     var clickable = !!m.account_id;
+    var underage = machineUnderageCharge(m);
     return '<div class="card machine-list-card" data-aid="'+esc(m.account_id)+'" style="margin-bottom:12px;'+(clickable?'cursor:pointer':'')+'">'+
       '<div class="card-body">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">'+
@@ -3035,6 +3085,7 @@ function renderMachinesTable() {
               '<span style="background:var(--gray-2);padding:2px 6px;border-radius:4px">'+esc(m.report_code)+'</span>'+
               ' <span style="color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</span>'+
               ' &middot; '+esc(m.territory)+
+              (underage>0?' &middot; <span style="color:#d47070;font-weight:600">Underage: $'+fmtNum(underage)+'</span>':'')+
             '</div>'+
             '<div style="font-size:12px;color:var(--gray-3);margin-top:4px">Req: '+esc(m.required)+' &middot; Total: '+esc(m.total_sold)+'</div>'+
           '</div>'+
