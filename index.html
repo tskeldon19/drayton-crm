@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.6 - built 2026-07-08 -->
+<!-- Drayton CRM v3.8 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -257,6 +257,7 @@
   .report-table .rank-2 { color: #C0C0C0; }
   .report-table .rank-3 { color: #CD7F32; }
   .machine-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; margin-top: 4px; }
+  .machine-list-card:hover { border-color: var(--gold-dim); }
   .machine-cell { background: var(--gray-1); border-radius: 3px; padding: 3px 5px; font-size: 10px; text-align: center; color: var(--gray-3); }
   .machine-cell.has-data { background: var(--gold-dim); color: var(--gold); }
   .upload-preview-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--gray-1); font-size: 13px; }
@@ -1594,22 +1595,37 @@ function renderDetail() {
       }).join('');
     }()+
     '</div></div>'+
+    function(){
+      var ranking = allRankings.find(function(r){ return r.account_id===a.account_id; });
+      if (!ranking) return '';
+      var pct = parseFloat(ranking.pct_change)||0;
+      var pctColor = pct>0?'color:#5dba7d':pct<0?'color:#d47070':'';
+      return '<div class="card"><div class="card-header">🏆 Rankings</div><div class="card-body">'+
+        '<div class="field-row"><span class="field-label">Rank</span><span class="field-value" style="font-size:18px;font-weight:700;color:var(--gold)">#'+ranking.rank+'</span></div>'+
+        '<div class="field-row"><span class="field-label">PTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ptd)+'</span></div>'+
+        '<div class="field-row"><span class="field-label">YTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ytd)+'</span></div>'+
+        '<div class="field-row"><span class="field-label">Last Year YTD</span><span class="field-value">'+fmtNum(ranking.sales_lastyear)+'</span></div>'+
+        '<div class="field-row"><span class="field-label">% Change</span><span class="field-value" style="'+pctColor+'">'+fmtPct(ranking.pct_change)+'</span></div>'+
+        '<div class="field-row"><span class="field-label">Report</span>'+fv(fmtDateDisplay(ranking.report_month))+'</div>'+
+        '</div></div>';
+    }()+
+    function(){
+      var accountMachinesTop = allMachines.filter(function(m){ return m.account_id===a.account_id; });
+      if (!accountMachinesTop.length) return '';
+      var counts = {performing:0, neutral:0, underperforming:0, 'no-quota':0};
+      accountMachinesTop.forEach(function(m){ counts[machinePerf(m).status]++; });
+      var latestReport = accountMachinesTop.reduce(function(best,m){
+        return (!best || (m.report_month||'') > (best.report_month||'')) ? m : best;
+      }, null);
+      return '<div class="card"><div class="card-header">⚙️ Machine Reports</div><div class="card-body">'+
+        '<div class="field-row"><span class="field-label">Machines Tracked</span><span class="field-value">'+accountMachinesTop.length+'</span></div>'+
+        '<div class="field-row"><span class="field-label">Report</span>'+fv(fmtDateDisplay(latestReport?latestReport.report_month:''))+'</div>'+
+        '<div class="field-row"><span class="field-label">Performing</span><span class="field-value" style="color:#5dba7d">'+counts.performing+'</span></div>'+
+        '<div class="field-row"><span class="field-label">Neutral</span><span class="field-value" style="color:#d4b95d">'+counts.neutral+'</span></div>'+
+        '<div class="field-row"><span class="field-label">Underperforming</span><span class="field-value" style="color:#d47070">'+counts.underperforming+'</span></div>'+
+        '</div></div>';
+    }()+
     '</div>';
-
-  // Rankings — full-width card (same horizontal space as Store Information)
-  var ranking = allRankings.find(function(r){ return r.account_id===a.account_id; });
-  if (ranking) {
-    var pct = parseFloat(ranking.pct_change)||0;
-    var pctColor = pct>0?'color:#5dba7d':pct<0?'color:#d47070':'';
-    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🏆 Rankings</div><div class="card-body">'+
-      '<div class="field-row"><span class="field-label">Rank</span><span class="field-value" style="font-size:18px;font-weight:700;color:var(--gold)">#'+ranking.rank+'</span></div>'+
-      '<div class="field-row"><span class="field-label">PTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ptd)+'</span></div>'+
-      '<div class="field-row"><span class="field-label">YTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ytd)+'</span></div>'+
-      '<div class="field-row"><span class="field-label">Last Year YTD</span><span class="field-value">'+fmtNum(ranking.sales_lastyear)+'</span></div>'+
-      '<div class="field-row"><span class="field-label">% Change</span><span class="field-value" style="'+pctColor+'">'+fmtPct(ranking.pct_change)+'</span></div>'+
-      '<div class="field-row"><span class="field-label">Report</span>'+fv(fmtDateDisplay(ranking.report_month))+'</div>'+
-      '</div></div>';
-  }
 
   // Store Information — activity log fields get a "Log" button + history
   var activityFieldKeys = new Set(ACTIVITY_FIELDS.map(function(f){ return f.key; }));
@@ -2650,7 +2666,6 @@ async function openMachinesView() {
 function renderMachinesTable() {
   var q = (document.getElementById('machinesSearch').value||'').toLowerCase();
   var typeFilter = document.getElementById('machinesTypeFilter').value;
-  var MONTHS = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
 
   var data = allMachines.filter(function(m){
     if (typeFilter !== 'ALL' && m.report_code !== typeFilter) return false;
@@ -2668,30 +2683,41 @@ function renderMachinesTable() {
     return;
   }
 
-  var html = '<div style="overflow-x:auto"><table class="report-table">'+
-    '<thead><tr>'+
-    '<th>Account</th><th>Report Type</th><th>Machine ID</th>'+
-    MONTHS.map(function(m){ return '<th>'+m+'</th>'; }).join('')+
-    '<th>Req</th><th>Total</th><th>Performance</th>'+
-    '</tr></thead><tbody>'+
-    data.map(function(m){
-      var monthVals = [m.apr,m.may,m.jun,m.jul,m.aug,m.sep,m.oct,m.nov,m.dec,m.jan,m.feb,m.mar];
-      return '<tr class="machine-row" data-aid="'+m.account_id+'">'+
-        '<td style="font-weight:600;color:var(--white);white-space:nowrap">'+esc(m.account_name)+'</td>'+
-        '<td><span style="font-size:11px;background:var(--gray-2);padding:2px 6px;border-radius:4px">'+esc(m.report_code)+'</span></td>'+
-        '<td style="color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</td>'+
-        monthVals.map(function(v){ return '<td style="font-size:12px;text-align:center">'+(v||'—')+'</td>'; }).join('')+
-        '<td style="font-size:12px;text-align:center">'+esc(m.required)+'</td>'+
-        '<td style="font-size:12px;text-align:center">'+esc(m.total_sold)+'</td>'+
-        '<td style="font-size:12px;text-align:center;white-space:nowrap">'+machinePerfBadge(m)+'</td>'+
-      '</tr>';
-    }).join('')+
-    '</tbody></table></div>';
+  var MONTHS_LABEL = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+  var MONTHS_KEY2  = ['apr','may','jun','jul','aug','sep','oct','nov','dec','jan','feb','mar'];
+
+  var html = data.map(function(m){
+    var clickable = !!m.account_id;
+    return '<div class="card machine-list-card" data-aid="'+esc(m.account_id)+'" style="margin-bottom:12px;'+(clickable?'cursor:pointer':'')+'">'+
+      '<div class="card-body">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">'+
+          '<div>'+
+            '<div style="font-weight:600;color:var(--white);font-size:14px">'+esc(m.account_name)+(clickable?'':' <span style="font-size:11px;color:var(--gray-3);font-weight:400">(no account match)</span>')+'</div>'+
+            '<div style="font-size:11px;color:var(--gray-3);margin-top:3px">'+
+              '<span style="background:var(--gray-2);padding:2px 6px;border-radius:4px">'+esc(m.report_code)+'</span>'+
+              ' <span style="color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</span>'+
+              ' &middot; '+esc(m.territory)+
+            '</div>'+
+            '<div style="font-size:12px;color:var(--gray-3);margin-top:4px">Req: '+esc(m.required)+' &middot; Total: '+esc(m.total_sold)+'</div>'+
+          '</div>'+
+          '<div style="text-align:right;flex-shrink:0">'+machinePerfBadge(m)+'</div>'+
+        '</div>'+
+        '<div class="machine-grid">'+
+          MONTHS_LABEL.map(function(mo,idx){
+            var val = m[MONTHS_KEY2[idx]];
+            return '<div class="machine-cell'+(val&&val!=='0'?' has-data':'')+'" title="'+mo+'">'+
+              '<div style="font-size:9px;opacity:0.7">'+mo+'</div>'+
+              '<div>'+(val||'—')+'</div>'+
+            '</div>';
+          }).join('')+
+        '</div>'+
+      '</div></div>';
+  }).join('');
 
   document.getElementById('machinesContent').innerHTML = html;
-  document.querySelectorAll('.machine-row').forEach(function(row){
-    row.addEventListener('click', function(){
-      if (row.dataset.aid) openAccount(row.dataset.aid);
+  document.querySelectorAll('.machine-list-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      if (card.dataset.aid) openAccount(card.dataset.aid);
     });
   });
 }
@@ -2704,6 +2730,16 @@ async function handleMachinesUpload(evt) {
 
   var parsed = await parseMachineXLS(file);
   if (!parsed) { showToast('Could not parse machine file','error'); return; }
+
+  // Fuzzy match to accounts — only reliable for the currently loaded territory,
+  // since allAccounts is scoped to it (same approach as the rankings upload)
+  var matched = 0;
+  parsed.forEach(function(r){
+    if (r.territory === currentTerritory) {
+      var m = fuzzyMatchAccount(r.account_name);
+      if (m) { r.account_id = m.account.account_id; matched++; }
+    }
+  });
 
   _pendingMachinesUpload = parsed;
   var territorySummary = {};
@@ -2723,7 +2759,7 @@ async function handleMachinesUpload(evt) {
 
   document.getElementById('uploadPreviewTitle').textContent = 'Machine Report Upload Preview';
   document.getElementById('uploadPreviewBody').innerHTML =
-    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+parsed.length+' total records across '+Object.keys(territorySummary).length+' territories. Existing machine data will be replaced.</p>'+
+    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+parsed.length+' total records across '+Object.keys(territorySummary).length+' territories. '+matched+' of '+(territorySummary[currentTerritory]?territorySummary[currentTerritory].count:0)+' records for '+esc(currentTerritory)+' matched to existing accounts. Existing machine data will be replaced.</p>'+
     previewRows.join('');
   document.getElementById('uploadPreviewConfirm').onclick = confirmMachinesUpload;
   document.getElementById('modalUploadPreview').classList.add('open');
