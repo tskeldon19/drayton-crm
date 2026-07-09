@@ -1497,6 +1497,35 @@ function fmtDateDisplay(v) {
   if (us) return MONTHS[parseInt(us[1],10)-1]+' '+parseInt(us[2],10)+', '+us[3];
   return esc(s);
 }
+// Machine performance: how actual sales compare to the quota (Req) for a machine.
+// performing = at/above quota, neutral = within 10% under quota, underperforming = >10% under.
+function machinePerf(m) {
+  var req  = parseFloat(m.required)||0;
+  var sold = parseFloat(m.total_sold)||0;
+  var diff = sold - req;
+  if (req <= 0) return {status:'no-quota', req:req, sold:sold, diff:diff, pctOff:null};
+  var pctOff = (diff/req)*100; // negative = under quota, positive = over
+  var status = diff>=0 ? 'performing' : (Math.abs(pctOff)<=10 ? 'neutral' : 'underperforming');
+  return {status:status, req:req, sold:sold, diff:diff, pctOff:pctOff};
+}
+var MACHINE_PERF_STYLE = {
+  'performing':      {bg:'#1e3a2a', fg:'#5dba7d', label:'Performing'},
+  'neutral':         {bg:'#3a3320', fg:'#d4b95d', label:'Neutral'},
+  'underperforming': {bg:'#3a2020', fg:'#d47070', label:'Underperforming'},
+  'no-quota':        {bg:'var(--gray-2)', fg:'var(--gray-3)', label:'No Quota Set'}
+};
+// Renders the status badge plus a short detail string (shortfall units + % off quota)
+function machinePerfBadge(m) {
+  var p = machinePerf(m);
+  var s = MACHINE_PERF_STYLE[p.status];
+  var detail = '';
+  if (p.status==='no-quota') detail = '';
+  else if (p.diff < 0) detail = 'off by '+Math.abs(p.diff)+' &middot; '+Math.abs(p.pctOff).toFixed(1)+'% below quota';
+  else if (p.diff > 0) detail = '+'+p.diff+' over quota';
+  else detail = 'exactly at quota';
+  return '<span style="display:inline-block;background:'+s.bg+';color:'+s.fg+';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">'+s.label+'</span>'+
+    (detail?'<div style="font-size:11px;color:var(--gray-3);margin-top:2px">'+detail+'</div>':'');
+}
 
 function renderDetail() {
   var a = currentAccount;
@@ -1670,13 +1699,12 @@ function renderDetail() {
     var MONTHS_KEY2  = ['apr','may','jun','jul','aug','sep','oct','nov','dec','jan','feb','mar'];
     html += '<div class="card" style="margin-bottom:16px"><div class="card-header">⚙️ Machine Data</div><div class="card-body" style="padding:0">'+
       accountMachines.map(function(m){
-        var diff = parseFloat(m.difference)||0;
-        var diffColor = diff<0?'color:#d47070':diff>0?'color:#5dba7d':'';
         return '<div style="padding:12px 16px;border-bottom:1px solid var(--gray-1)">'+
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:12px">'+
             '<div><span style="font-size:11px;background:var(--gray-2);padding:2px 6px;border-radius:4px;color:var(--gray-4)">'+esc(m.report_code)+'</span>'+
-            ' <span style="font-size:12px;color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</span></div>'+
-            '<div style="font-size:12px;color:var(--gray-3)">Req: '+esc(m.required)+' · Total: '+esc(m.total_sold)+' · <span style="'+diffColor+'">Diff: '+esc(m.difference)+'</span></div>'+
+            ' <span style="font-size:12px;color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</span>'+
+            '<div style="font-size:12px;color:var(--gray-3);margin-top:4px">Req: '+esc(m.required)+' &middot; Total: '+esc(m.total_sold)+'</div></div>'+
+            '<div style="text-align:right">'+machinePerfBadge(m)+'</div>'+
           '</div>'+
           '<div class="machine-grid">'+
             MONTHS_LABEL.map(function(mo,idx){
@@ -2644,12 +2672,10 @@ function renderMachinesTable() {
     '<thead><tr>'+
     '<th>Account</th><th>Report Type</th><th>Machine ID</th>'+
     MONTHS.map(function(m){ return '<th>'+m+'</th>'; }).join('')+
-    '<th>Req</th><th>Total</th><th>Diff</th>'+
+    '<th>Req</th><th>Total</th><th>Performance</th>'+
     '</tr></thead><tbody>'+
     data.map(function(m){
       var monthVals = [m.apr,m.may,m.jun,m.jul,m.aug,m.sep,m.oct,m.nov,m.dec,m.jan,m.feb,m.mar];
-      var diff = parseFloat(m.difference)||0;
-      var diffColor = diff<0?'color:#d47070':diff>0?'color:#5dba7d':'';
       return '<tr class="machine-row" data-aid="'+m.account_id+'">'+
         '<td style="font-weight:600;color:var(--white);white-space:nowrap">'+esc(m.account_name)+'</td>'+
         '<td><span style="font-size:11px;background:var(--gray-2);padding:2px 6px;border-radius:4px">'+esc(m.report_code)+'</span></td>'+
@@ -2657,7 +2683,7 @@ function renderMachinesTable() {
         monthVals.map(function(v){ return '<td style="font-size:12px;text-align:center">'+(v||'—')+'</td>'; }).join('')+
         '<td style="font-size:12px;text-align:center">'+esc(m.required)+'</td>'+
         '<td style="font-size:12px;text-align:center">'+esc(m.total_sold)+'</td>'+
-        '<td style="font-size:12px;text-align:center;'+diffColor+'">'+esc(m.difference)+'</td>'+
+        '<td style="font-size:12px;text-align:center;white-space:nowrap">'+machinePerfBadge(m)+'</td>'+
       '</tr>';
     }).join('')+
     '</tbody></table></div>';
