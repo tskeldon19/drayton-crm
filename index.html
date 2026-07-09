@@ -384,8 +384,8 @@
       <button class="btn btn-primary btn-sm" id="weeklyRecapBtn">📊 Weekly Recap</button>
       <button class="btn btn-primary btn-sm" id="rankingsViewBtn">🏆 Rankings</button>
       <button class="btn btn-primary btn-sm" id="machinesViewBtn">⚙️ Machines</button>
-      <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" title="Upload ranking files">Upload</button>
-      <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" title="Upload machine report">↑ Machines</button>
+      <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" title="Upload ranking files">Upload Ranking</button>
+      <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" title="Upload machine report">Upload Machines</button>
       <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
       <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
     </div>
@@ -1539,21 +1539,22 @@ function renderDetail() {
       }).join('');
     }()+
     '</div></div>'+
-    function(){
-      var ranking = allRankings.find(function(r){ return r.account_id===a.account_id; });
-      if (!ranking) return '';
-      var pct = parseFloat(ranking.pct_change)||0;
-      var pctColor = pct>0?'color:#5dba7d':pct<0?'color:#d47070':'';
-      return '<div class="card"><div class="card-header">🏆 Rankings</div><div class="card-body">'+
-        '<div class="field-row"><span class="field-label">Rank</span><span class="field-value" style="font-size:18px;font-weight:700;color:var(--gold)">#'+ranking.rank+'</span></div>'+
-        '<div class="field-row"><span class="field-label">PTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ptd)+'</span></div>'+
-        '<div class="field-row"><span class="field-label">YTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ytd)+'</span></div>'+
-        '<div class="field-row"><span class="field-label">Last Year YTD</span><span class="field-value">'+fmtNum(ranking.sales_lastyear)+'</span></div>'+
-        '<div class="field-row"><span class="field-label">% Change</span><span class="field-value" style="'+pctColor+'">'+fmtPct(ranking.pct_change)+'</span></div>'+
-        '<div class="field-row"><span class="field-label">Report</span>'+fv(ranking.report_month)+'</div>'+
-        '</div></div>';
-    }()+
     '</div>';
+
+  // Rankings — full-width card (same horizontal space as Store Information)
+  var ranking = allRankings.find(function(r){ return r.account_id===a.account_id; });
+  if (ranking) {
+    var pct = parseFloat(ranking.pct_change)||0;
+    var pctColor = pct>0?'color:#5dba7d':pct<0?'color:#d47070':'';
+    html += '<div class="card" style="margin-bottom:16px"><div class="card-header">🏆 Rankings</div><div class="card-body">'+
+      '<div class="field-row"><span class="field-label">Rank</span><span class="field-value" style="font-size:18px;font-weight:700;color:var(--gold)">#'+ranking.rank+'</span></div>'+
+      '<div class="field-row"><span class="field-label">PTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ptd)+'</span></div>'+
+      '<div class="field-row"><span class="field-label">YTD Sales</span><span class="field-value">'+fmtNum(ranking.sales_ytd)+'</span></div>'+
+      '<div class="field-row"><span class="field-label">Last Year YTD</span><span class="field-value">'+fmtNum(ranking.sales_lastyear)+'</span></div>'+
+      '<div class="field-row"><span class="field-label">% Change</span><span class="field-value" style="'+pctColor+'">'+fmtPct(ranking.pct_change)+'</span></div>'+
+      '<div class="field-row"><span class="field-label">Report</span>'+fv(ranking.report_month)+'</div>'+
+      '</div></div>';
+  }
 
   // Store Information — activity log fields get a "Log" button + history
   var activityFieldKeys = new Set(ACTIVITY_FIELDS.map(function(f){ return f.key; }));
@@ -2318,7 +2319,7 @@ function renderRankingsTable() {
 
   if (!data.length) {
     document.getElementById('rankingsContent').innerHTML =
-      '<div class="empty-state"><div>🏆</div><div style="margin-top:8px">No rankings loaded yet. Use Upload to add a file.</div></div>';
+      '<div class="empty-state"><div>🏆</div><div style="margin-top:8px">No rankings loaded yet. Use Upload Ranking to add a file.</div></div>';
     return;
   }
 
