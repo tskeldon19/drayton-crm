@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.12 - built 2026-07-09 -->
+<!-- Drayton CRM v3.13 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2664,6 +2664,7 @@ async function confirmRankingsUpload() {
   closeModal('modalUploadPreview');
   showToast('Uploading rankings...');
   var now = new Date().toISOString();
+  var historyRowsToAdd = [];
 
   for (var i=0; i<_pendingRankingsUpload.length; i++) {
     var item = _pendingRankingsUpload[i];
@@ -2684,6 +2685,12 @@ async function confirmRankingsUpload() {
           valueInputOption: 'RAW', resource: {values: rows}
         });
       }
+      // Stage the same snapshot for the shared history log (territory prepended
+      // since History covers every territory in one tab)
+      item.parsed.rows.forEach(function(r){
+        historyRowsToAdd.push([item.territory, r.account_id, r.account_name, r.customer_number,
+          r.rank, r.sales_ptd, r.sales_ytd, r.sales_lastyear, r.pct_change, r.report_month, now]);
+      });
       // If this is the current territory, also update account profile ranking fields
       if (item.territory === currentTerritory) {
         allRankings = item.parsed.rows.map(function(r,idx){
@@ -2692,9 +2699,45 @@ async function confirmRankingsUpload() {
       }
     } catch(e) { showToast('Error uploading '+item.territory,'error'); console.error(e); }
   }
+
+  await archiveHistorySnapshot('Rankings History', historyRowsToAdd, /*territoryCol=*/0, /*monthCol=*/9);
+
   showToast('Rankings uploaded ✓');
   _pendingRankingsUpload = null;
   if (document.getElementById('screenRankings').classList.contains('active')) renderRankingsTable();
+}
+
+// Appends a month's snapshot into a running History tab (in MACHINES_SHEET_ID,
+// the one spreadsheet shared across all territories), replacing any prior
+// snapshot for the same territory+report_month so re-uploads don't duplicate.
+// rows: array of row arrays already in the target tab's column order.
+async function archiveHistorySnapshot(tabName, newRows, territoryCol, monthCol) {
+  if (!newRows.length) return;
+  try {
+    var existing = (await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: MACHINES_SHEET_ID, range: tabName+'!A2:Z'
+    })).result.values || [];
+
+    // Which (territory, report_month) pairs is this upload replacing?
+    var replacing = new Set();
+    newRows.forEach(function(r){ replacing.add(r[territoryCol]+'|'+r[monthCol]); });
+
+    var kept = existing.filter(function(r){
+      return !replacing.has((r[territoryCol]||'')+'|'+(r[monthCol]||''));
+    });
+
+    var combined = kept.concat(newRows);
+    await gapi.client.sheets.spreadsheets.values.clear({
+      spreadsheetId: MACHINES_SHEET_ID, range: tabName+'!A2:Z'
+    });
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: MACHINES_SHEET_ID, range: tabName+'!A2',
+      valueInputOption: 'RAW', resource: {values: combined}
+    });
+  } catch(e) {
+    console.error('Could not archive to '+tabName+' — has that tab been created yet?', e);
+    showToast('Uploaded, but could not save to '+tabName+' (tab missing?)','error');
+  }
 }
 
 // ── Machines ──────────────────────────────────────────────────────────────────
@@ -3032,6 +3075,7 @@ async function confirmMachinesUpload() {
         valueInputOption: 'RAW', resource: {values: rows}
       });
     }
+    await archiveHistorySnapshot('Machine History', rows, /*territoryCol=*/5, /*monthCol=*/22);
     if (_pendingAliasWrites && _pendingAliasWrites.length) {
       var aliasRows = _pendingAliasWrites.map(function(al){
         return ['AL'+Date.now()+Math.random().toString(36).slice(2,6), al.raw_name, al.account_id,
