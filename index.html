@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.15 - built 2026-07-09 -->
+<!-- Drayton CRM v3.16 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -172,6 +172,7 @@
   .rating-badge.r5 { background: var(--gold); color: var(--black); }
   .rating-badge.r4 { background: var(--gold-dim); color: var(--gold); border: 1px solid var(--gold); }
   .rating-badge.r3 { background: var(--gray-2); color: var(--gold); }
+  .rank-badge { padding: 4px 10px; border-radius: 14px; font-size: 12px; font-weight: 700; background: var(--gold-dim); color: var(--gold); white-space: nowrap; }
   .status-pill { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px; }
   .pill-prospect { background: var(--gold-dim); color: var(--gold); }
   .pill-active   { background: #1a3d25; color: #5dba7d; }
@@ -1532,7 +1533,9 @@ function renderList() {
       '<div class="meta">'+[a.town,a.state].filter(Boolean).join(', ')+(a.owner_name?' · '+a.owner_name:a.sm_name?' · '+a.sm_name:'')+' · <span style="color:var(--gray-3)">'+lastVisitStr+'</span></div></div>'+
       '<div class="right">'+(selectMode?'':
         '<span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+a.status+'</span>'+
-        '<div class="rating-badge '+rc+'">'+(r||'—')+'</div>')+
+        (currentTab==='active'
+          ? '<div class="rank-badge" title="BG ranking">'+(rankLookup[a.account_id]?'#'+rankLookup[a.account_id]:'—')+'</div>'
+          : '<div class="rating-badge '+rc+'">'+(r||'—')+'</div>'))+
       '</div></div>';
   }).join('');
 
