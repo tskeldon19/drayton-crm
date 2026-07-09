@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.9 - built 2026-07-09 -->
+<!-- Drayton CRM v3.10 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -97,6 +97,16 @@
   .territory-bar .sub { color: var(--gray-3); font-size: 12px; margin-top: 2px; }
 
   .metric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .big-box-row { display: flex; gap: 16px; margin-bottom: 20px; }
+  .big-box {
+    flex: 1; background: var(--black); border: 1px solid var(--gold-dim); border-left: 4px solid var(--gold);
+    border-radius: 8px; padding: 20px 24px; cursor: pointer; text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .big-box:hover { background: var(--black-soft); border-color: var(--gold); }
+  .big-box .big-box-num { font-size: 36px; font-weight: 700; color: var(--gold); line-height: 1; }
+  .big-box .big-box-lbl { font-size: 13px; color: var(--gray-3); margin-top: 6px; font-weight: 600; }
+  @media (max-width: 640px) { .big-box-row { flex-direction: column; } }
   .metric-card {
     flex: 1; min-width: 130px; background: var(--black-soft); border: 1px solid var(--gray-1);
     border-radius: 8px; padding: 12px 14px; cursor: pointer; text-align: left;
@@ -382,16 +392,18 @@
       <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
       <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
     </div>
+    <div class="big-box-row">
+      <button type="button" class="big-box" id="metricActive" data-metric="active_accounts">
+        <div class="big-box-num">—</div><div class="big-box-lbl">Active</div>
+      </button>
+      <button type="button" class="big-box" id="metricProspect" data-metric="prospect_accounts">
+        <div class="big-box-num">—</div><div class="big-box-lbl">Prospects</div>
+      </button>
+      <button type="button" class="big-box" id="metricHot" data-metric="hot_accounts">
+        <div class="big-box-num">—</div><div class="big-box-lbl">Hot (4-5★)</div>
+      </button>
+    </div>
     <div class="metric-row" id="metricRow">
-      <button type="button" class="metric-card" id="metricActive" data-metric="active_accounts">
-        <div class="metric-num">—</div><div class="metric-lbl">Active</div>
-      </button>
-      <button type="button" class="metric-card" id="metricProspect" data-metric="prospect_accounts">
-        <div class="metric-num">—</div><div class="metric-lbl">Prospects</div>
-      </button>
-      <button type="button" class="metric-card" id="metricHot" data-metric="hot_accounts">
-        <div class="metric-num">—</div><div class="metric-lbl">Hot (4-5★)</div>
-      </button>
       <button type="button" class="metric-card" id="metricYtdConversions" data-metric="ytd_conversions">
         <div class="metric-num">—</div><div class="metric-lbl">Converted YTD</div>
       </button>
@@ -1007,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', function() {
       renderList();
     });
   });
-  document.querySelectorAll('.metric-card').forEach(function(card){
+  document.querySelectorAll('.metric-card, .big-box').forEach(function(card){
     card.addEventListener('click', function(){ openMetricFilter(card.dataset.metric); });
   });
 });
@@ -1064,6 +1076,10 @@ function goBack() {
   previousScreen = 'screenDashboard';
   if (dest === 'screenRecap') {
     showScreen('screenRecap');
+  } else if (dest === 'screenMachines') {
+    showScreen('screenMachines');
+  } else if (dest === 'screenRankings') {
+    showScreen('screenRankings');
   } else {
     showScreen('screenDashboard'); renderList();
   }
@@ -1284,9 +1300,9 @@ function updateStats() {
   var active   = allAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allAccounts.filter(function(a){ return a.status==='prospect'; }).length;
   var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; }).length;
-  document.getElementById('metricActive').querySelector('.metric-num').textContent   = active;
-  document.getElementById('metricProspect').querySelector('.metric-num').textContent = prospect;
-  document.getElementById('metricHot').querySelector('.metric-num').textContent      = hot;
+  document.getElementById('metricActive').querySelector('.big-box-num').textContent   = active;
+  document.getElementById('metricProspect').querySelector('.big-box-num').textContent = prospect;
+  document.getElementById('metricHot').querySelector('.big-box-num').textContent      = hot;
 
   var m = computeMetrics();
   window._dashboardMetrics = m;   // cached for openMetricFilter
@@ -1641,6 +1657,7 @@ function renderDetail() {
         '<div class="field-row"><span class="field-label">Last Year YTD</span><span class="field-value">'+fmtNum(ranking.sales_lastyear)+'</span></div>'+
         '<div class="field-row"><span class="field-label">% Change</span><span class="field-value" style="'+pctColor+'">'+fmtPct(ranking.pct_change)+'</span></div>'+
         '<div class="field-row"><span class="field-label">Report</span>'+fv(fmtDateDisplay(ranking.report_month))+'</div>'+
+        '<div style="padding-top:8px;margin-top:4px;border-top:1px solid var(--gray-1)"><a href="#" id="viewFullRankingLink" style="font-size:12px;color:var(--gold)">See full ranking report →</a></div>'+
         '</div></div>';
     }()+
     function(){
@@ -1657,6 +1674,7 @@ function renderDetail() {
         '<div class="field-row"><span class="field-label">Performing</span><span class="field-value" style="color:#5dba7d">'+counts.performing+'</span></div>'+
         '<div class="field-row"><span class="field-label">Neutral</span><span class="field-value" style="color:#d4b95d">'+counts.neutral+'</span></div>'+
         '<div class="field-row"><span class="field-label">Underperforming</span><span class="field-value" style="color:#d47070">'+counts.underperforming+'</span></div>'+
+        '<div style="padding-top:8px;margin-top:4px;border-top:1px solid var(--gray-1)"><a href="#" id="viewFullMachinesLink" style="font-size:12px;color:var(--gold)">See full machine report →</a></div>'+
         '</div></div>';
     }()+
     '</div>';
@@ -1826,6 +1844,8 @@ function renderDetail() {
   var cb = document.getElementById('convertBtn'); if(cb) cb.addEventListener('click', convertToActive);
   var cb2= document.getElementById('convertBtn2'); if(cb2) cb2.addEventListener('click', convertToActive);
   var xb = document.getElementById('expandBtn'); if(xb) xb.addEventListener('click', toggleVisits);
+  var vfr = document.getElementById('viewFullRankingLink'); if(vfr) vfr.addEventListener('click', function(e){ e.preventDefault(); viewFullRanking(currentAccount.business_name); });
+  var vfm = document.getElementById('viewFullMachinesLink'); if(vfm) vfm.addEventListener('click', function(e){ e.preventDefault(); viewFullMachines(currentAccount.business_name); });
 
   // Product rows — click header to expand/collapse
   document.querySelectorAll('.product-row-head').forEach(function(headEl){
@@ -2400,6 +2420,15 @@ async function openRankingsView() {
   renderRankingsTable();
 }
 
+async function viewFullRanking(accountName) {
+  previousScreen = 'screenDetail';
+  showScreen('screenRankings');
+  document.getElementById('rankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings...</div>';
+  await fetchRankings();
+  document.getElementById('rankingsSearch').value = accountName || '';
+  renderRankingsTable();
+}
+
 function renderRankingsTable() {
   var q = (document.getElementById('rankingsSearch').value||'').toLowerCase();
   var data = allRankings.filter(function(r){
@@ -2695,6 +2724,19 @@ async function openMachinesView() {
     return;
   }
   await fetchMachines();
+  renderMachinesTable();
+}
+
+async function viewFullMachines(accountName) {
+  previousScreen = 'screenDetail';
+  showScreen('screenMachines');
+  document.getElementById('machinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data...</div>';
+  if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
+    document.getElementById('machinesContent').innerHTML = '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">Machine sheet not configured yet. Add the MACHINES_SHEET_ID to the app config.</div></div>';
+    return;
+  }
+  await fetchMachines();
+  document.getElementById('machinesSearch').value = accountName || '';
   renderMachinesTable();
 }
 
