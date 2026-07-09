@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.13 - built 2026-07-09 -->
+<!-- Drayton CRM v3.14 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -460,6 +460,12 @@
         <span class="search-icon">🔍</span>
         <input type="text" id="searchInput" placeholder="Search by name, town, or contact...">
       </div>
+      <select id="sortSelect" style="padding:8px 12px;font-size:13px;border-radius:6px;background:var(--black-soft);color:var(--white);border:1px solid var(--gray-1)">
+        <option value="alpha">Sort: Alphabetical</option>
+        <option value="town">Sort: Town</option>
+        <option value="recent">Sort: Recent Visit</option>
+        <option value="ranking">Sort: Ranking</option>
+      </select>
       <button class="btn btn-gold" id="newAccountBtn">＋ New Account</button>
     </div>
     <div id="accountList" class="account-list">
@@ -978,6 +984,10 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('tabProspect').addEventListener('click', function(){ switchTab('prospect'); });
   document.getElementById('tabActive').addEventListener('click', function(){ switchTab('active'); });
   document.getElementById('searchInput').addEventListener('input', renderList);
+  document.getElementById('sortSelect').addEventListener('change', function(){
+    currentSort = document.getElementById('sortSelect').value;
+    renderList();
+  });
   document.getElementById('editModalClose').addEventListener('click', function(){ closeModal('modalEdit'); });
   document.getElementById('editCancelBtn').addEventListener('click', function(){ closeModal('modalEdit'); });
   document.getElementById('visitModalClose').addEventListener('click', function(){ closeModal('modalVisit'); });
@@ -1439,9 +1449,13 @@ function switchTab(tab) {
 }
 
 var currentSubfilter = 'all';
+var currentSort = 'alpha';
 
 function renderList() {
   var q = (document.getElementById('searchInput').value||'').toLowerCase();
+  var rankLookup = {};
+  allRankings.forEach(function(r){ rankLookup[r.account_id] = parseInt(r.rank)||0; });
+
   var filtered = allAccounts.filter(function(a){
     if (a.status==='deleted' || a.status==='disqualified') return false;
     if (a.status!==currentTab) return false;
@@ -1450,6 +1464,24 @@ function renderList() {
     return a.business_name.toLowerCase().includes(q) || a.town.toLowerCase().includes(q) ||
            a.owner_name.toLowerCase().includes(q) || a.sm_name.toLowerCase().includes(q);
   }).sort(function(a,b){
+    if (currentSort === 'alpha') {
+      return a.business_name.localeCompare(b.business_name);
+    } else if (currentSort === 'town') {
+      var tc = (a.town||'').localeCompare(b.town||'');
+      return tc!==0 ? tc : a.business_name.localeCompare(b.business_name);
+    } else if (currentSort === 'recent') {
+      var da = a.last_visit||'', db = b.last_visit||'';
+      if (!da && !db) return a.business_name.localeCompare(b.business_name);
+      if (!da) return 1;   // no visit on file sorts last
+      if (!db) return -1;
+      return db.localeCompare(da);   // most recent first
+    } else if (currentSort === 'ranking') {
+      var rka = rankLookup[a.account_id]||0, rkb = rankLookup[b.account_id]||0;
+      if (!rka && !rkb) return a.business_name.localeCompare(b.business_name);
+      if (!rka) return 1;  // unranked sorts last
+      if (!rkb) return -1;
+      return rka - rkb;   // rank 1 = best, ascending
+    }
     var ra=parseInt(a.rating)||0, rb=parseInt(b.rating)||0;
     if (rb!==ra) return rb-ra;
     return a.business_name.localeCompare(b.business_name);
