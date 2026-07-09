@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.2 - built 2026-07-09 -->
+<!-- Drayton CRM v4.4 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1707,18 +1707,28 @@ function machinePerfBadge(m) {
     (detail?'<div style="font-size:11px;color:var(--gray-3);margin-top:2px">'+detail+'</div>':'');
 }
 
-// Underage charges — some machine report types have a contractual monthly
-// minimum; falling short is billed per unit under. Only CCT4 and CPXT
-// currently carry this charge.
+// Underage charges — some machine report types have a contractual MONTHLY
+// minimum; falling short is billed per unit under, for that month only.
+// total_sold on the record is a 12-month rolling cumulative total, not a
+// single month, so this pulls the one column matching the report's own
+// month (e.g. report_month 2025-05-31 -> the 'may' column) instead.
 var UNDERAGE_RULES = {
   'CCT4': { min: 12, rate: 6 },
   'CPXT': { min: 20, rate: 6 }
 };
+var MONTH_ABBR = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function reportMonthKey(isoDate) {
+  var m = String(isoDate||'').match(/^(\d{4})-(\d{2})/);
+  return m ? MONTH_ABBR[parseInt(m[2],10)-1] : null;
+}
 function machineUnderageCharge(m) {
   var rule = UNDERAGE_RULES[(m.report_code||'').toUpperCase().trim()];
   if (!rule) return 0;
-  var sold = parseFloat(m.total_sold)||0;
-  var short = rule.min - sold;
+  var mKey = reportMonthKey(m.report_month);
+  if (!mKey) return 0;
+  var sold = parseFloat(m[mKey])||0;   // this month's units only
+  var count = parseInt(m.machine_count)||1;
+  var short = (rule.min*count) - sold;
   return short > 0 ? short * rule.rate : 0;
 }
 
@@ -2969,7 +2979,7 @@ var _pendingAliasWrites = [];
 async function fetchMachines() {
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A:Y'
+      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A:Z'
     });
     var rows = res.result.values || [];
     allMachines = rows.slice(1).filter(function(r){
@@ -2983,7 +2993,7 @@ async function fetchMachines() {
         aug:r[11]||'',sep:r[12]||'',oct:r[13]||'',nov:r[14]||'',
         dec:r[15]||'',jan:r[16]||'',feb:r[17]||'',mar:r[18]||'',
         required:r[19]||'',total_sold:r[20]||'',difference:r[21]||'',
-        report_month:r[22]||'',uploaded_at:r[23]||''
+        report_month:r[22]||'',uploaded_at:r[23]||'',machine_count:r[24]||'1'
       };
     });
 
@@ -3039,7 +3049,7 @@ function renderMachinesStatsRow() {
     var amt = byType[code] || 0;
     return '<div class="big-box" style="cursor:default">'+
       '<div class="big-box-num" style="'+(amt>0?'color:#d47070':'')+'">$'+fmtNum(amt)+'</div>'+
-      '<div class="big-box-lbl">'+esc(code)+' Underage ('+rule.min+' min &middot; $'+rule.rate+'/unit)</div>'+
+      '<div class="big-box-lbl">'+esc(code)+' Underage (monthly min '+rule.min+' &middot; $'+rule.rate+'/unit)</div>'+
     '</div>';
   }).join('');
 
@@ -3076,6 +3086,8 @@ function renderMachinesTable() {
   var html = data.map(function(m){
     var clickable = !!m.account_id;
     var underage = machineUnderageCharge(m);
+    var count = parseInt(m.machine_count)||1;
+    var idLabel = count>1 ? count+' machines' : esc(m.machine_id);
     return '<div class="card machine-list-card" data-aid="'+esc(m.account_id)+'" style="margin-bottom:12px;'+(clickable?'cursor:pointer':'')+'">'+
       '<div class="card-body">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">'+
@@ -3083,7 +3095,7 @@ function renderMachinesTable() {
             '<div style="font-weight:600;color:var(--white);font-size:14px">'+esc(m.account_name)+(clickable?'':' <span style="font-size:11px;color:var(--gray-3);font-weight:400">(no account match)</span>')+'</div>'+
             '<div style="font-size:11px;color:var(--gray-3);margin-top:3px">'+
               '<span style="background:var(--gray-2);padding:2px 6px;border-radius:4px">'+esc(m.report_code)+'</span>'+
-              ' <span style="color:var(--gold);font-family:monospace">'+esc(m.machine_id)+'</span>'+
+              ' <span style="color:var(--gold);font-family:monospace">'+idLabel+'</span>'+
               ' &middot; '+esc(m.territory)+
               (underage>0?' &middot; <span style="color:#d47070;font-weight:600">Underage: $'+fmtNum(underage)+'</span>':'')+
             '</div>'+
@@ -3289,6 +3301,26 @@ async function parseMachineXLS(file) {
             }
           }
         });
+
+        // Consolidate duplicate machines — when an account has more than one
+        // physical machine of the same report type, BG's export gives each its
+        // own row but only one row carries the real sales numbers (the rest
+        // are zero-filled). Summing collapses that safely either way, and
+        // machine_count lets the underage minimum scale per machine.
+        var grouped = {};
+        var order = [];
+        records.forEach(function(rec){
+          var key = rec.account_name+'|'+rec.report_code;
+          if (!grouped[key]) { grouped[key] = rec; grouped[key].machine_count = 1; order.push(key); return; }
+          var g = grouped[key];
+          g.machine_count += 1;
+          MONTHS_KEY.forEach(function(m){ g[m] = String((parseFloat(g[m])||0) + (parseFloat(rec[m])||0)); });
+          g.required   = String((parseFloat(g.required)||0)   + (parseFloat(rec.required)||0));
+          g.total_sold = String((parseFloat(g.total_sold)||0) + (parseFloat(rec.total_sold)||0));
+          g.difference = String((parseFloat(g.difference)||0) + (parseFloat(rec.difference)||0));
+        });
+        records = order.map(function(k){ return grouped[k]; });
+
         resolve(records.length ? records : null);
       } catch(err) { console.error('Machine parse error',err); resolve(null); }
     };
@@ -3308,14 +3340,14 @@ async function confirmMachinesUpload() {
   var now = new Date().toISOString();
   try {
     await gapi.client.sheets.spreadsheets.values.clear({
-      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A2:Y'
+      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A2:Z'
     });
     var rows = _pendingMachinesUpload.map(function(r){
       return [r.record_id, r.report_code, r.report_label,
               r.account_id, r.account_name, r.territory, r.machine_id,
               r.apr,r.may,r.jun,r.jul,r.aug,r.sep,r.oct,r.nov,r.dec,
               r.jan,r.feb,r.mar,
-              r.required, r.total_sold, r.difference, r.report_month, now];
+              r.required, r.total_sold, r.difference, r.report_month, now, r.machine_count||1];
     });
     if (rows.length) {
       await gapi.client.sheets.spreadsheets.values.update({
