@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v3.10 - built 2026-07-09 -->
+<!-- Drayton CRM v3.11 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -107,6 +107,27 @@
   .big-box .big-box-num { font-size: 36px; font-weight: 700; color: var(--gold); line-height: 1; }
   .big-box .big-box-lbl { font-size: 13px; color: var(--gray-3); margin-top: 6px; font-weight: 600; }
   @media (max-width: 640px) { .big-box-row { flex-direction: column; } }
+
+  @media (max-width: 640px) {
+    /* Top bar: stack the territory name and every action button into a single
+       full-width column instead of one crowded unwrapping row */
+    .territory-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+    .territory-bar .btn { width: 100%; }
+
+    /* Tabs and filter chips: allow wrapping to a second line instead of
+       overflowing/crushing together */
+    .tab-row { flex-wrap: wrap; row-gap: 6px; }
+    .tab { padding: 8px 14px; font-size: 13px; }
+    #tabMyLists { margin-left: 0 !important; }
+    .subfilter-row { flex-wrap: wrap; row-gap: 6px; }
+    .search-row { flex-wrap: wrap; row-gap: 8px; }
+
+    /* Metric cards: two per row instead of an uneven cramped wrap */
+    .metric-card { min-width: calc(50% - 5px); }
+
+    /* Machine month grid: 12 columns is unreadably tiny on a phone — use 4x3 */
+    .machine-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  }
   .metric-card {
     flex: 1; min-width: 130px; background: var(--black-soft); border: 1px solid var(--gray-1);
     border-radius: 8px; padding: 12px 14px; cursor: pointer; text-align: left;
