@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.8 - built 2026-07-09 -->
+<!-- Drayton CRM v4.9 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2613,8 +2613,9 @@ function fuzzyMatchAccount(name) {
 
 async function fetchRankings() {
   try {
+    var rankingsSheetId = TERRITORY_SHEET_IDS[currentTerritory] || SHEET_ID;
     var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID, range: 'Rankings!A:J'
+      spreadsheetId: rankingsSheetId, range: 'Rankings!A:J'
     });
     var rows = res.result.values || [];
     allRankings = rows.slice(1).map(function(r){
@@ -2623,7 +2624,7 @@ async function fetchRankings() {
                sales_lastyear:r[6]||'', pct_change:r[7]||'',
                report_month:r[8]||'', uploaded_at:r[9]||'' };
     });
-  } catch(e) { console.error('Error loading rankings',e); }
+  } catch(e) { console.error('Error loading rankings',e); allRankings = []; }
 }
 
 async function openRankingsView() {
