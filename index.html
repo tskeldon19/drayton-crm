@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.7 - built 2026-07-09 -->
+<!-- Drayton CRM v4.8 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1380,6 +1380,15 @@ function computeMetrics() {
     else if ((c.new_value||'').toLowerCase() === 'active') newActiveIds[c.account_id] = true;
     else newProspectIds[c.account_id] = true;  // default to prospect bucket if unclear
   });
+  // Also count prospect -> active conversions this month, even for accounts
+  // created in an earlier month — a conversion is still a new active account
+  // this month, not just accounts that were created directly as active.
+  var conversionsThisMonth = territoryChanges.filter(function(c){
+    return c.field_key==='status' && (c.old_value||'').toLowerCase()==='prospect' &&
+           (c.new_value||'').toLowerCase()==='active' &&
+           c.timestamp && c.timestamp.slice(0,7)===todayKey;
+  });
+  conversionsThisMonth.forEach(function(c){ newActiveIds[c.account_id] = true; });
 
   // Discussed, Not Confirmed — active accounts with any product at yellow status.
   var unconfirmedAccounts = allAccounts.filter(function(a){
