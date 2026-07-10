@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.9 - built 2026-07-09 -->
+<!-- Drayton CRM v5.0 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -856,6 +856,13 @@ const TERRITORY_SHEET_IDS = {
   // Add others as territory sheets are created
 };
 
+// Looks up which spreadsheet a given territory's Accounts/Visits/Change Log/
+// Personnel/etc. actually live in. Falls back to SHEET_ID only for territories
+// that haven't been split into their own sheet yet.
+function territorySheetId(territory) {
+  return TERRITORY_SHEET_IDS[territory] || SHEET_ID;
+}
+
 // Route number patterns for auto-detecting territory from filename
 const ROUTE_PATTERNS = [
   {pattern:/101/, territory:'Route 101'},
@@ -1207,7 +1214,7 @@ async function loadTerritory() {
 async function fetchAliases() {
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID, range: 'Account Aliases!A:H'
+      spreadsheetId: territorySheetId(currentTerritory), range: 'Account Aliases!A:H'
     });
     var rows = res.result.values || [];
     allAliases = rows.slice(1).map(function(r){
@@ -1221,11 +1228,11 @@ async function fetchAliases() {
 async function fetchData() {
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FV'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Activity Log!A:H'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Personnel!A:H'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FV'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:J'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Change Log!A:H'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'}),
     ]);
     var accRows = results[0].result.values || [];
     var visRows = results[1].result.values || [];
@@ -1283,7 +1290,7 @@ async function logFieldChange(account, fieldKey, oldVal, newVal, timestamp) {
   ];
   try {
     await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID, range: 'Change Log!A:H',
+      spreadsheetId: territorySheetId(currentTerritory), range: 'Change Log!A:H',
       valueInputOption: 'RAW', resource: {values:[row]}
     });
     allChangeLog.push({
@@ -2144,7 +2151,7 @@ async function saveProductDetails(pkey) {
     });
     try {
       await gapi.client.sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: SHEET_ID, resource: { valueInputOption: 'RAW', data: data }
+        spreadsheetId: territorySheetId(currentTerritory), resource: { valueInputOption: 'RAW', data: data }
       });
       await logFieldChange(a, pkey+'_profile_pricing', before.pricing,   pricing);
       await logFieldChange(a, pkey+'_training',        before.training,  training);
@@ -2188,7 +2195,7 @@ async function toggleVisitHighlight(vid) {
   if (rowNum) {
     try {
       await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: SHEET_ID, range: 'Visits!J'+rowNum,
+        spreadsheetId: territorySheetId(currentTerritory), range: 'Visits!J'+rowNum,
         valueInputOption: 'RAW', resource: {values: [[newVal]]}
       });
     } catch(e) { showToast('Error updating highlight','error'); console.error(e); }
@@ -2234,14 +2241,14 @@ async function saveActivityLog() {
              currentTerritory, _activityLogFieldKey, _activityLogFieldLabel, date, notes];
   try {
     await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Activity Log!A:H',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H',
       valueInputOption:'RAW', resource:{values:[row]}
     });
     // Update the cache field on the Accounts sheet with the new date
     var rowNum = sheetRowMap[currentAccount.account_id];
     if (rowNum && COL[_activityLogFieldKey] !== undefined) {
       await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId:SHEET_ID,
+        spreadsheetId:territorySheetId(currentTerritory),
         range:'Accounts!'+colLetter(COL[_activityLogFieldKey])+rowNum,
         valueInputOption:'RAW', resource:{values:[[date]]}
       });
@@ -2287,12 +2294,12 @@ async function savePersonnel() {
   try {
     if (_editingPersonnelId) {
       var allRows = (await gapi.client.sheets.spreadsheets.values.get({
-        spreadsheetId:SHEET_ID, range:'Personnel!A:H'
+        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
       })).result.values || [];
       for (var i=1; i<allRows.length; i++) {
         if (allRows[i][0]===_editingPersonnelId) {
           await gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId:SHEET_ID, range:'Personnel!A'+(i+1)+':H'+(i+1),
+            spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A'+(i+1)+':H'+(i+1),
             valueInputOption:'RAW', resource:{values:[row]}
           });
           var p = allPersonnel.find(function(x){ return x.personnel_id===_editingPersonnelId; });
@@ -2305,7 +2312,7 @@ async function savePersonnel() {
       }
     } else {
       await gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId:SHEET_ID, range:'Personnel!A:H',
+        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H',
         valueInputOption:'RAW', resource:{values:[row]}
       });
       allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
@@ -2323,15 +2330,15 @@ async function savePersonnel() {
 async function deletePersonnel(personnelId) {
   if (!confirm('Remove this contact?')) return;
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SHEET_ID});
+    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
     var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
     var allRows = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Personnel!A:H'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
     })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===personnelId) {
         await gapi.client.sheets.spreadsheets.batchUpdate({
-          spreadsheetId:SHEET_ID,
+          spreadsheetId:territorySheetId(currentTerritory),
           resource:{requests:[{deleteDimension:{range:{
             sheetId:perSheet.properties.sheetId,
             dimension:'ROWS', startIndex:i, endIndex:i+1
@@ -2361,7 +2368,7 @@ function catClass(cat) {
 async function fetchTerritoryUpdates() {
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Territory Updates!A:H'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!A:H'
     });
     var rows = res.result.values || [];
     allTerritoryUpdates = rows.slice(1).map(function(r){
@@ -2434,16 +2441,16 @@ async function saveTerritoryUpdate() {
     u.category = category; u.notes = notes; u.is_highlight = hl; u.edited_at = now;
     try {
       var allRows = (await gapi.client.sheets.spreadsheets.values.get({
-        spreadsheetId:SHEET_ID, range:'Territory Updates!A:H'
+        spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!A:H'
       })).result.values || [];
       for (var i=1; i<allRows.length; i++) {
         if (allRows[i][0]===_editingTuId) {
           await gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId:SHEET_ID, range:'Territory Updates!C'+(i+1)+':E'+(i+1),
+            spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!C'+(i+1)+':E'+(i+1),
             valueInputOption:'RAW', resource:{values:[[category,notes,hl]]}
           });
           await gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId:SHEET_ID, range:'Territory Updates!H'+(i+1),
+            spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!H'+(i+1),
             valueInputOption:'RAW', resource:{values:[[now]]}
           });
           break;
@@ -2457,7 +2464,7 @@ async function saveTerritoryUpdate() {
     var row = [uid, currentTerritory, category, notes, hl, '', now, ''];
     try {
       await gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId:SHEET_ID, range:'Territory Updates!A:H',
+        spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!A:H',
         valueInputOption:'RAW', resource:{values:[row]}
       });
       allTerritoryUpdates.push({update_id:uid,territory:currentTerritory,category:category,
@@ -2504,7 +2511,7 @@ async function saveVisitEdit() {
   if (rowNum) {
     try {
       await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId:SHEET_ID, range:'Visits!E'+rowNum+':J'+rowNum,
+        spreadsheetId:territorySheetId(currentTerritory), range:'Visits!E'+rowNum+':J'+rowNum,
         valueInputOption:'RAW', resource:{values:[[date,attend,notes,fu,fuN,hl]]}
       });
       showToast('Visit updated ✓');
@@ -2517,7 +2524,7 @@ async function saveVisitEdit() {
     if (fu)   { currentAccount.next_followup = fu; }
     try {
       await gapi.client.sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId:SHEET_ID, resource:{valueInputOption:'RAW', data:[
+        spreadsheetId:territorySheetId(currentTerritory), resource:{valueInputOption:'RAW', data:[
           {range:'Accounts!'+colLetter(COL.last_visit)+accRowNum,    values:[[currentAccount.last_visit||'']]},
           {range:'Accounts!'+colLetter(COL.next_followup)+accRowNum, values:[[currentAccount.next_followup||'']]}
         ]}
@@ -3433,7 +3440,7 @@ async function confirmMachinesUpload() {
       });
       try {
         await gapi.client.sheets.spreadsheets.values.append({
-          spreadsheetId: SHEET_ID, range: 'Account Aliases!A:H',
+          spreadsheetId: territorySheetId(currentTerritory), range: 'Account Aliases!A:H',
           valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: aliasRows}
         });
         await fetchAliases();
@@ -3461,8 +3468,8 @@ const LLICOL = {list_id:0,account_id:1,account_name:2,territory:3,display_order:
 async function fetchLists() {
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Lead Lists!A:E'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Lead List Items!A:F'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Lead Lists!A:E'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'}),
     ]);
     var llRows  = results[0].result.values || [];
     var lliRows = results[1].result.values || [];
@@ -3627,7 +3634,7 @@ async function saveAllStopOrders(items) {
   // Batch update all display_order values for the current list
   try {
     var allRows = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Lead List Items!A:F'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
     })).result.values || [];
     var data = [];
     items.forEach(function(item){
@@ -3639,7 +3646,7 @@ async function saveAllStopOrders(items) {
       }
     });
     if (data.length) await gapi.client.sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId:SHEET_ID, resource:{valueInputOption:'RAW', data:data}
+      spreadsheetId:territorySheetId(currentTerritory), resource:{valueInputOption:'RAW', data:data}
     });
   } catch(e) { showToast('Error saving order','error'); console.error(e); }
 }
@@ -3650,12 +3657,12 @@ async function saveStopNotes(accountId, notes) {
   if (item) item.stop_notes = notes;
   try {
     var allRows = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Lead List Items!A:F'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
     })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===currentList.list_id && allRows[i][1]===accountId) {
         await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId:SHEET_ID, range:'Lead List Items!F'+(i+1),
+          spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!F'+(i+1),
           valueInputOption:'RAW', resource:{values:[[notes]]}
         });
         break;
@@ -3672,16 +3679,16 @@ async function removeStop(accountId) {
   });
   // Delete the row from the sheet — need to find the row number
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SHEET_ID});
+    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
     var listItemsSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Lead List Items'; });
     var sheetId = listItemsSheet ? listItemsSheet.properties.sheetId : null;
     var allRows = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Lead List Items!A:F'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
     })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===currentList.list_id && allRows[i][1]===accountId && sheetId!==null) {
         await gapi.client.sheets.spreadsheets.batchUpdate({
-          spreadsheetId:SHEET_ID,
+          spreadsheetId:territorySheetId(currentTerritory),
           resource:{requests:[{deleteDimension:{range:{sheetId:sheetId,dimension:'ROWS',startIndex:i,endIndex:i+1}}}]}
         });
         break;
@@ -3708,11 +3715,11 @@ async function saveNewList() {
   var created = new Date().toISOString().split('T')[0];
   var row = [lid, name, currentTerritory, '', created];
   console.log('[saveNewList] Attempting to save:', row);
-  console.log('[saveNewList] SHEET_ID:', SHEET_ID);
+  console.log('[saveNewList] Target sheet:', territorySheetId(currentTerritory));
   console.log('[saveNewList] Token present:', !!gapi.client.getToken());
   try {
     var res = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Lead Lists!A:E',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead Lists!A:E',
       valueInputOption:'RAW', resource:{values:[row]}
     });
     console.log('[saveNewList] Sheet write succeeded:', res);
@@ -3729,15 +3736,15 @@ async function saveNewList() {
 async function deleteCurrentList() {
   if (!currentList || !confirm('Delete "'+currentList.list_name+'"? This cannot be undone.')) return;
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SHEET_ID});
+    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
     // Delete the list row
     var llSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Lead Lists'; });
     var lliSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Lead List Items'; });
     var llRows = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Lead Lists!A:E'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead Lists!A:E'
     })).result.values || [];
     var lliRows = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Lead List Items!A:F'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
     })).result.values || [];
     var requests = [];
     // Delete list items rows first (delete from bottom up to preserve indices)
@@ -3756,7 +3763,7 @@ async function deleteCurrentList() {
       }
     }
     if (requests.length) await gapi.client.sheets.spreadsheets.batchUpdate({
-      spreadsheetId:SHEET_ID, resource:{requests:requests}
+      spreadsheetId:territorySheetId(currentTerritory), resource:{requests:requests}
     });
     allLists = allLists.filter(function(l){ return l.list_id!==currentList.list_id; });
     allListItems = allListItems.filter(function(i){ return i.list_id!==currentList.list_id; });
@@ -3864,7 +3871,7 @@ async function bulkAddSelectedToList() {
 
   try {
     await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Lead List Items!A:F',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F',
       valueInputOption:'RAW', resource:{values:rows}
     });
     added.forEach(function(item){ allListItems.push(item); });
@@ -3881,7 +3888,7 @@ async function addAccountToList(account, listId) {
   var row = [listId, account.account_id, account.business_name, currentTerritory, newOrder, ''];
   try {
     await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Lead List Items!A:F',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F',
       valueInputOption:'RAW', resource:{values:[row]}
     });
     allListItems.push({list_id:listId,account_id:account.account_id,account_name:account.business_name,territory:currentTerritory,display_order:newOrder,stop_notes:''});
@@ -3992,6 +3999,30 @@ function clearRecapPresetActive() {
   document.querySelectorAll('.preset-btn').forEach(function(b){ b.classList.remove('active'); });
 }
 
+// Converts raw Visits/Change Log/Accounts/Territory Updates rows (as returned
+// by the Sheets API) into the typed objects the recap rendering expects.
+// Shared by both the "ALL territories" and "one other territory" fetch paths.
+function parseRecapRawRows(visRaw, clRaw, accRaw, tuRaw) {
+  var visitRows = visRaw.map(function(r){
+    return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+             visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
+             followup_notes:r[8]||'', is_highlight:r[9]||'' };
+  });
+  var changeRows = clRaw.map(function(r){
+    return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+             field_key:r[4]||'', field_label:r[5]||'', old_value:r[6]||'', new_value:r[7]||'' };
+  });
+  var tuRows = tuRaw.map(function(r){
+    return { update_id:r[0]||'', territory:r[1]||'', category:r[2]||'', notes:r[3]||'',
+             is_highlight:r[4]||'', author:r[5]||'', timestamp:r[6]||'', edited_at:r[7]||'' };
+  });
+  var accountStatusMap = {};
+  accRaw.forEach(function(r){
+    if (r[0]) accountStatusMap[r[0]] = { status: r[COL.status]||'', town: r[COL.town]||'' };
+  });
+  return { visitRows: visitRows, changeRows: changeRows, tuRows: tuRows, accountStatusMap: accountStatusMap };
+}
+
 async function runWeeklyRecap() {
   var territory = document.getElementById('recapTerritorySelect').value;
   var start = document.getElementById('recapStartDate').value;
@@ -4008,34 +4039,44 @@ async function runWeeklyRecap() {
       tuRows     = allTerritoryUpdates;
       accountStatusMap = {};
       allAccounts.forEach(function(a){ accountStatusMap[a.account_id] = { status:a.status, town:a.town }; });
+    } else if (territory === 'ALL') {
+      // Merge across every territory that's actually been set up with its own sheet
+      var allTerrKeys = Object.keys(TERRITORY_SHEET_IDS);
+      var perTerrResults = await Promise.all(allTerrKeys.map(function(t){
+        var sid = territorySheetId(t);
+        return Promise.all([
+          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:J'}),
+          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
+          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FV'}),
+          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
+        ]);
+      }));
+      var visRaw=[], clRaw=[], accRaw=[], tuRaw=[];
+      perTerrResults.forEach(function(results){
+        visRaw = visRaw.concat((results[0].result.values||[]).slice(1));
+        clRaw  = clRaw.concat((results[1].result.values||[]).slice(1));
+        accRaw = accRaw.concat((results[2].result.values||[]).slice(1));
+        tuRaw  = tuRaw.concat((results[3].result.values||[]).slice(1));
+      });
+      var parsed = parseRecapRawRows(visRaw, clRaw, accRaw, tuRaw);
+      visitRows = parsed.visitRows; changeRows = parsed.changeRows;
+      tuRows = parsed.tuRows; accountStatusMap = parsed.accountStatusMap;
     } else {
+      // A specific territory other than the one currently loaded
+      var sid = territorySheetId(territory);
       var results = await Promise.all([
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Visits!A:J'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Accounts!A:FV'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:SHEET_ID, range:'Territory Updates!A:H'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:J'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FV'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
       ]);
-      var visRaw = results[0].result.values || [];
-      var clRaw  = results[1].result.values || [];
-      var accRaw = results[2].result.values || [];
-      var tuRaw  = results[3].result.values || [];
-      visitRows = visRaw.slice(1).map(function(r){
-        return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
-                 visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
-                 followup_notes:r[8]||'', is_highlight:r[9]||'' };
-      });
-      changeRows = clRaw.slice(1).map(function(r){
-        return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
-                 field_key:r[4]||'', field_label:r[5]||'', old_value:r[6]||'', new_value:r[7]||'' };
-      });
-      tuRows = tuRaw.slice(1).map(function(r){
-        return { update_id:r[0]||'', territory:r[1]||'', category:r[2]||'', notes:r[3]||'',
-                 is_highlight:r[4]||'', author:r[5]||'', timestamp:r[6]||'', edited_at:r[7]||'' };
-      });
-      accountStatusMap = {};
-      accRaw.slice(1).forEach(function(r){
-        if (r[0]) accountStatusMap[r[0]] = { status: r[COL.status]||'', town: r[COL.town]||'' };
-      });
+      var visRaw = (results[0].result.values||[]).slice(1);
+      var clRaw  = (results[1].result.values||[]).slice(1);
+      var accRaw = (results[2].result.values||[]).slice(1);
+      var tuRaw  = (results[3].result.values||[]).slice(1);
+      var parsed = parseRecapRawRows(visRaw, clRaw, accRaw, tuRaw);
+      visitRows = parsed.visitRows; changeRows = parsed.changeRows;
+      tuRows = parsed.tuRows; accountStatusMap = parsed.accountStatusMap;
     }
   } catch(e) {
     document.getElementById('recapContent').innerHTML = '<div class="empty-state">Error loading recap data.</div>';
@@ -4310,7 +4351,7 @@ async function updateStatus(newStatus) {
   if (!rowNum) { showToast('Row not found','error'); return; }
   try {
     await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId:SHEET_ID, range:'Accounts!C'+rowNum,
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!C'+rowNum,
       valueInputOption:'RAW', resource:{values:[[newStatus]]}
     });
     currentAccount.status = newStatus;
@@ -4392,7 +4433,7 @@ async function convertToActive() {
     });
     try {
       await gapi.client.sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: SHEET_ID,
+        spreadsheetId: territorySheetId(currentTerritory),
         resource: { valueInputOption: 'RAW', data: data }
       });
     } catch(e) { console.error('Error saving former-prospect fields', e); }
@@ -4579,15 +4620,15 @@ async function deletePersonnelFromModal(pid) {
   openEditModal('personnel');
   // Delete from sheet in background
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SHEET_ID});
+    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
     var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
     var allRows = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:SHEET_ID, range:'Personnel!A:H'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
     })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===pid) {
         await gapi.client.sheets.spreadsheets.batchUpdate({
-          spreadsheetId:SHEET_ID,
+          spreadsheetId:territorySheetId(currentTerritory),
           resource:{requests:[{deleteDimension:{range:{sheetId:perSheet.properties.sheetId,dimension:'ROWS',startIndex:i,endIndex:i+1}}}]}
         });
         break;
@@ -4628,7 +4669,7 @@ async function saveAccount() {
 
   try {
     await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId:SHEET_ID, range:'Accounts!A'+rowNum,
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A'+rowNum,
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     await logChangedFields(before, currentAccount);
@@ -4640,13 +4681,13 @@ async function saveAccount() {
       var aRow = [aid, currentAccount.account_id, currentAccount.business_name,
                   currentTerritory, ae.field_key, ae.field_label, ae.date, ae.notes];
       await gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId:SHEET_ID, range:'Activity Log!A:H',
+        spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H',
         valueInputOption:'RAW', resource:{values:[aRow]}
       });
       // Update cache column on Accounts sheet
       if (COL[ae.field_key] !== undefined) {
         await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId:SHEET_ID,
+          spreadsheetId:territorySheetId(currentTerritory),
           range:'Accounts!'+colLetter(COL[ae.field_key])+rowNum,
           valueInputOption:'RAW', resource:{values:[[ae.date]]}
         });
@@ -4668,7 +4709,7 @@ async function saveAccount() {
                   currentTerritory, newPersonnel.role, newPersonnel.name,
                   newPersonnel.phone, newPersonnel.email];
       await gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId:SHEET_ID, range:'Personnel!A:H',
+        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H',
         valueInputOption:'RAW', resource:{values:[pRow]}
       });
       allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
@@ -4689,7 +4730,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Accounts!A:FV',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FV',
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     allAccounts.push(currentAccount);
@@ -4727,7 +4768,7 @@ async function saveVisit() {
   var vid = 'VIS'+Date.now();
   try {
     var appendRes = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:SHEET_ID, range:'Visits!A:J',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:J',
       valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN,hl]]}
     });
     var newRange = appendRes.result.updates.updatedRange;
@@ -4736,8 +4777,8 @@ async function saveVisit() {
 
     var rowNum = sheetRowMap[a.account_id];
     if (rowNum) {
-      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
-      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:SHEET_ID,range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
+      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
+      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
     }
     allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
