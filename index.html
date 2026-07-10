@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.5 - built 2026-07-09 -->
+<!-- Drayton CRM v4.6 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -104,6 +104,8 @@
     transition: border-color 0.15s, background 0.15s;
   }
   .big-box:hover { background: var(--black-soft); border-color: var(--gold); }
+  .underage-filter-box { cursor: pointer; }
+  .underage-filter-box.active { border-color: var(--gold); border-width: 2px; background: var(--black-soft); }
   .big-box .big-box-num { font-size: 36px; font-weight: 700; color: var(--gold); line-height: 1; }
   .big-box .big-box-lbl { font-size: 13px; color: var(--gray-3); margin-top: 6px; font-weight: 600; }
   @media (max-width: 640px) { .big-box-row { flex-direction: column; } }
@@ -3022,6 +3024,7 @@ async function fetchMachines() {
 
 async function openMachinesView() {
   showScreen('screenMachines');
+  _underageFilter = null;
   document.getElementById('machinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data...</div>';
   if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
     document.getElementById('machinesContent').innerHTML = '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">Machine sheet not configured yet. Add the MACHINES_SHEET_ID to the app config.</div></div>';
@@ -3035,6 +3038,7 @@ async function openMachinesView() {
 async function viewFullMachines(accountName) {
   previousScreen = 'screenDetail';
   showScreen('screenMachines');
+  _underageFilter = null;
   document.getElementById('machinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data...</div>';
   if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
     document.getElementById('machinesContent').innerHTML = '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">Machine sheet not configured yet. Add the MACHINES_SHEET_ID to the app config.</div></div>';
@@ -3048,6 +3052,8 @@ async function viewFullMachines(accountName) {
 
 // Underage charge summary — total dollars owed this month across CCT4/CPXT
 // machines that fell short of their contractual minimum.
+var _underageFilter = null; // null | 'ALL' | report code like 'CCT4'
+
 function renderMachinesStatsRow() {
   var byType = {};
   var total = 0;
@@ -3062,17 +3068,32 @@ function renderMachinesStatsRow() {
   var boxes = Object.keys(UNDERAGE_RULES).map(function(code){
     var rule = UNDERAGE_RULES[code];
     var amt = byType[code] || 0;
-    return '<div class="big-box" style="cursor:default">'+
+    var active = _underageFilter === code;
+    return '<div class="big-box underage-filter-box'+(active?' active':'')+'" data-underage="'+code+'" title="Click to show only '+code+' machines behind on quota">'+
       '<div class="big-box-num" style="'+(amt>0?'color:#d47070':'')+'">$'+fmtNum(amt)+'</div>'+
       '<div class="big-box-lbl">'+esc(code)+' Underage — Last Month (min '+rule.min+' &middot; $'+rule.rate+'/unit)</div>'+
     '</div>';
   }).join('');
 
+  var totalActive = _underageFilter === 'ALL';
   document.getElementById('machinesStatsRow').innerHTML = boxes +
-    '<div class="big-box" style="cursor:default">'+
+    '<div class="big-box underage-filter-box'+(totalActive?' active':'')+'" data-underage="ALL" title="Click to show all machines behind on quota">'+
       '<div class="big-box-num" style="'+(total>0?'color:#d47070':'')+'">$'+fmtNum(total)+'</div>'+
-      '<div class="big-box-lbl">Total Underage — Last Month</div>'+
+      '<div class="big-box-lbl">Total Underage — Last Month'+(_underageFilter?' <span style="color:var(--gold);font-weight:400">(click again to clear)</span>':'')+'</div>'+
     '</div>';
+
+  document.querySelectorAll('.underage-filter-box').forEach(function(box){
+    box.addEventListener('click', function(){
+      var code = box.dataset.underage;
+      _underageFilter = (_underageFilter === code) ? null : code;
+      // Keep the report-type dropdown in sync so filters don't fight each other
+      var typeSelect = document.getElementById('machinesTypeFilter');
+      if (_underageFilter && _underageFilter !== 'ALL') typeSelect.value = _underageFilter;
+      else if (!_underageFilter) typeSelect.value = 'ALL';
+      renderMachinesStatsRow();
+      renderMachinesTable();
+    });
+  });
 }
 
 function renderMachinesTable() {
@@ -3082,6 +3103,11 @@ function renderMachinesTable() {
   var data = allMachines.filter(function(m){
     if (typeFilter !== 'ALL' && m.report_code !== typeFilter) return false;
     if (q && !m.account_name.toLowerCase().includes(q) && !m.machine_id.includes(q)) return false;
+    if (_underageFilter) {
+      var charge = machineUnderageCharge(m);
+      if (charge <= 0) return false;
+      if (_underageFilter !== 'ALL' && (m.report_code||'').toUpperCase().trim() !== _underageFilter) return false;
+    }
     return true;
   });
 
@@ -3094,9 +3120,6 @@ function renderMachinesTable() {
       '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">No machine data for this view. Try adjusting filters or upload a machine report.</div></div>';
     return;
   }
-
-  var MONTHS_LABEL = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
-  var MONTHS_KEY2  = ['apr','may','jun','jul','aug','sep','oct','nov','dec','jan','feb','mar'];
 
   var html = data.map(function(m){
     var clickable = !!m.account_id;
