@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.0 - built 2026-07-09 -->
+<!-- Drayton CRM v5.2 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -845,8 +845,6 @@
 <script>
 const CLIENT_ID = '237629763930-6q7ue607d2u1ka1ortgmlg9on0jhikss.apps.googleusercontent.com';
 const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
-// Separate shared sheet for machine reports — replace with real ID after creating the sheet
-const MACHINES_SHEET_ID = '1hwK0ZRlx7uxBuf1LRs9pLNZfPi08kzVH66v_EwPuCtg';
 
 // Territory → Sheet ID map (add entries as territories are onboarded)
 const TERRITORY_SHEET_IDS = {
@@ -1141,8 +1139,16 @@ function gisLoaded() {
       if (resp.error) { showToast('Sign-in failed','error'); return; }
       showScreen('screenTerritory');
       document.getElementById('authArea').innerHTML =
-        '<div class="user-info"><button class="sign-out" id="signOutBtn">Sign out</button></div>';
+        '<div class="user-info">'+
+          '<button class="sign-out" id="changeTerritoryBtn" style="margin-right:14px">Change Territory</button>'+
+          '<button class="sign-out" id="signOutBtn">Sign out</button>'+
+        '</div>';
       document.getElementById('signOutBtn').addEventListener('click', doSignOut);
+      document.getElementById('changeTerritoryBtn').addEventListener('click', function(){
+        showScreen('screenTerritory');
+        var sel = document.getElementById('territorySelect');
+        if (currentTerritory) sel.value = currentTerritory;
+      });
     }
   });
   gisReady = true; maybeReady();
@@ -1197,6 +1203,10 @@ function showToast(msg, type) {
 async function loadTerritory() {
   var sel = document.getElementById('territorySelect').value;
   if (!sel) { showToast('Please select a territory','error'); return; }
+  if (!TERRITORY_SHEET_IDS[sel]) {
+    showToast(sel+' hasn\'t been set up with its own sheet yet — add it to TERRITORY_SHEET_IDS first','error');
+    return;
+  }
   currentTerritory = sel;
   showScreen('screenDashboard');
   document.getElementById('dashTerritoryName').textContent = sel;
@@ -2662,7 +2672,7 @@ async function fetchSalesGoal() {
   var year = String(new Date().getFullYear());
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A:D'
+      spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A:D'
     });
     var rows = res.result.values || [];
     var match = rows.slice(1).find(function(r){ return r[0]===currentTerritory && r[1]===year; });
@@ -2677,7 +2687,7 @@ async function saveSalesGoal(newGoal) {
   var year = String(new Date().getFullYear());
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A:D'
+      spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A:D'
     });
     var rows = res.result.values || [];
     var rowIdx = -1;
@@ -2687,12 +2697,12 @@ async function saveSalesGoal(newGoal) {
     var now = new Date().toISOString();
     if (rowIdx > 0) {
       await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A'+rowIdx+':D'+rowIdx,
+        spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A'+rowIdx+':D'+rowIdx,
         valueInputOption: 'RAW', resource: {values: [[currentTerritory, year, newGoal, now]]}
       });
     } else {
       await gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId: MACHINES_SHEET_ID, range: 'Sales Goals!A:D',
+        spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A:D',
         valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: [[currentTerritory, year, newGoal, now]]}
       });
     }
@@ -2979,22 +2989,33 @@ async function confirmRankingsUpload() {
     } catch(e) { showToast('Error uploading '+item.territory,'error'); console.error(e); }
   }
 
-  await archiveHistorySnapshot('Rankings History', historyRowsToAdd, /*territoryCol=*/0, /*monthCol=*/9);
+  // Archive each territory's ranking snapshot to its own spreadsheet's history tab
+  var historyByTerritory = {};
+  historyRowsToAdd.forEach(function(r){
+    var terr = r[0]; // territory is the first column in this row layout
+    if (!historyByTerritory[terr]) historyByTerritory[terr] = [];
+    historyByTerritory[terr].push(r);
+  });
+  for (var terr in historyByTerritory) {
+    await archiveHistorySnapshot('Rankings History', historyByTerritory[terr], /*territoryCol=*/0, /*monthCol=*/9, territorySheetId(terr));
+  }
 
   showToast('Rankings uploaded ✓');
   _pendingRankingsUpload = null;
   if (document.getElementById('screenRankings').classList.contains('active')) renderRankingsTable();
 }
 
-// Appends a month's snapshot into a running History tab (in MACHINES_SHEET_ID,
-// the one spreadsheet shared across all territories), replacing any prior
+// Appends a month's snapshot into a running History tab, replacing any prior
 // snapshot for the same territory+report_month so re-uploads don't duplicate.
 // rows: array of row arrays already in the target tab's column order.
-async function archiveHistorySnapshot(tabName, newRows, territoryCol, monthCol) {
+// explicitSheetId: pass this when archiving for a territory other than the
+// currently-loaded one (e.g. multi-territory upload batches).
+async function archiveHistorySnapshot(tabName, newRows, territoryCol, monthCol, explicitSheetId) {
   if (!newRows.length) return;
+  var sid = explicitSheetId || territorySheetId(currentTerritory);
   try {
     var existing = (await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: MACHINES_SHEET_ID, range: tabName+'!A2:Z'
+      spreadsheetId: sid, range: tabName+'!A2:Z'
     })).result.values || [];
 
     // Which (territory, report_month) pairs is this upload replacing?
@@ -3007,10 +3028,10 @@ async function archiveHistorySnapshot(tabName, newRows, territoryCol, monthCol) 
 
     var combined = kept.concat(newRows);
     await gapi.client.sheets.spreadsheets.values.clear({
-      spreadsheetId: MACHINES_SHEET_ID, range: tabName+'!A2:Z'
+      spreadsheetId: sid, range: tabName+'!A2:Z'
     });
     await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId: MACHINES_SHEET_ID, range: tabName+'!A2',
+      spreadsheetId: sid, range: tabName+'!A2',
       valueInputOption: 'RAW', resource: {values: combined}
     });
   } catch(e) {
@@ -3033,7 +3054,7 @@ var _pendingAliasWrites = [];
 async function fetchMachines() {
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A:Z'
+      spreadsheetId: territorySheetId(currentTerritory), range: 'Machine Data!A:Z'
     });
     var rows = res.result.values || [];
     allMachines = rows.slice(1).filter(function(r){
@@ -3063,10 +3084,6 @@ async function openMachinesView() {
   showScreen('screenMachines');
   _underageFilter = null;
   document.getElementById('machinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data...</div>';
-  if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
-    document.getElementById('machinesContent').innerHTML = '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">Machine sheet not configured yet. Add the MACHINES_SHEET_ID to the app config.</div></div>';
-    return;
-  }
   await fetchMachines();
   renderMachinesStatsRow();
   renderMachinesTable();
@@ -3077,10 +3094,6 @@ async function viewFullMachines(accountName) {
   showScreen('screenMachines');
   _underageFilter = null;
   document.getElementById('machinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data...</div>';
-  if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
-    document.getElementById('machinesContent').innerHTML = '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">Machine sheet not configured yet. Add the MACHINES_SHEET_ID to the app config.</div></div>';
-    return;
-  }
   await fetchMachines();
   renderMachinesStatsRow();
   document.getElementById('machinesSearch').value = accountName || '';
@@ -3407,32 +3420,46 @@ async function parseMachineXLS(file) {
 
 async function confirmMachinesUpload() {
   if (!_pendingMachinesUpload) return;
-  if (MACHINES_SHEET_ID === 'REPLACE_WITH_DRAYTON_MACHINES_SHEET_ID') {
-    showToast('Machines sheet ID not configured yet','error');
-    closeModal('modalUploadPreview');
-    return;
-  }
   closeModal('modalUploadPreview');
   showToast('Uploading machine data...');
   var now = new Date().toISOString();
   try {
-    await gapi.client.sheets.spreadsheets.values.clear({
-      spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A2:Z'
+    // The uploaded file spans every territory at once — group records by
+    // territory and write each group to that territory's own spreadsheet,
+    // never just the currently-loaded one.
+    var byTerritory = {};
+    _pendingMachinesUpload.forEach(function(r){
+      if (!byTerritory[r.territory]) byTerritory[r.territory] = [];
+      byTerritory[r.territory].push(r);
     });
-    var rows = _pendingMachinesUpload.map(function(r){
-      return [r.record_id, r.report_code, r.report_label,
-              r.account_id, r.account_name, r.territory, r.machine_id,
-              r.apr,r.may,r.jun,r.jul,r.aug,r.sep,r.oct,r.nov,r.dec,
-              r.jan,r.feb,r.mar,
-              r.required, r.total_sold, r.difference, r.report_month, now, r.machine_count||1];
-    });
-    if (rows.length) {
-      await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: MACHINES_SHEET_ID, range: 'Machine Data!A2',
-        valueInputOption: 'RAW', resource: {values: rows}
+
+    var allRowsForHistory = [];
+    for (var terr in byTerritory) {
+      var sid = territorySheetId(terr);
+      var rows = byTerritory[terr].map(function(r){
+        return [r.record_id, r.report_code, r.report_label,
+                r.account_id, r.account_name, r.territory, r.machine_id,
+                r.apr,r.may,r.jun,r.jul,r.aug,r.sep,r.oct,r.nov,r.dec,
+                r.jan,r.feb,r.mar,
+                r.required, r.total_sold, r.difference, r.report_month, now, r.machine_count||1];
       });
+      allRowsForHistory = allRowsForHistory.concat(rows);
+      try {
+        await gapi.client.sheets.spreadsheets.values.clear({
+          spreadsheetId: sid, range: 'Machine Data!A2:Z'
+        });
+        if (rows.length) {
+          await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId: sid, range: 'Machine Data!A2',
+            valueInputOption: 'RAW', resource: {values: rows}
+          });
+        }
+        await archiveHistorySnapshot('Machine History', rows, /*territoryCol=*/5, /*monthCol=*/22, sid);
+      } catch(terrErr) {
+        console.error('Error uploading machine data for '+terr+' — is its sheet set up yet?', terrErr);
+      }
     }
-    await archiveHistorySnapshot('Machine History', rows, /*territoryCol=*/5, /*monthCol=*/22);
+
     if (_pendingAliasWrites && _pendingAliasWrites.length) {
       var aliasRows = _pendingAliasWrites.map(function(al){
         return ['AL'+Date.now()+Math.random().toString(36).slice(2,6), al.raw_name, al.account_id,
@@ -3450,7 +3477,7 @@ async function confirmMachinesUpload() {
       }
       _pendingAliasWrites = [];
     }
-    showToast('Machine data uploaded — '+rows.length+' records ✓');
+    showToast('Machine data uploaded — '+allRowsForHistory.length+' records across '+Object.keys(byTerritory).length+' territories ✓');
     _pendingMachinesUpload = null;
     if (document.getElementById('screenMachines').classList.contains('active')) {
       await fetchMachines(); renderMachinesTable();
