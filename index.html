@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.4 - built 2026-07-09 -->
+<!-- Drayton CRM v4.5 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1721,6 +1721,21 @@ function reportMonthKey(isoDate) {
   var m = String(isoDate||'').match(/^(\d{4})-(\d{2})/);
   return m ? MONTH_ABBR[parseInt(m[2],10)-1] : null;
 }
+// The 12-month window in these reports is rolling, not a fixed calendar year —
+// it always ends on the report's own month, which can be any month depending
+// on when the file was generated. Returns 12 month keys oldest -> newest so the
+// display grid always puts the true current month on the far right.
+var MONTH_ORDER_ALL = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+var MONTH_LABEL_MAP = {jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',jul:'Jul',aug:'Aug',sep:'Sep',oct:'Oct',nov:'Nov',dec:'Dec'};
+function chronologicalMonthOrder(reportMonth) {
+  var endKey = reportMonthKey(reportMonth);
+  if (!endKey) return MONTH_ORDER_ALL.slice(3).concat(MONTH_ORDER_ALL.slice(0,3)); // fallback: Apr-Mar
+  var endIdx = MONTH_ORDER_ALL.indexOf(endKey);
+  var order = [];
+  for (var i=11; i>=0; i--) order.push(MONTH_ORDER_ALL[(endIdx - i + 12) % 12]);
+  return order;
+}
+
 function machineUnderageCharge(m) {
   var rule = UNDERAGE_RULES[(m.report_code||'').toUpperCase().trim()];
   if (!rule) return 0;
@@ -1929,10 +1944,9 @@ function renderDetail() {
   // Machines card — show all machines for this account across all report types
   var accountMachines = allMachines.filter(function(m){ return m.account_id===a.account_id; });
   if (accountMachines.length) {
-    var MONTHS_LABEL = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
-    var MONTHS_KEY2  = ['apr','may','jun','jul','aug','sep','oct','nov','dec','jan','feb','mar'];
     html += '<div class="card" style="margin-bottom:16px"><div class="card-header">⚙️ Machine Data</div><div class="card-body" style="padding:0">'+
       accountMachines.map(function(m){
+        var monthOrder = chronologicalMonthOrder(m.report_month);
         return '<div style="padding:12px 16px;border-bottom:1px solid var(--gray-1)">'+
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:12px">'+
             '<div><span style="font-size:11px;background:var(--gray-2);padding:2px 6px;border-radius:4px;color:var(--gray-4)">'+esc(m.report_code)+'</span>'+
@@ -1941,10 +1955,11 @@ function renderDetail() {
             '<div style="text-align:right">'+machinePerfBadge(m)+'</div>'+
           '</div>'+
           '<div class="machine-grid">'+
-            MONTHS_LABEL.map(function(mo,idx){
-              var val = m[MONTHS_KEY2[idx]];
-              return '<div class="machine-cell'+(val&&val!=='0'?' has-data':'')+'" title="'+mo+'">'+
-                '<div style="font-size:9px;opacity:0.7">'+mo+'</div>'+
+            monthOrder.map(function(mk,idx){
+              var val = m[mk];
+              var isCurrent = (idx===monthOrder.length-1);
+              return '<div class="machine-cell'+(val&&val!=='0'?' has-data':'')+'" title="'+MONTH_LABEL_MAP[mk]+(isCurrent?' (most recent)':'')+'" style="'+(isCurrent?'border:1px solid var(--gold)':'')+'">'+
+                '<div style="font-size:9px;opacity:0.7">'+MONTH_LABEL_MAP[mk]+'</div>'+
                 '<div>'+(val||'—')+'</div>'+
               '</div>';
             }).join('')+
@@ -3049,14 +3064,14 @@ function renderMachinesStatsRow() {
     var amt = byType[code] || 0;
     return '<div class="big-box" style="cursor:default">'+
       '<div class="big-box-num" style="'+(amt>0?'color:#d47070':'')+'">$'+fmtNum(amt)+'</div>'+
-      '<div class="big-box-lbl">'+esc(code)+' Underage (monthly min '+rule.min+' &middot; $'+rule.rate+'/unit)</div>'+
+      '<div class="big-box-lbl">'+esc(code)+' Underage — Last Month (min '+rule.min+' &middot; $'+rule.rate+'/unit)</div>'+
     '</div>';
   }).join('');
 
   document.getElementById('machinesStatsRow').innerHTML = boxes +
     '<div class="big-box" style="cursor:default">'+
       '<div class="big-box-num" style="'+(total>0?'color:#d47070':'')+'">$'+fmtNum(total)+'</div>'+
-      '<div class="big-box-lbl">Total Underage This Month</div>'+
+      '<div class="big-box-lbl">Total Underage — Last Month</div>'+
     '</div>';
 }
 
@@ -3088,6 +3103,7 @@ function renderMachinesTable() {
     var underage = machineUnderageCharge(m);
     var count = parseInt(m.machine_count)||1;
     var idLabel = count>1 ? count+' machines' : esc(m.machine_id);
+    var monthOrder = chronologicalMonthOrder(m.report_month);
     return '<div class="card machine-list-card" data-aid="'+esc(m.account_id)+'" style="margin-bottom:12px;'+(clickable?'cursor:pointer':'')+'">'+
       '<div class="card-body">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">'+
@@ -3104,10 +3120,11 @@ function renderMachinesTable() {
           '<div style="text-align:right;flex-shrink:0">'+machinePerfBadge(m)+'</div>'+
         '</div>'+
         '<div class="machine-grid">'+
-          MONTHS_LABEL.map(function(mo,idx){
-            var val = m[MONTHS_KEY2[idx]];
-            return '<div class="machine-cell'+(val&&val!=='0'?' has-data':'')+'" title="'+mo+'">'+
-              '<div style="font-size:9px;opacity:0.7">'+mo+'</div>'+
+          monthOrder.map(function(mk,idx){
+            var val = m[mk];
+            var isCurrent = (idx===monthOrder.length-1);
+            return '<div class="machine-cell'+(val&&val!=='0'?' has-data':'')+'" title="'+MONTH_LABEL_MAP[mk]+(isCurrent?' (most recent)':'')+'" style="'+(isCurrent?'border:1px solid var(--gold)':'')+'">'+
+              '<div style="font-size:9px;opacity:0.7">'+MONTH_LABEL_MAP[mk]+'</div>'+
               '<div>'+(val||'—')+'</div>'+
             '</div>';
           }).join('')+
