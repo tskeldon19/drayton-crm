@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v4.6 - built 2026-07-09 -->
+<!-- Drayton CRM v4.7 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -181,6 +181,15 @@
   .type-dealer  { background: var(--gray-2); color: var(--gray-4); font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; text-transform:uppercase; letter-spacing:0.3px; }
   .type-indep   { background: var(--gold-dim); color: var(--gold); font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; text-transform:uppercase; letter-spacing:0.3px; }
   .subfilter-row { display:flex; gap:6px; margin-bottom:14px; }
+  .recap-category-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .category-chip {
+    display:inline-flex; align-items:center; gap:6px; padding:7px 12px;
+    background:var(--gray-1); border:1px solid var(--gray-2); border-radius:16px;
+    font-size:12px; color:var(--gray-3); cursor:pointer; user-select:none;
+    transition:border-color 0.15s, color 0.15s;
+  }
+  .category-chip input { cursor:pointer; accent-color:var(--gold); }
+  .category-chip:has(input:checked), .category-chip.active { border-color:var(--gold); color:var(--white); }
   .subfilter-btn { padding:4px 14px; border-radius:20px; border:1.5px solid var(--gray-2); background:var(--gray-1); color:var(--gray-4); font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; }
   .subfilter-btn:hover { border-color:var(--gold); color:var(--gold); }
   .subfilter-btn.active { background:var(--gold-dim); border-color:var(--gold); color:var(--gold); }
@@ -557,9 +566,15 @@
         <span class="search-icon">🔍</span>
         <input type="text" id="recapSearchInput" placeholder="Search by keyword, account name, or town...">
       </div>
-      <label class="product-check" style="white-space:nowrap" id="conversionsOnlyLabel">
-        <input type="checkbox" id="conversionsOnlyToggle">🎉 Conversions & Reversions only
-      </label>
+    </div>
+    <div class="recap-category-row" id="recapCategoryRow">
+      <label class="category-chip"><input type="checkbox" class="recap-cat-cb" value="status" checked> Conversions, Reversions &amp; Deletions</label>
+      <label class="category-chip"><input type="checkbox" class="recap-cat-cb" value="rating" checked> Rating Changes</label>
+      <label class="category-chip"><input type="checkbox" class="recap-cat-cb" value="personnel" checked> Personnel Changes</label>
+      <label class="category-chip"><input type="checkbox" class="recap-cat-cb" value="store" checked> Store Activity</label>
+      <label class="category-chip"><input type="checkbox" class="recap-cat-cb" value="carry" checked> Product Carry Status Updates</label>
+      <label class="category-chip"><input type="checkbox" class="recap-cat-cb" value="visits" checked> Visit Log</label>
+      <label class="category-chip"><input type="checkbox" class="recap-cat-cb" value="territory" checked> Territory Updates</label>
     </div>
     <div id="recapContent"><div class="loading"><div class="spinner"></div>Loading recap...</div></div>
   </div>
@@ -1049,7 +1064,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('recapBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('recapRunBtn').addEventListener('click', runWeeklyRecap);
   document.getElementById('recapSearchInput').addEventListener('input', applyRecapSearch);
-  document.getElementById('conversionsOnlyToggle').addEventListener('change', applyRecapSearch);
+  document.querySelectorAll('.recap-cat-cb').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      cb.closest('.category-chip').classList.toggle('active', cb.checked);
+      applyRecapSearch();
+    });
+  });
   document.getElementById('recapStartDate').addEventListener('change', clearRecapPresetActive);
   document.getElementById('recapEndDate').addEventListener('change', clearRecapPresetActive);
   document.querySelectorAll('.preset-btn').forEach(function(btn){
@@ -3944,7 +3964,10 @@ function openWeeklyRecap() {
   }
   sel.value = currentTerritory || 'ALL';
   document.getElementById('recapSearchInput').value = '';
-  document.getElementById('conversionsOnlyToggle').checked = false;
+  document.querySelectorAll('.recap-cat-cb').forEach(function(cb){
+    cb.checked = true;
+    cb.closest('.category-chip').classList.add('active');
+  });
   var range = presetRange('last_week');
   document.getElementById('recapStartDate').value = range.start;
   document.getElementById('recapEndDate').value = range.end;
@@ -4080,19 +4103,36 @@ async function runWeeklyRecap() {
   applyRecapSearch();
 }
 
+function recapChangeCategory(fieldKey) {
+  if (fieldKey === 'status') return 'status';
+  if (fieldKey === 'rating') return 'rating';
+  if (['personnel_added','personnel_changed','sm_name','owner_name'].indexOf(fieldKey)>=0) return 'personnel';
+  if (['menus_paper','menus_paper_notes','menus_vma','menus_vma_notes','smoke_burns','smoke_burns_notes',
+       'lpp_training','lpp_training_notes','contest_promo','role_play'].indexOf(fieldKey)>=0) return 'store';
+  if (fieldKey.indexOf('_carrying') === fieldKey.length-9) return 'carry';
+  return null;
+}
+
 function applyRecapSearch() {
   var changes = window._recapChanges || [];
   var visits  = window._recapVisits  || [];
   var tu      = window._recapTu      || [];
   var meta    = window._recapMeta    || {};
   var q = (document.getElementById('recapSearchInput').value || '').toLowerCase().trim();
-  var conversionsOnly = document.getElementById('conversionsOnlyToggle').checked;
 
-  if (conversionsOnly) {
-    changes = changes.filter(function(c){ return c.is_conversion || c.is_reversion || c.is_deletion; });
-    visits = [];
-    tu = [];
-  }
+  var activeCats = {};
+  document.querySelectorAll('.recap-cat-cb').forEach(function(cb){ activeCats[cb.value] = cb.checked; });
+
+  changes = changes.filter(function(c){
+    var cat = recapChangeCategory(c.field_key);
+    return cat && activeCats[cat];
+  });
+  if (!activeCats.visits) visits = [];
+  if (!activeCats.territory) tu = [];
+
+  // Condensed "Conversions & Reversions" header/behavior only when Account
+  // Status is the sole active change category (mirrors the old toggle).
+  var onlyStatusActive = activeCats.status && !activeCats.rating && !activeCats.personnel && !activeCats.store && !activeCats.carry;
 
   if (q) {
     changes = changes.filter(function(c){
@@ -4115,7 +4155,7 @@ function applyRecapSearch() {
     });
   }
 
-  renderWeeklyRecap(changes, visits, tu, meta.start, meta.end, meta.territory, conversionsOnly);
+  renderWeeklyRecap(changes, visits, tu, meta.start, meta.end, meta.territory, onlyStatusActive);
 }
 
 function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversionsOnly) {
