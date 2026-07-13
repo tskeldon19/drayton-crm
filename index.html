@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.4 - built 2026-07-09 -->
+<!-- Drayton CRM v5.5 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3063,9 +3063,7 @@ async function fetchMachines() {
       spreadsheetId: territorySheetId(currentTerritory), range: 'Machine Data!A:Z'
     });
     var rows = res.result.values || [];
-    allMachines = rows.slice(1).filter(function(r){
-      return r[5]===currentTerritory; // territory col
-    }).map(function(r){
+    allMachines = rows.slice(1).map(function(r){
       return {
         record_id:r[0]||'', report_code:r[1]||'', report_label:r[2]||'',
         account_id:r[3]||'', account_name:r[4]||'', territory:r[5]||'',
