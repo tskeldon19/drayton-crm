@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.2 - built 2026-07-09 -->
+<!-- Drayton CRM v5.3 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3425,17 +3425,21 @@ async function confirmMachinesUpload() {
   var now = new Date().toISOString();
   try {
     // The uploaded file spans every territory at once — group records by
-    // territory and write each group to that territory's own spreadsheet,
-    // never just the currently-loaded one.
+    // territory and write each group to that territory's own spreadsheet.
+    // Territories without a real configured sheet are skipped entirely
+    // (never fall back to another territory's spreadsheet — that would
+    // silently overwrite whichever territory happens to share the fallback).
     var byTerritory = {};
     _pendingMachinesUpload.forEach(function(r){
       if (!byTerritory[r.territory]) byTerritory[r.territory] = [];
       byTerritory[r.territory].push(r);
     });
 
+    var skippedTerritories = [];
     var allRowsForHistory = [];
     for (var terr in byTerritory) {
-      var sid = territorySheetId(terr);
+      var sid = TERRITORY_SHEET_IDS[terr];
+      if (!sid) { skippedTerritories.push(terr); continue; }
       var rows = byTerritory[terr].map(function(r){
         return [r.record_id, r.report_code, r.report_label,
                 r.account_id, r.account_name, r.territory, r.machine_id,
@@ -3477,7 +3481,10 @@ async function confirmMachinesUpload() {
       }
       _pendingAliasWrites = [];
     }
-    showToast('Machine data uploaded — '+allRowsForHistory.length+' records across '+Object.keys(byTerritory).length+' territories ✓');
+    var writtenCount = Object.keys(byTerritory).length - skippedTerritories.length;
+    var msg = 'Machine data uploaded — '+allRowsForHistory.length+' records across '+writtenCount+' territories ✓';
+    if (skippedTerritories.length) msg += '. Skipped (no sheet set up yet): '+skippedTerritories.join(', ');
+    showToast(msg, skippedTerritories.length ? 'error' : undefined);
     _pendingMachinesUpload = null;
     if (document.getElementById('screenMachines').classList.contains('active')) {
       await fetchMachines(); renderMachinesTable();
