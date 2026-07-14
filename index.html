@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.5 - built 2026-07-09 -->
+<!-- Drayton CRM v5.6 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2825,7 +2825,39 @@ async function handleRankingsUpload(evt) {
 
   for (var fi=0; fi<files.length; fi++) {
     var file = files[fi];
-    // Detect territory from filename
+
+    // New format: one file covering every territory at once
+    var multiResults = await parseMultiTerritoryRankingXLS(file);
+    if (multiResults && multiResults.length) {
+      multiResults.forEach(function(res){
+        var territory = res.territory;
+        var sheetId = TERRITORY_SHEET_IDS[territory];
+        if (!sheetId) {
+          previewRows.push('<div class="upload-preview-row"><span class="filename">'+esc(file.name)+' — '+esc(territory)+'</span><span style="color:#d47070">⚠️ No sheet ID configured for '+territory+'</span></div>');
+          return;
+        }
+        var matched = 0, unmatched = [];
+        res.rows.forEach(function(r){
+          if (territory === currentTerritory) {
+            var m = fuzzyMatchAccount(r.account_name);
+            if (m) { r.account_id = m.account.account_id; matched++; }
+            else { unmatched.push(r.account_name); }
+          }
+        });
+        _pendingRankingsUpload.push({ file: file, territory: territory, sheetId: sheetId, parsed: {rows: res.rows, reportMonth: res.reportMonth} });
+        var statusColor = matched===res.rows.length ? '#5dba7d' : '#d4ac0d';
+        previewRows.push('<div class="upload-preview-row">'+
+          '<div><div class="filename">'+esc(file.name)+' — '+esc(territory)+'</div>'+
+          '<div class="match-count">'+res.rows.length+' accounts · '+
+          '<span style="color:'+statusColor+'">'+matched+' matched</span>'+
+          (unmatched.length?' · <span style="color:#d47070">'+unmatched.length+' unmatched</span>':'')+
+          '</div></div>'+
+          '<span style="color:#5dba7d">✓ Ready</span></div>');
+      });
+      continue;
+    }
+
+    // Fall back to the old one-file-per-territory format (filename-based)
     var territory = null;
     for (var pi=0; pi<ROUTE_PATTERNS.length; pi++) {
       if (ROUTE_PATTERNS[pi].pattern.test(file.name)) {
@@ -2843,15 +2875,12 @@ async function handleRankingsUpload(evt) {
       continue;
     }
 
-    // Parse XLS
     var parsed = await parseRankingXLS(file);
     if (!parsed) {
       previewRows.push('<div class="upload-preview-row"><span class="filename">'+esc(file.name)+'</span><span style="color:#d47070">⚠️ Could not parse file</span></div>');
       continue;
     }
 
-    // Fuzzy match to accounts — only do this for current territory since
-    // allAccounts is scoped to the loaded territory
     var matched = 0, unmatched = [];
     parsed.rows.forEach(function(r){
       if (territory === currentTerritory) {
@@ -2863,11 +2892,11 @@ async function handleRankingsUpload(evt) {
 
     _pendingRankingsUpload.push({ file: file, territory: territory, sheetId: sheetId, parsed: parsed });
 
-    var statusColor = matched===parsed.rows.length ? '#5dba7d' : '#d4ac0d';
+    var statusColor2 = matched===parsed.rows.length ? '#5dba7d' : '#d4ac0d';
     previewRows.push('<div class="upload-preview-row">'+
       '<div><div class="filename">'+esc(file.name)+'</div>'+
       '<div class="match-count">'+territory+' · '+parsed.rows.length+' accounts · '+
-      '<span style="color:'+statusColor+'">'+matched+' matched</span>'+
+      '<span style="color:'+statusColor2+'">'+matched+' matched</span>'+
       (unmatched.length?' · <span style="color:#d47070">'+unmatched.length+' unmatched</span>':'')+
       '</div></div>'+
       '<span style="color:#5dba7d">✓ Ready</span></div>');
@@ -2879,6 +2908,117 @@ async function handleRankingsUpload(evt) {
     previewRows.join('');
   document.getElementById('uploadPreviewConfirm').onclick = confirmRankingsUpload;
   document.getElementById('modalUploadPreview').classList.add('open');
+}
+
+// New ranking report format: a single file covering every territory at once,
+// with each route's data on one or more repeating "Salesperson:" pages
+// (rank numbers continue across pages for the same rep, so consecutive pages
+// for the same territory code are one continuous list, not separate ones).
+async function parseMultiTerritoryRankingXLS(file) {
+  return new Promise(function(resolve){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, {type:'array'});
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+
+        // Report date sits once near the top as separate Period:/Year: rows
+        var period='', year='';
+        for (var pi=0; pi<15 && pi<rows.length; pi++){
+          var lbl = String(rows[pi][0]||'').trim().toLowerCase();
+          if (lbl==='period:') period = String(rows[pi][3]||'').trim();
+          if (lbl==='year:') year = String(rows[pi][3]||'').trim();
+        }
+        var reportMonth = '';
+        if (period && year) {
+          var lastDay = new Date(parseInt(year), parseInt(period), 0).getDate();
+          reportMonth = year+'-'+String(period).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
+        }
+
+        function pickVal(row, idx) {
+          if (idx==null) return '';
+          if (typeof row[idx] === 'number') return row[idx];
+          if (typeof row[idx-1] === 'number') return row[idx-1];
+          if (typeof row[idx+1] === 'number') return row[idx+1];
+          return '';
+        }
+
+        var territoryBlocks = {};
+        var order = [];
+        var i = 0;
+        while (i < rows.length) {
+          var r0 = String(rows[i][0]||'').trim().toLowerCase();
+          if (r0 === 'salesperson:') {
+            var codeRaw = String(rows[i][5]||'').trim();
+            var territory = 'Route '+codeRaw.replace(/^0+/,'');
+            if (!territoryBlocks[territory]) { territoryBlocks[territory]=[]; order.push(territory); }
+
+            // Find this page's header row (within the next few rows) and its
+            // column layout — plus the 'Sales Last'/'Percent Change' labels,
+            // which sit on their own row just above the main header row.
+            var headerRowIdx = -1, colIdx = {};
+            for (var j=i+1; j<Math.min(i+10, rows.length); j++) {
+              var joined = rows[j].join(' ').toLowerCase();
+              if (joined.indexOf('customer no')>=0 && joined.indexOf('rank')>=0) {
+                headerRowIdx = j;
+                rows[j].forEach(function(cell,ci){
+                  var c = String(cell).trim().toLowerCase();
+                  if (c==='customer no.') colIdx.custno=ci;
+                  else if (c==='customer name') colIdx.name=ci;
+                  else if (c==='sales ptd') colIdx.ptd=ci;
+                  else if (c==='sales ytd') colIdx.ytd=ci;
+                  else if (c==='rank') colIdx.rank=ci;
+                });
+                break;
+              }
+            }
+            if (headerRowIdx>=0) {
+              for (var j2=i+1; j2<headerRowIdx; j2++){
+                rows[j2].forEach(function(cell,ci){
+                  var c = String(cell).trim().toLowerCase().replace(/\s+/g,' ');
+                  if (c.indexOf('sales last')>=0) colIdx.lastyear=ci;
+                  else if (c.indexOf('percent change')>=0) colIdx.pct=ci;
+                });
+              }
+            }
+            if (headerRowIdx<0) { i++; continue; }
+
+            // Read data rows until the next 'Salesperson:' page marker
+            var k = headerRowIdx+1;
+            while (k < rows.length) {
+              var rr = rows[k];
+              var k0 = String(rr[0]||'').trim().toLowerCase();
+              if (k0 === 'salesperson:') break;
+              var name = String(rr[colIdx.name]||'').trim();
+              if (name && name.toLowerCase().indexOf('total')<0) {
+                territoryBlocks[territory].push({
+                  account_id: '',
+                  account_name: name,
+                  customer_number: String(rr[colIdx.custno]||'').trim(),
+                  rank: parseInt(pickVal(rr, colIdx.rank))||0,
+                  sales_ptd: pickVal(rr, colIdx.ptd),
+                  sales_ytd: pickVal(rr, colIdx.ytd),
+                  sales_lastyear: pickVal(rr, colIdx.lastyear),
+                  pct_change: pickVal(rr, colIdx.pct),
+                  report_month: reportMonth,
+                });
+              }
+              k++;
+            }
+            i = k;
+            continue;
+          }
+          i++;
+        }
+
+        if (!order.length) { resolve(null); return; }
+        resolve(order.map(function(t){ return {territory:t, rows:territoryBlocks[t], reportMonth:reportMonth}; }));
+      } catch(err) { console.error('Multi-territory ranking parse error', err); resolve(null); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 async function parseRankingXLS(file) {
