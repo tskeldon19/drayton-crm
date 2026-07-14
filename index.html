@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.6 - built 2026-07-09 -->
+<!-- Drayton CRM v5.7 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2616,22 +2616,47 @@ function normName(s) {
   return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 }
 
-function fuzzyMatchAccount(name) {
+function fuzzyMatchAccount(name, accountsList) {
+  var accts = accountsList || allAccounts;
   var n = normName(name);
   // Exact norm match first
-  var exact = allAccounts.find(function(a){ return normName(a.business_name)===n; });
+  var exact = accts.find(function(a){ return normName(a.business_name)===n; });
   if (exact) return { account: exact, confidence: 1.0 };
   // 3-gram similarity
   var grams = function(s){ var g=new Set(); for(var i=0;i<s.length-2;i++) g.add(s.slice(i,i+3)); return g; };
   var ga = grams(n);
   var best = null, bestScore = 0;
-  allAccounts.forEach(function(a){
+  accts.forEach(function(a){
     var gb = grams(normName(a.business_name));
     var inter = 0; ga.forEach(function(g){ if(gb.has(g)) inter++; });
     var score = inter / Math.max(ga.size, gb.size, 1);
     if (score > bestScore) { bestScore = score; best = a; }
   });
   return bestScore >= 0.6 ? { account: best, confidence: bestScore } : null;
+}
+
+// Lightweight per-territory account cache used only for cross-territory
+// matching during ranking/machine uploads that cover every route at once —
+// avoids needing to actually switch the loaded territory to match each one.
+var _territoryAccountsCache = {};
+async function getTerritoryAccountsForMatching(territory) {
+  if (_territoryAccountsCache[territory]) return _territoryAccountsCache[territory];
+  var sid = TERRITORY_SHEET_IDS[territory];
+  if (!sid) { _territoryAccountsCache[territory] = []; return []; }
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: sid, range: 'Accounts!A:E'  // account_id, territory, status, business_name — plenty for matching
+    });
+    var rows = res.result.values || [];
+    var accts = rows.slice(1).map(function(r){ return { account_id: r[0]||'', business_name: r[3]||'' }; })
+                    .filter(function(a){ return a.account_id && a.business_name; });
+    _territoryAccountsCache[territory] = accts;
+    return accts;
+  } catch(e) {
+    console.error('Could not load accounts for matching in '+territory, e);
+    _territoryAccountsCache[territory] = [];
+    return [];
+  }
 }
 
 async function fetchRankings() {
@@ -2829,20 +2854,20 @@ async function handleRankingsUpload(evt) {
     // New format: one file covering every territory at once
     var multiResults = await parseMultiTerritoryRankingXLS(file);
     if (multiResults && multiResults.length) {
-      multiResults.forEach(function(res){
+      for (var mi=0; mi<multiResults.length; mi++) {
+        var res = multiResults[mi];
         var territory = res.territory;
         var sheetId = TERRITORY_SHEET_IDS[territory];
         if (!sheetId) {
           previewRows.push('<div class="upload-preview-row"><span class="filename">'+esc(file.name)+' — '+esc(territory)+'</span><span style="color:#d47070">⚠️ No sheet ID configured for '+territory+'</span></div>');
-          return;
+          continue;
         }
+        var matchAccts = (territory === currentTerritory) ? allAccounts : await getTerritoryAccountsForMatching(territory);
         var matched = 0, unmatched = [];
         res.rows.forEach(function(r){
-          if (territory === currentTerritory) {
-            var m = fuzzyMatchAccount(r.account_name);
-            if (m) { r.account_id = m.account.account_id; matched++; }
-            else { unmatched.push(r.account_name); }
-          }
+          var m = fuzzyMatchAccount(r.account_name, matchAccts);
+          if (m) { r.account_id = m.account.account_id; matched++; }
+          else { unmatched.push(r.account_name); }
         });
         _pendingRankingsUpload.push({ file: file, territory: territory, sheetId: sheetId, parsed: {rows: res.rows, reportMonth: res.reportMonth} });
         var statusColor = matched===res.rows.length ? '#5dba7d' : '#d4ac0d';
@@ -2853,7 +2878,7 @@ async function handleRankingsUpload(evt) {
           (unmatched.length?' · <span style="color:#d47070">'+unmatched.length+' unmatched</span>':'')+
           '</div></div>'+
           '<span style="color:#5dba7d">✓ Ready</span></div>');
-      });
+      }
       continue;
     }
 
@@ -3357,6 +3382,30 @@ function renderMachinesTable() {
   });
 }
 
+var _territoryAliasesCache = {};
+async function getTerritoryAliasesForMatching(territory) {
+  if (_territoryAliasesCache[territory]) return _territoryAliasesCache[territory];
+  var sid = TERRITORY_SHEET_IDS[territory];
+  if (!sid) { _territoryAliasesCache[territory] = []; return []; }
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: sid, range: 'Account Aliases!A:H'
+    });
+    var rows = res.result.values || [];
+    var aliases = rows.slice(1).map(function(r){
+      return { alias_id:r[0]||'', raw_name:r[1]||'', account_id:r[2]||'',
+               account_name:r[3]||'', territory:r[4]||'', status:r[5]||'',
+               confidence:r[6]||'', created_at:r[7]||'' };
+    });
+    _territoryAliasesCache[territory] = aliases;
+    return aliases;
+  } catch(e) {
+    console.error('Could not load aliases for matching in '+territory, e);
+    _territoryAliasesCache[territory] = [];
+    return [];
+  }
+}
+
 async function handleMachinesUpload(evt) {
   var file = evt.target.files[0];
   evt.target.value = '';
@@ -3368,14 +3417,24 @@ async function handleMachinesUpload(evt) {
 
   // Resolve accounts: check the alias table first (instant, trusted — including
   // any corrections you've made by hand), and only fall back to fresh fuzzy
-  // matching for names never seen before. Only reliable for the currently loaded
-  // territory, since allAccounts/allAliases are scoped to it.
+  // matching for names never seen before. Runs per-territory since the file
+  // covers every route at once.
   var matched = 0, fuzzyCount = 0, unmatchedCount = 0;
   var pendingAliases = [];
+  var territoriesInFile = [...new Set(parsed.map(function(r){ return r.territory; }))];
+  var acctsByTerr = {}, aliasesByTerr = {};
+  for (var ti=0; ti<territoriesInFile.length; ti++) {
+    var t = territoriesInFile[ti];
+    acctsByTerr[t] = (t === currentTerritory) ? allAccounts : await getTerritoryAccountsForMatching(t);
+    aliasesByTerr[t] = (t === currentTerritory) ? allAliases : await getTerritoryAliasesForMatching(t);
+  }
+
   parsed.forEach(function(r){
-    if (r.territory !== currentTerritory) return;
+    var terr = r.territory;
+    var matchAccts = acctsByTerr[terr] || [];
+    var terrAliases = aliasesByTerr[terr] || [];
     var key = normName(r.account_name);
-    var existing = allAliases.find(function(al){ return al.territory===currentTerritory && normName(al.raw_name)===key; });
+    var existing = terrAliases.find(function(al){ return al.territory===terr && normName(al.raw_name)===key; });
 
     if (existing && existing.account_id) {
       r.account_id = existing.account_id;
@@ -3383,7 +3442,7 @@ async function handleMachinesUpload(evt) {
       return;
     }
 
-    var m = fuzzyMatchAccount(r.account_name);
+    var m = fuzzyMatchAccount(r.account_name, matchAccts);
     if (m) {
       r.account_id = m.account.account_id;
       matched++;
@@ -3392,7 +3451,7 @@ async function handleMachinesUpload(evt) {
         if (!isExact) fuzzyCount++;
         pendingAliases.push({
           raw_name: r.account_name, account_id: m.account.account_id,
-          account_name: m.account.business_name, territory: currentTerritory,
+          account_name: m.account.business_name, territory: terr,
           status: isExact ? 'confirmed' : 'fuzzy', confidence: m.confidence.toFixed(2)
         });
       }
@@ -3402,7 +3461,7 @@ async function handleMachinesUpload(evt) {
       if (!existing) {
         pendingAliases.push({
           raw_name: r.account_name, account_id: '', account_name: '',
-          territory: currentTerritory, status: 'unmatched', confidence: ''
+          territory: terr, status: 'unmatched', confidence: ''
         });
       }
     }
@@ -3425,12 +3484,11 @@ async function handleMachinesUpload(evt) {
       '<span style="color:#5dba7d">✓ Ready</span></div>';
   });
 
-  var terrCount = territorySummary[currentTerritory] ? territorySummary[currentTerritory].count : 0;
   document.getElementById('uploadPreviewTitle').textContent = 'Machine Report Upload Preview';
   document.getElementById('uploadPreviewBody').innerHTML =
-    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+parsed.length+' total records across '+Object.keys(territorySummary).length+' territories, for '+esc(currentTerritory)+': '+
-    '<span style="color:#5dba7d">'+matched+' matched</span>'+(fuzzyCount?' <span style="color:#d4b95d">('+fuzzyCount+' low-confidence — check Account Aliases tab)</span>':'')+
-    (unmatchedCount?', <span style="color:#d47070">'+unmatchedCount+' unmatched</span> (will upload without an account link — add them to the Account Aliases tab to fix)':'')+
+    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+parsed.length+' total records across '+Object.keys(territorySummary).length+' territories. '+
+    '<span style="color:#5dba7d">'+matched+' matched</span>'+(fuzzyCount?' <span style="color:#d4b95d">('+fuzzyCount+' low-confidence — check the Account Aliases tab per territory)</span>':'')+
+    (unmatchedCount?', <span style="color:#d47070">'+unmatchedCount+' unmatched</span> (will upload without an account link)':'')+
     '. Existing machine data will be replaced.</p>'+
     previewRows.join('');
   document.getElementById('uploadPreviewConfirm').onclick = confirmMachinesUpload;
@@ -3609,20 +3667,28 @@ async function confirmMachinesUpload() {
     }
 
     if (_pendingAliasWrites && _pendingAliasWrites.length) {
-      var aliasRows = _pendingAliasWrites.map(function(al){
-        return ['AL'+Date.now()+Math.random().toString(36).slice(2,6), al.raw_name, al.account_id,
-                al.account_name, al.territory, al.status, al.confidence, now];
+      var aliasesByTerr = {};
+      _pendingAliasWrites.forEach(function(al){
+        if (!aliasesByTerr[al.territory]) aliasesByTerr[al.territory] = [];
+        aliasesByTerr[al.territory].push(al);
       });
-      try {
-        await gapi.client.sheets.spreadsheets.values.append({
-          spreadsheetId: territorySheetId(currentTerritory), range: 'Account Aliases!A:H',
-          valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: aliasRows}
+      for (var aterr in aliasesByTerr) {
+        var asid = TERRITORY_SHEET_IDS[aterr];
+        if (!asid) continue; // territory without a sheet — nothing to write to
+        var aliasRows = aliasesByTerr[aterr].map(function(al){
+          return ['AL'+Date.now()+Math.random().toString(36).slice(2,6), al.raw_name, al.account_id,
+                  al.account_name, al.territory, al.status, al.confidence, now];
         });
-        await fetchAliases();
-      } catch(aliasErr) {
-        console.error('Could not write to Account Aliases tab — has it been created yet?', aliasErr);
-        showToast('Machine data uploaded, but could not save to Account Aliases (tab missing?)','error');
+        try {
+          await gapi.client.sheets.spreadsheets.values.append({
+            spreadsheetId: asid, range: 'Account Aliases!A:H',
+            valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: aliasRows}
+          });
+        } catch(aliasErr) {
+          console.error('Could not write to Account Aliases tab for '+aterr+' — has it been created yet?', aliasErr);
+        }
       }
+      await fetchAliases();
       _pendingAliasWrites = [];
     }
     var writtenCount = Object.keys(byTerritory).length - skippedTerritories.length;
