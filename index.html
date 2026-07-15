@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.7 - built 2026-07-09 -->
+<!-- Drayton CRM v5.8 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3555,9 +3555,22 @@ async function parseMachineXLS(file) {
               continue;
             }
 
-            // Report date, wherever it sits in the row
-            var dateMatch = rJoined.match(/\d{1,2}\/\d{1,2}\/\d{4}/);
-            if (dateMatch && !reportMonth) reportMonth = toISODate(dateMatch[0]);
+            // Report date, wherever it sits in the row — either a formatted
+            // date string (older exports) or a raw Excel serial date number
+            // (this newer export format), so check for both.
+            if (!reportMonth) {
+              var dateMatch = rJoined.match(/\d{1,2}\/\d{1,2}\/\d{4}/);
+              if (dateMatch) {
+                reportMonth = toISODate(dateMatch[0]);
+              } else {
+                for (var dci=0; dci<r.length; dci++) {
+                  if (typeof r[dci] === 'number' && r[dci] > 20000 && r[dci] < 60000) {
+                    reportMonth = toISODate(r[dci]);
+                    break;
+                  }
+                }
+              }
+            }
 
             // Header row — month names plus Req/Ttl Sold/Diff, scattered across columns
             var rStrLower = rJoined.toLowerCase();
