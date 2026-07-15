@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.9 - built 2026-07-09 -->
+<!-- Drayton CRM v6.0 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -435,6 +435,22 @@
       </select>
     </div>
     <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
+    <button class="btn btn-secondary btn-full" id="openManagerViewBtn" style="margin-top:10px">📊 Manager View — Compare Across Territories</button>
+  </div>
+</div>
+
+<div class="screen" id="screenManagerView">
+  <div class="account-detail">
+    <button class="back-btn" id="managerViewBackBtn">← Back to territory select</button>
+    <div class="detail-header">
+      <div><h2>📊 Manager View</h2><div class="meta" id="managerViewMeta">Loading accounts across all territories...</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="managerGroupFilter" style="min-width:200px"><option value="ALL">All Dealer Groups</option></select>
+        <input type="text" id="managerSearch" placeholder="Search accounts..." style="width:200px">
+      </div>
+    </div>
+    <div id="managerViewStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
+    <div id="managerViewContent"><div class="loading"><div class="spinner"></div>Loading accounts from every territory...</div></div>
   </div>
 </div>
 
@@ -893,7 +909,6 @@ const BG_PRODUCTS = [
   {key:'bg_diesel',label:'Diesel'},{key:'bg_misc',label:'Misc'},
 ];
 const STORE_FIELDS = [
-  {key:'penetration_pct', label:'Penetration %',          type:'num'},
   {key:'mpi',             label:'MPI',                    type:'yn'},
   {key:'menus_paper',     label:'Menus (Paper)',          type:'yn'},
   {key:'menus_vma',       label:'Menus (VMA)',            type:'yn'},
@@ -944,7 +959,8 @@ const COL = {
   bg_transmission_spiff:164,bg_coolant_spiff:165,bg_diff_spiff:166,bg_induction_spiff:167,
   bg_injection_spiff:168,bg_gdi_spiff:169,bg_brake_spiff:170,bg_ac_spiff:171,
   bg_moa_efl_spiff:172,bg_epr_spiff:173,bg_battery_spiff:174,bg_fuel_spiff:175,
-  bg_diesel_spiff:176,bg_misc_spiff:177
+  bg_diesel_spiff:176,bg_misc_spiff:177,
+  dealer_group:178
 };
 
 function colLetter(idx) {
@@ -977,7 +993,6 @@ const TRACKED_FIELDS = {
   gm_name:'General Manager Name',
   gm_phone:'General Manager Phone', gm_email:'General Manager Email',
   // Store Information (includes Smoke and Burns + LPP Training)
-  penetration_pct:'Penetration %', penetration_pct_notes:'Penetration % Notes',
   mpi:'MPI', mpi_notes:'MPI Notes',
   menus_paper:'Menus (Paper)', menus_paper_notes:'Menus (Paper) Notes',
   menus_vma:'Menus (VMA)', menus_vma_notes:'Menus (VMA) Notes',
@@ -1044,6 +1059,10 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('signInBtn').addEventListener('click', doSignIn);
   document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
   document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
+  document.getElementById('openManagerViewBtn').addEventListener('click', openManagerView);
+  document.getElementById('managerViewBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
+  document.getElementById('managerGroupFilter').addEventListener('change', renderManagerView);
+  document.getElementById('managerSearch').addEventListener('input', renderManagerView);
   document.getElementById('backBtn').addEventListener('click', goBack);
   document.getElementById('newAccountBtn').addEventListener('click', openNewAccount);
   document.getElementById('tabProspect').addEventListener('click', function(){ switchTab('prospect'); });
@@ -1189,6 +1208,8 @@ function goBack() {
     showScreen('screenMachines');
   } else if (dest === 'screenRankings') {
     showScreen('screenRankings');
+  } else if (dest === 'screenManagerView') {
+    showScreen('screenManagerView');
   } else {
     showScreen('screenDashboard'); renderList();
   }
@@ -1244,7 +1265,7 @@ async function fetchAliases() {
 async function fetchData() {
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FV'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:J'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Change Log!A:H'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H'}),
@@ -1832,6 +1853,7 @@ function renderDetail() {
     '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center"><span>🏢 Business Information</span><button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="business" style="padding:3px 8px;font-size:11px">✏️ Edit</button></div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">Address</span>'+fv([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div>'+
     '<div class="field-row"><span class="field-label">Account Type</span>'+(a.account_type?'<span class="field-value '+(a.account_type==='Dealer'?'':'')+'">'+(a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':'<span class="type-indep">Independent</span>')+'</span>':'<span class="field-value empty">—</span>')+'</div>'+
+    '<div class="field-row"><span class="field-label">Dealer Group</span>'+fv(a.dealer_group)+'</div>'+
     '<div class="field-row"><span class="field-label">Website</span>'+fv(a.website)+'</div>'+
     '<div class="field-row"><span class="field-label">Bays</span>'+fv(a.bays)+'</div>'+
     '<div class="field-row"><span class="field-label">Advisors</span>'+fv(a.advisors)+'</div>'+
@@ -3406,6 +3428,137 @@ async function getTerritoryAliasesForMatching(territory) {
   }
 }
 
+// Manager View — read-only cross-territory account comparison, grouped by
+// Dealer Group. Pulls every configured territory's Accounts tab in parallel.
+// Google's own sharing permissions are the real access control here: a
+// manager needs their account added to every territory sheet for this to
+// work at all, so reps who aren't shared on other territories simply can't
+// pull this data even if they found this button.
+var allManagerAccounts = [];
+
+async function openManagerView() {
+  showScreen('screenManagerView');
+  document.getElementById('managerViewMeta').textContent = 'Loading...';
+  document.getElementById('managerViewStatsRow').innerHTML = '';
+  document.getElementById('managerViewContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading accounts from every territory...</div>';
+
+  var territories = Object.keys(TERRITORY_SHEET_IDS);
+  var results = await Promise.all(territories.map(function(t){
+    return gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'
+    }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
+      .catch(function(e){ console.error('Could not load accounts for '+t+' — check sharing permissions', e); return {territory:t, rows:[], failed:true}; });
+  }));
+
+  var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
+  allManagerAccounts = [];
+  results.forEach(function(r){
+    r.rows.slice(1).forEach(function(row){
+      var acc = rowToAcc(row);
+      if (acc.account_id && acc.status!=='deleted' && acc.status!=='disqualified') allManagerAccounts.push(acc);
+    });
+  });
+
+  var groups = [...new Set(allManagerAccounts.map(function(a){ return a.dealer_group||''; }).filter(Boolean))].sort();
+  var sel = document.getElementById('managerGroupFilter');
+  sel.innerHTML = '<option value="ALL">All Dealer Groups</option>'+
+    '<option value="UNASSIGNED">Unassigned</option>'+
+    groups.map(function(g){ return '<option value="'+esc(g)+'">'+esc(g)+'</option>'; }).join('');
+
+  if (failedTerritories.length) {
+    showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions on those sheets', 'error');
+  }
+
+  renderManagerViewStats();
+  renderManagerView();
+}
+
+function renderManagerViewStats() {
+  var total = allManagerAccounts.length;
+  var groupsCount = new Set(allManagerAccounts.map(function(a){ return a.dealer_group; }).filter(Boolean)).size;
+  var unassigned = allManagerAccounts.filter(function(a){ return !a.dealer_group; }).length;
+  document.getElementById('managerViewStatsRow').innerHTML =
+    '<div class="big-box" style="cursor:default"><div class="big-box-num">'+total+'</div><div class="big-box-lbl">Total Accounts — All Territories</div></div>'+
+    '<div class="big-box" style="cursor:default"><div class="big-box-num">'+groupsCount+'</div><div class="big-box-lbl">Dealer Groups Identified</div></div>'+
+    '<div class="big-box" style="cursor:default"><div class="big-box-num">'+unassigned+'</div><div class="big-box-lbl">Unassigned Accounts</div></div>';
+}
+
+function renderManagerView() {
+  var groupFilter = document.getElementById('managerGroupFilter').value;
+  var q = (document.getElementById('managerSearch').value||'').toLowerCase();
+
+  var data = allManagerAccounts.filter(function(a){
+    if (groupFilter==='UNASSIGNED' && a.dealer_group) return false;
+    if (groupFilter!=='ALL' && groupFilter!=='UNASSIGNED' && a.dealer_group!==groupFilter) return false;
+    if (q && !a.business_name.toLowerCase().includes(q) && !(a.town||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  document.getElementById('managerViewMeta').textContent =
+    data.length+' account'+(data.length!==1?'s':'')+' shown across '+Object.keys(TERRITORY_SHEET_IDS).length+' territories';
+
+  if (!data.length) {
+    document.getElementById('managerViewContent').innerHTML = '<div class="empty-state"><div>📊</div><div style="margin-top:8px">No accounts match this filter.</div></div>';
+    return;
+  }
+
+  var html;
+  if (groupFilter === 'ALL') {
+    var byGroup = {};
+    data.forEach(function(a){
+      var g = a.dealer_group || 'Unassigned';
+      if (!byGroup[g]) byGroup[g] = [];
+      byGroup[g].push(a);
+    });
+    var groupNames = Object.keys(byGroup).sort(function(x,y){
+      if (x==='Unassigned') return 1; if (y==='Unassigned') return -1;
+      return x.localeCompare(y);
+    });
+    html = groupNames.map(function(g){
+      return '<div style="margin:14px 0 8px;font-weight:700;color:var(--gold);font-size:13px">'+esc(g)+' ('+byGroup[g].length+')</div>'+
+        byGroup[g].map(managerAccountCard).join('');
+    }).join('');
+  } else {
+    html = data.map(managerAccountCard).join('');
+  }
+
+  document.getElementById('managerViewContent').innerHTML = html;
+  document.querySelectorAll('.manager-account-card').forEach(function(card){
+    card.addEventListener('click', function(){ openAccountFromManagerView(card.dataset.aid, card.dataset.terr); });
+  });
+}
+
+function managerAccountCard(a) {
+  return '<div class="card machine-list-card manager-account-card" data-aid="'+esc(a.account_id)+'" data-terr="'+esc(a.territory)+'" style="margin-bottom:10px">'+
+    '<div class="card-body" style="display:flex;justify-content:space-between;align-items:center;gap:12px">'+
+      '<div>'+
+        '<div style="font-weight:600;color:var(--white);font-size:14px">'+esc(a.business_name)+'</div>'+
+        '<div style="font-size:11px;color:var(--gray-3);margin-top:3px">'+esc(a.territory)+
+          (a.town?' &middot; '+esc(a.town):'')+(a.account_type?' &middot; '+esc(a.account_type):'')+'</div>'+
+      '</div>'+
+      '<div style="text-align:right;flex-shrink:0">'+
+        '<span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+esc(a.status)+'</span>'+
+      '</div>'+
+    '</div></div>';
+}
+
+async function openAccountFromManagerView(accountId, territory) {
+  showToast('Loading account...');
+  try {
+    currentTerritory = territory;
+    await fetchData();
+    await fetchRankings();
+    await fetchAliases();
+    currentAccount = allAccounts.find(function(a){ return a.account_id===accountId; });
+    if (!currentAccount) { showToast('Account not found in '+territory,'error'); return; }
+    previousScreen = 'screenManagerView';
+    renderDetail();
+    showScreen('screenDetail');
+  } catch(e) {
+    showToast('Error loading account','error'); console.error(e);
+  }
+}
+
 async function handleMachinesUpload(evt) {
   var file = evt.target.files[0];
   evt.target.value = '';
@@ -4304,7 +4457,7 @@ async function runWeeklyRecap() {
         return Promise.all([
           gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:J'}),
           gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
-          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FV'}),
+          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FW'}),
           gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
         ]);
       }));
@@ -4324,7 +4477,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:J'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FV'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FW'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
@@ -4787,6 +4940,7 @@ function openEditModal(section) {
     '<option value="Independent"'+(a.account_type==='Independent'?' selected':'')+'>Independent</option>'+
     '<option value="Dealer"'+(a.account_type==='Dealer'?' selected':'')+'>Dealer</option>'+
     '</select></div>'+
+    '<div class="form-row"><label>Dealer Group</label><input type="text" id="e_dealer_group" value="'+esc(a.dealer_group)+'" placeholder="e.g. Nucar — leave blank if unassigned"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="'+esc(a.bays)+'"></div>'+
     '<div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="'+esc(a.advisors)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Monthly CP RO</label><input type="text" id="e_monthly_ro" value="'+esc(a.monthly_ro)+'"></div>'+
@@ -4859,7 +5013,7 @@ function openNewAccount() {
 
 function collectEditFields() {
   var a = currentAccount;
-  var fields = ['business_name','address','town','state','website','account_type','bays','advisors',
+  var fields = ['business_name','address','town','state','website','account_type','dealer_group','bays','advisors',
     'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
     'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
     'gm_name','gm_phone','gm_email',
@@ -4994,7 +5148,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FV',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW',
       valueInputOption:'RAW', resource:{values:[vals]}
     });
     allAccounts.push(currentAccount);
