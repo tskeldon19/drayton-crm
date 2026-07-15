@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.0 - built 2026-07-09 -->
+<!-- Drayton CRM v6.1 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -436,6 +436,74 @@
     </div>
     <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
     <button class="btn btn-secondary btn-full" id="openManagerViewBtn" style="margin-top:10px">📊 Manager View — Compare Across Territories</button>
+    <button class="btn btn-secondary btn-full" id="openCompanyViewBtn" style="margin-top:10px">🏢 Company Dashboard — All Accounts, All Territories</button>
+  </div>
+</div>
+
+<div class="screen" id="screenCompanyView">
+  <div class="dashboard">
+    <div class="territory-bar">
+      <div>
+        <h2>🏢 Company Dashboard</h2>
+        <div class="sub" id="companyMeta">Loading company-wide data...</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="companyBackBtn">← Back to territory select</button>
+    </div>
+    <div class="big-box-row">
+      <button type="button" class="big-box" id="companyMetricActive" data-metric="active_accounts">
+        <div class="big-box-num">—</div><div class="big-box-lbl">Active (Company-Wide)</div>
+      </button>
+      <button type="button" class="big-box" id="companyMetricProspect" data-metric="prospect_accounts">
+        <div class="big-box-num">—</div><div class="big-box-lbl">Prospects (Company-Wide)</div>
+      </button>
+      <button type="button" class="big-box" id="companyMetricHot" data-metric="hot_accounts">
+        <div class="big-box-num">—</div><div class="big-box-lbl">Hot (4-5★)</div>
+      </button>
+    </div>
+    <div class="metric-row" id="companyMetricRow">
+      <button type="button" class="metric-card" id="companyMetricYtd" data-metric="ytd_conversions">
+        <div class="metric-num">—</div><div class="metric-lbl">Converted YTD</div>
+      </button>
+      <button type="button" class="metric-card" id="companyMetricOverdue" data-metric="overdue_followups">
+        <div class="metric-num">—</div><div class="metric-lbl">Overdue Follow-Ups</div>
+      </button>
+      <button type="button" class="metric-card" id="companyMetricNewProspects" data-metric="new_prospects">
+        <div class="metric-num">—</div><div class="metric-lbl">New Prospects This Month</div>
+      </button>
+      <button type="button" class="metric-card" id="companyMetricNewActive" data-metric="new_active">
+        <div class="metric-num">—</div><div class="metric-lbl">New Active Accounts This Month</div>
+      </button>
+      <button type="button" class="metric-card" id="companyMetricUnconfirmed" data-metric="unconfirmed_products">
+        <div class="metric-num">—</div><div class="metric-lbl">Products Discussed, Not Confirmed</div>
+      </button>
+      <button type="button" class="metric-card" id="companyMetricStale" data-metric="stale_prospects">
+        <div class="metric-num">—</div><div class="metric-lbl">Stale Prospects (<span id="companyStaleThresholdLbl">90</span>+ days)</div>
+      </button>
+    </div>
+    <div class="tab-row">
+      <button class="tab active" id="companyTabProspect">🔍 Prospective</button>
+      <button class="tab" id="companyTabActive">✅ Active Clients</button>
+    </div>
+    <div class="subfilter-row">
+      <button class="subfilter-btn active" data-type="all">All</button>
+      <button class="subfilter-btn" data-type="Dealer">Dealer</button>
+      <button class="subfilter-btn" data-type="Independent">Independent</button>
+    </div>
+    <div class="search-row">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="companySearchInput" placeholder="Search by name, town, or contact...">
+      </div>
+      <select id="companySortSelect" class="sort-select">
+        <option value="alpha">Sort: Alphabetical</option>
+        <option value="town">Sort: Town</option>
+        <option value="recent">Sort: Recent Visit</option>
+        <option value="rating">Sort: Rating</option>
+      </select>
+    </div>
+    <div id="companyAccountList" class="account-list">
+      <div class="loading"><div class="spinner"></div>Loading company-wide accounts...</div>
+    </div>
   </div>
 </div>
 
@@ -1063,6 +1131,22 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('managerViewBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
   document.getElementById('managerGroupFilter').addEventListener('change', renderManagerView);
   document.getElementById('managerSearch').addEventListener('input', renderManagerView);
+  document.getElementById('openCompanyViewBtn').addEventListener('click', openCompanyView);
+  document.getElementById('companyBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
+  document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
+  document.getElementById('companyTabActive').addEventListener('click', function(){ switchCompanyTab('active'); });
+  document.getElementById('companySearchInput').addEventListener('input', renderCompanyList);
+  document.getElementById('companySortSelect').addEventListener('change', function(){ companySort = this.value; renderCompanyList(); });
+  document.querySelectorAll('#screenCompanyView .subfilter-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      companySubfilter = btn.dataset.type;
+      document.querySelectorAll('#screenCompanyView .subfilter-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.type===companySubfilter); });
+      renderCompanyList();
+    });
+  });
+  document.querySelectorAll('#screenCompanyView .big-box, #screenCompanyView .metric-card').forEach(function(card){
+    card.addEventListener('click', function(){ openCompanyMetricFilter(card.dataset.metric); });
+  });
   document.getElementById('backBtn').addEventListener('click', goBack);
   document.getElementById('newAccountBtn').addEventListener('click', openNewAccount);
   document.getElementById('tabProspect').addEventListener('click', function(){ switchTab('prospect'); });
@@ -1105,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.preset-btn').forEach(function(btn){
     btn.addEventListener('click', function(){ applyRecapPreset(btn.dataset.preset); });
   });
-  document.getElementById('metricBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('metricBackBtn').addEventListener('click', goBack);
   document.getElementById('listsBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('listDetailBackBtn').addEventListener('click', function(){ showScreen('screenLists'); renderListsScreen(); });
   document.getElementById('tabMyLists').addEventListener('click', function(){ renderListsScreen(); });
@@ -1133,13 +1217,15 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('personnelSave').addEventListener('click', savePersonnel);
   document.getElementById('bulkAddBtn').addEventListener('click', bulkAddSelectedToList);
   document.querySelectorAll('.subfilter-btn').forEach(function(btn){
+    if (btn.closest('#screenCompanyView')) return; // wired separately for company-wide filtering
     btn.addEventListener('click', function(){
       currentSubfilter = btn.dataset.type;
-      document.querySelectorAll('.subfilter-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.type===currentSubfilter); });
+      document.querySelectorAll('.subfilter-btn').forEach(function(b){ if(!b.closest('#screenCompanyView')) b.classList.toggle('active', b.dataset.type===currentSubfilter); });
       renderList();
     });
   });
   document.querySelectorAll('.metric-card, .big-box').forEach(function(card){
+    if (card.closest('#screenCompanyView')) return; // wired separately to openCompanyMetricFilter
     card.addEventListener('click', function(){ openMetricFilter(card.dataset.metric); });
   });
 });
@@ -1210,6 +1296,8 @@ function goBack() {
     showScreen('screenRankings');
   } else if (dest === 'screenManagerView') {
     showScreen('screenManagerView');
+  } else if (dest === 'screenCompanyView') {
+    showScreen('screenCompanyView');
   } else {
     showScreen('screenDashboard'); renderList();
   }
@@ -1387,13 +1475,15 @@ function thisMonthKey() {
 }
 function thisYear() { return new Date().getFullYear(); }
 
-function computeMetrics() {
+function computeMetrics(accountsList, changesList) {
+  var accounts = accountsList || allAccounts;
   var todayKey = thisMonthKey();
   var yr = thisYear();
-  // Dashboard metrics are scoped to the currently loaded territory — the
-  // full unfiltered allChangeLog is reserved for the Weekly Recap's
-  // All Territories view.
-  var territoryChanges = allChangeLog.filter(function(c){ return c.territory===currentTerritory; });
+  // Dashboard metrics are scoped to the currently loaded territory by default —
+  // the full unfiltered allChangeLog is reserved for the Weekly Recap's
+  // All Territories view. Callers (like the Company Dashboard) can pass their
+  // own merged cross-territory dataset instead.
+  var territoryChanges = changesList || allChangeLog.filter(function(c){ return c.territory===currentTerritory; });
 
   // YTD Conversions — from Change Log, status changes to 'active' this year.
   var conversions = territoryChanges.filter(function(c){
@@ -1404,7 +1494,7 @@ function computeMetrics() {
   conversions.forEach(function(c){ conversionIds[c.account_id]=true; });
 
   // Overdue Follow-Ups — active/prospect accounts with next_followup in the past.
-  var overdue = allAccounts.filter(function(a){
+  var overdue = accounts.filter(function(a){
     if (a.status==='deleted' || a.status==='disqualified') return false;
     if (!a.next_followup) return false;
     var d = daysAgo(a.next_followup);
@@ -1435,13 +1525,13 @@ function computeMetrics() {
   conversionsThisMonth.forEach(function(c){ newActiveIds[c.account_id] = true; });
 
   // Discussed, Not Confirmed — active accounts with any product at yellow status.
-  var unconfirmedAccounts = allAccounts.filter(function(a){
+  var unconfirmedAccounts = accounts.filter(function(a){
     if (a.status !== 'active') return false;
     return BG_PRODUCTS.some(function(p){ return a[p.key+'_status']==='yellow'; });
   });
 
   // Stale Prospects — prospects with no visit in N+ days (or never visited at all).
-  var staleAccounts = allAccounts.filter(function(a){
+  var staleAccounts = accounts.filter(function(a){
     if (a.status !== 'prospect') return false;
     if (!a.last_visit) return true;
     var d = daysAgo(a.last_visit);
@@ -3542,7 +3632,7 @@ function managerAccountCard(a) {
     '</div></div>';
 }
 
-async function openAccountFromManagerView(accountId, territory) {
+async function openAccountFromManagerView(accountId, territory, returnTo) {
   showToast('Loading account...');
   try {
     currentTerritory = territory;
@@ -3551,12 +3641,230 @@ async function openAccountFromManagerView(accountId, territory) {
     await fetchAliases();
     currentAccount = allAccounts.find(function(a){ return a.account_id===accountId; });
     if (!currentAccount) { showToast('Account not found in '+territory,'error'); return; }
-    previousScreen = 'screenManagerView';
+    previousScreen = returnTo || 'screenManagerView';
     renderDetail();
     showScreen('screenDetail');
   } catch(e) {
     showToast('Error loading account','error'); console.error(e);
   }
+}
+
+// Company Dashboard — the full rep-dashboard experience (tabs, subfilters,
+// search/sort, metric cards) but scoped to every account across every
+// territory at once, rather than the browsing/comparison focus Manager View
+// has. Editing still happens by opening an account, which flips into that
+// one territory's context — there's no bulk cross-territory editing here.
+var companyTab = 'prospect', companySubfilter = 'all', companySort = 'alpha';
+var allCompanyChanges = [];
+
+async function openCompanyView() {
+  showScreen('screenCompanyView');
+  document.getElementById('companyMeta').textContent = 'Loading...';
+  document.getElementById('companyAccountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading company-wide accounts...</div>';
+
+  var territories = Object.keys(TERRITORY_SHEET_IDS);
+  var results = await Promise.all(territories.map(function(t){
+    return Promise.all([
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'})
+    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[]}; })
+      .catch(function(e){ console.error('Could not load '+t+' — check sharing permissions', e); return {territory:t, accRows:[], clRows:[], failed:true}; });
+  }));
+
+  var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
+  allManagerAccounts = [];
+  allCompanyChanges = [];
+  results.forEach(function(r){
+    r.accRows.slice(1).forEach(function(row){
+      var acc = rowToAcc(row);
+      if (acc.account_id && acc.status!=='deleted' && acc.status!=='disqualified') allManagerAccounts.push(acc);
+    });
+    r.clRows.slice(1).forEach(function(row){
+      allCompanyChanges.push({ timestamp:row[0]||'', account_id:row[1]||'', account_name:row[2]||'', territory:row[3]||'',
+                                field_key:row[4]||'', field_label:row[5]||'', old_value:row[6]||'', new_value:row[7]||'' });
+    });
+  });
+
+  if (failedTerritories.length) {
+    showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
+  }
+
+  document.getElementById('companyMeta').textContent = allManagerAccounts.length+' total accounts across '+territories.length+' territories';
+  updateCompanyStats();
+  renderCompanyList();
+}
+
+function switchCompanyTab(tab) {
+  companyTab = tab;
+  document.getElementById('companyTabProspect').classList.toggle('active', tab==='prospect');
+  document.getElementById('companyTabActive').classList.toggle('active', tab==='active');
+  renderCompanyList();
+}
+
+function updateCompanyStats() {
+  var active   = allManagerAccounts.filter(function(a){ return a.status==='active'; }).length;
+  var prospect = allManagerAccounts.filter(function(a){ return a.status==='prospect'; }).length;
+  var hot      = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; }).length;
+  document.getElementById('companyMetricActive').querySelector('.big-box-num').textContent   = active;
+  document.getElementById('companyMetricProspect').querySelector('.big-box-num').textContent = prospect;
+  document.getElementById('companyMetricHot').querySelector('.big-box-num').textContent      = hot;
+
+  var m = computeMetrics(allManagerAccounts, allCompanyChanges);
+  window._companyMetrics = m;
+
+  document.getElementById('companyMetricYtd').querySelector('.metric-num').textContent = m.conversionCount;
+  document.getElementById('companyMetricOverdue').querySelector('.metric-num').textContent = m.overdue.length;
+  document.getElementById('companyMetricOverdue').classList.toggle('alert', m.overdue.length > 0);
+  document.getElementById('companyMetricNewProspects').querySelector('.metric-num').textContent = m.newProspectCount;
+  document.getElementById('companyMetricNewActive').querySelector('.metric-num').textContent = m.newActiveCount;
+  document.getElementById('companyMetricUnconfirmed').querySelector('.metric-num').textContent = m.unconfirmedAccounts.length;
+  document.getElementById('companyMetricUnconfirmed').classList.toggle('warn', m.unconfirmedAccounts.length > 0);
+  document.getElementById('companyMetricStale').querySelector('.metric-num').textContent = m.staleAccounts.length;
+  document.getElementById('companyMetricStale').classList.toggle('warn', m.staleAccounts.length > 0);
+  document.getElementById('companyStaleThresholdLbl').textContent = staleThresholdDays;
+}
+
+function renderCompanyList() {
+  var q = (document.getElementById('companySearchInput').value||'').toLowerCase();
+
+  var filtered = allManagerAccounts.filter(function(a){
+    if (a.status!==companyTab) return false;
+    if (companySubfilter!=='all' && a.account_type!==companySubfilter) return false;
+    if (!q) return true;
+    return a.business_name.toLowerCase().includes(q) || (a.town||'').toLowerCase().includes(q) ||
+           (a.owner_name||'').toLowerCase().includes(q) || (a.sm_name||'').toLowerCase().includes(q);
+  }).sort(function(a,b){
+    if (companySort === 'alpha') {
+      return a.business_name.localeCompare(b.business_name);
+    } else if (companySort === 'town') {
+      var tc = (a.town||'').localeCompare(b.town||'');
+      return tc!==0 ? tc : a.business_name.localeCompare(b.business_name);
+    } else if (companySort === 'recent') {
+      var da = a.last_visit||'', db = b.last_visit||'';
+      if (!da && !db) return a.business_name.localeCompare(b.business_name);
+      if (!da) return 1;
+      if (!db) return -1;
+      return db.localeCompare(da);
+    }
+    var ra=parseInt(a.rating)||0, rb=parseInt(b.rating)||0;
+    if (rb!==ra) return rb-ra;
+    return a.business_name.localeCompare(b.business_name);
+  });
+
+  if (!filtered.length) {
+    document.getElementById('companyAccountList').innerHTML = '<div class="empty-state"><div>🔍</div><div style="margin-top:8px">'+(q?'No accounts match your search.':'No accounts in this category yet.')+'</div></div>';
+    return;
+  }
+
+  document.getElementById('companyAccountList').innerHTML = filtered.map(function(a){
+    var r=parseInt(a.rating)||0;
+    var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
+    var typeBadge = a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':'';
+    var lastVisitStr = a.last_visit?'Last visit: '+a.last_visit:'No visits logged';
+    return '<div class="account-row" data-id="'+esc(a.account_id)+'" data-terr="'+esc(a.territory)+'">'+
+      '<div style="flex:1"><div class="name">'+esc(a.business_name)+' '+typeBadge+'</div>'+
+      '<div class="meta">'+esc(a.territory)+' &middot; '+[a.town,a.state].filter(Boolean).join(', ')+
+        (a.owner_name?' · '+esc(a.owner_name):a.sm_name?' · '+esc(a.sm_name):'')+' · <span style="color:var(--gray-3)">'+esc(lastVisitStr)+'</span></div></div>'+
+      '<div class="right">'+
+        '<span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+esc(a.status)+'</span>'+
+        '<div class="rating-badge '+rc+'">'+(r||'—')+'</div>'+
+      '</div></div>';
+  }).join('');
+
+  document.querySelectorAll('#companyAccountList .account-row').forEach(function(el){
+    el.addEventListener('click', function(){
+      openAccountFromManagerView(el.dataset.id, el.dataset.terr, 'screenCompanyView');
+    });
+  });
+}
+
+function openCompanyMetricFilter(metricKey) {
+  var m = window._companyMetrics;
+  if (!m) return;
+
+  if (metricKey === 'stale_prospects') {
+    var custom = prompt('Show prospects with no visit in this many days or more:', staleThresholdDays);
+    if (custom !== null && custom.trim() !== '' && !isNaN(parseInt(custom))) {
+      staleThresholdDays = Math.max(1, parseInt(custom));
+      updateCompanyStats();
+      m = window._companyMetrics;
+    }
+  }
+
+  var title, subtitle, accounts;
+  if (metricKey === 'active_accounts') {
+    accounts = allManagerAccounts.filter(function(a){ return a.status==='active'; });
+    title = 'Active Clients (Company-Wide)';
+    subtitle = accounts.length + ' active account'+(accounts.length!==1?'s':'');
+  } else if (metricKey === 'prospect_accounts') {
+    accounts = allManagerAccounts.filter(function(a){ return a.status==='prospect'; });
+    title = 'Prospective Accounts (Company-Wide)';
+    subtitle = accounts.length + ' prospect'+(accounts.length!==1?'s':'');
+  } else if (metricKey === 'hot_accounts') {
+    accounts = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; });
+    title = 'Hot Accounts (4–5★, Company-Wide)';
+    subtitle = accounts.length + ' account'+(accounts.length!==1?'s':'')+' rated 4 or 5 stars';
+  } else if (metricKey === 'ytd_conversions') {
+    title = 'Converted to Active — Year to Date (Company-Wide)';
+    subtitle = m.conversionCount + ' account'+(m.conversionCount!==1?'s':'')+' converted in '+thisYear();
+    accounts = allManagerAccounts.filter(function(a){ return m.conversionIds[a.account_id]; });
+  } else if (metricKey === 'overdue_followups') {
+    title = 'Overdue Follow-Ups (Company-Wide)';
+    subtitle = m.overdue.length + ' account'+(m.overdue.length!==1?'s':'')+' past their follow-up date';
+    accounts = m.overdue.slice().sort(function(a,b){ return (a.next_followup||'').localeCompare(b.next_followup||''); });
+  } else if (metricKey === 'new_prospects') {
+    title = 'New Prospects This Month (Company-Wide)';
+    subtitle = m.newProspectCount + ' prospect'+(m.newProspectCount!==1?'s':'')+' added this calendar month';
+    accounts = allManagerAccounts.filter(function(a){ return m.newProspectIds[a.account_id]; });
+  } else if (metricKey === 'new_active') {
+    title = 'New Active Accounts This Month (Company-Wide)';
+    subtitle = m.newActiveCount + ' active account'+(m.newActiveCount!==1?'s':'')+' this calendar month';
+    accounts = allManagerAccounts.filter(function(a){ return m.newActiveIds[a.account_id]; });
+  } else if (metricKey === 'unconfirmed_products') {
+    title = 'Products Discussed, Not Confirmed (Company-Wide)';
+    subtitle = m.unconfirmedAccounts.length + ' active account'+(m.unconfirmedAccounts.length!==1?'s':'')+' with at least one product still at "Discussed" status';
+    accounts = m.unconfirmedAccounts;
+  } else if (metricKey === 'stale_prospects') {
+    title = 'Stale Prospects (Company-Wide)';
+    subtitle = m.staleAccounts.length + ' prospect'+(m.staleAccounts.length!==1?'s':'')+' with no visit in '+staleThresholdDays+'+ days (or never visited)';
+    accounts = m.staleAccounts;
+  } else { return; }
+
+  document.getElementById('metricFilterTitle').textContent = title;
+  document.getElementById('metricFilterSubtitle').textContent = subtitle;
+  renderCompanyMetricFilterList(accounts, metricKey);
+  previousScreen = 'screenCompanyView';
+  showScreen('screenMetricFilter');
+}
+
+function renderCompanyMetricFilterList(accounts, metricKey) {
+  var listEl = document.getElementById('metricFilterList');
+  if (!accounts.length) {
+    listEl.innerHTML = '<div class="empty-state"><div>✅</div><div style="margin-top:8px">Nothing in this category right now.</div></div>';
+    return;
+  }
+  listEl.innerHTML = accounts.map(function(a){
+    var r = parseInt(a.rating)||0;
+    var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
+    var extra = '';
+    if (metricKey === 'overdue_followups') {
+      var d = daysAgo(a.next_followup);
+      extra = '<span style="color:#d47070">Follow-up was due '+esc(a.next_followup)+' ('+d+' day'+(d!==1?'s':'')+' ago)</span>';
+    } else if (metricKey === 'stale_prospects') {
+      extra = a.last_visit ? '<span style="color:#d4ac0d">Last visit '+esc(a.last_visit)+'</span>' : '<span style="color:#d4ac0d">Never visited</span>';
+    } else if (metricKey === 'unconfirmed_products') {
+      var names = BG_PRODUCTS.filter(function(p){ return a[p.key+'_status']==='yellow'; }).map(function(p){ return p.label; });
+      extra = '<span style="color:#d4ac0d">'+names.join(', ')+'</span>';
+    }
+    return '<div class="account-row" data-id="'+esc(a.account_id)+'" data-terr="'+esc(a.territory)+'">'+
+      '<div><div class="name">'+esc(a.business_name)+'</div>'+
+      '<div class="meta">'+esc(a.territory)+' &middot; '+[a.town,a.state].filter(Boolean).join(', ')+(extra?' · '+extra:'')+'</div></div>'+
+      '<div class="right"><span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+esc(a.status)+'</span>'+
+      '<div class="rating-badge '+rc+'">'+(r||'—')+'</div></div></div>';
+  }).join('');
+  document.querySelectorAll('#metricFilterList .account-row').forEach(function(el){
+    el.addEventListener('click', function(){ openAccountFromManagerView(this.dataset.id, this.dataset.terr, 'screenCompanyView'); });
+  });
 }
 
 async function handleMachinesUpload(evt) {
