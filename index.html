@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v5.8 - built 2026-07-09 -->
+<!-- Drayton CRM v5.9 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4770,8 +4770,13 @@ function openEditModal(section) {
       '</div>';
   }).join('');
 
+  var isNewAccount = !sheetRowMap[a.account_id];
+
   document.getElementById('editModalBody').innerHTML =
     '<div class="form-section" id="edit-section-business"><div class="form-section-title">Business Information</div>'+
+    (isNewAccount ? '<div class="form-row"><label>Status</label><select id="e_status_new">'+
+      ['prospect','active'].map(function(s){ return '<option value="'+s+'"'+(a.status===s?' selected':'')+'>'+(s==='active'?'Active':'Prospect')+'</option>'; }).join('')+
+      '</select></div>' : '')+
     '<div class="form-row"><label>Business Name</label><input type="text" id="e_business_name" value="'+esc(a.business_name)+'"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Address</label><input type="text" id="e_address" value="'+esc(a.address)+'"></div>'+
     '<div class="form-row"><label>Town</label><input type="text" id="e_town" value="'+esc(a.town)+'"></div></div>'+
@@ -4983,6 +4988,8 @@ async function saveAccount() {
 }
 
 async function saveNewAccount() {
+  var statusEl = document.getElementById('e_status_new');
+  if (statusEl) currentAccount.status = statusEl.value;
   collectEditFields();
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
