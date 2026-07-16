@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.6 - built 2026-07-09 -->
+<!-- Drayton CRM v6.7 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1353,18 +1353,38 @@ function gisLoaded() {
         var sel = document.getElementById('territorySelect');
         if (currentTerritory) sel.value = currentTerritory;
       });
+      startBackgroundTokenRefresh();
     }
   });
   gisReady = true; maybeReady();
 }
 
+// Root-cause fix rather than patching individual screens: keep the token
+// fresh proactively so it never has the chance to expire mid-session.
+// - a recurring timer refreshes well before the ~1hr expiry
+// - a visibility listener refreshes immediately when you come back to a
+//   tab that's been sitting idle/backgrounded, the other common way to
+//   land on an expired token
+var _bgTokenRefreshTimer = null;
+function startBackgroundTokenRefresh() {
+  if (_bgTokenRefreshTimer) return; // already running
+  _bgTokenRefreshTimer = setInterval(function(){
+    if (gapi.client.getToken()) ensureFreshToken();
+  }, 45 * 60 * 1000); // every 45 min — safely inside the ~60 min window
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible' && gapi.client.getToken()) ensureFreshToken();
+  });
+}
+
 function maybeReady() {
-  if (gapiReady && gisReady && gapi.client.getToken()) showScreen('screenTerritory');
+  if (gapiReady && gisReady && gapi.client.getToken()) { showScreen('screenTerritory'); startBackgroundTokenRefresh(); }
 }
 
 function doSignOut() {
   google.accounts.oauth2.revoke(gapi.client.getToken().access_token);
   gapi.client.setToken(null);
+  if (_bgTokenRefreshTimer) { clearInterval(_bgTokenRefreshTimer); _bgTokenRefreshTimer = null; }
   allAccounts=[]; allVisits=[];
   showScreen('screenLanding');
   document.getElementById('authArea').innerHTML = '<button class="auth-btn" id="signInBtn">Sign in with Google</button>';
