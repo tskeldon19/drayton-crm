@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.5 - built 2026-07-09 -->
+<!-- Drayton CRM v6.6 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1280,27 +1280,44 @@ function doSignIn() {
 }
 
 // Access tokens expire roughly every hour with no built-in renewal. Company
-// Dashboard/Rankings/Machines all fire a big batch of parallel requests across
-// every territory at once — if the token quietly expired since the last
-// action, EVERY one of those fails at once, which looks like a sharing/
-// permissions problem but is really just "please log back in." Call this
-// before any such batch to silently refresh first when possible.
+// Dashboard/Rankings/Machines/Weekly Recap all fire a big batch of parallel
+// requests across every territory at once — if the token quietly expired
+// since the last action, EVERY one of those fails at once, which looks like
+// a sharing/permissions problem but is really just "please log back in."
+// Call this before any such batch to silently refresh first when possible.
+//
+// Two safety rails, since a broken version of this could hang the whole app
+// worse than not having it at all:
+// - concurrent calls share one in-flight refresh instead of each swapping
+//   tokenClient.callback (rapid tab-switching would otherwise corrupt it)
+// - a hard timeout guarantees this always resolves, even if Google's silent
+//   refresh never calls back (e.g. a blocked popup) — callers fall through
+//   to their normal request, which fails with a clear error if truly expired
+var _tokenRefreshInFlight = null;
 function ensureFreshToken() {
-  return new Promise(function(resolve){
+  if (_tokenRefreshInFlight) return _tokenRefreshInFlight;
+  _tokenRefreshInFlight = new Promise(function(resolve){
     if (!tokenClient) { resolve(); return; }
+    var done = false;
     var prevCallback = tokenClient.callback;
-    tokenClient.callback = function(resp){
+    var finish = function(){
+      if (done) return;
+      done = true;
       tokenClient.callback = prevCallback;
-      if (resp.error) { console.error('Silent token refresh failed', resp); }
       resolve();
     };
+    tokenClient.callback = function(resp){
+      if (resp.error) console.error('Silent token refresh failed', resp);
+      finish();
+    };
+    setTimeout(finish, 4000); // never block a screen load waiting on this
     try {
       tokenClient.requestAccessToken({prompt:''});
     } catch(e) {
-      tokenClient.callback = prevCallback;
-      resolve();
+      finish();
     }
-  });
+  }).finally(function(){ _tokenRefreshInFlight = null; });
+  return _tokenRefreshInFlight;
 }
 
 // True when a failed request looks like an expired/invalid session rather
@@ -5057,6 +5074,7 @@ async function runWeeklyRecap() {
   if (!start || !end) { showToast('Please select a date range','error'); return; }
 
   document.getElementById('recapContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading recap...</div>';
+  await ensureFreshToken();
 
   try {
     var changeRows, visitRows, accountStatusMap, tuRows;
@@ -5106,8 +5124,10 @@ async function runWeeklyRecap() {
       tuRows = parsed.tuRows; accountStatusMap = parsed.accountStatusMap;
     }
   } catch(e) {
-    document.getElementById('recapContent').innerHTML = '<div class="empty-state">Error loading recap data.</div>';
-    console.error(e); return;
+    console.error(e);
+    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Error loading recap data.';
+    document.getElementById('recapContent').innerHTML = '<div class="empty-state">'+msg+'</div>';
+    return;
   }
 
   var inRange = function(dateStr){
