@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.7 - built 2026-07-09 -->
+<!-- Drayton CRM v6.8 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1359,19 +1359,17 @@ function gisLoaded() {
   gisReady = true; maybeReady();
 }
 
-// Root-cause fix rather than patching individual screens: keep the token
-// fresh proactively so it never has the chance to expire mid-session.
-// - a recurring timer refreshes well before the ~1hr expiry
-// - a visibility listener refreshes immediately when you come back to a
-//   tab that's been sitting idle/backgrounded, the other common way to
-//   land on an expired token
-var _bgTokenRefreshTimer = null;
+// Keep the token from going stale without risking interference with active
+// use. An earlier version of this also ran on a recurring timer, but that
+// could fire at ANY moment — including mid-save — and briefly touching the
+// shared token while a real request is in flight is a plausible cause of
+// the account-switching and save failures that showed up after adding it.
+// Refreshing only when you return to a backgrounded tab is a much safer
+// moment: nothing is normally in flight right when a tab regains focus.
+var _bgRefreshInitialized = false;
 function startBackgroundTokenRefresh() {
-  if (_bgTokenRefreshTimer) return; // already running
-  _bgTokenRefreshTimer = setInterval(function(){
-    if (gapi.client.getToken()) ensureFreshToken();
-  }, 45 * 60 * 1000); // every 45 min — safely inside the ~60 min window
-
+  if (_bgRefreshInitialized) return;
+  _bgRefreshInitialized = true;
   document.addEventListener('visibilitychange', function(){
     if (document.visibilityState === 'visible' && gapi.client.getToken()) ensureFreshToken();
   });
@@ -1384,7 +1382,7 @@ function maybeReady() {
 function doSignOut() {
   google.accounts.oauth2.revoke(gapi.client.getToken().access_token);
   gapi.client.setToken(null);
-  if (_bgTokenRefreshTimer) { clearInterval(_bgTokenRefreshTimer); _bgTokenRefreshTimer = null; }
+  _bgRefreshInitialized = false;
   allAccounts=[]; allVisits=[];
   showScreen('screenLanding');
   document.getElementById('authArea').innerHTML = '<button class="auth-btn" id="signInBtn">Sign in with Google</button>';
