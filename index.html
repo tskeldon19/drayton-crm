@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.4 - built 2026-07-09 -->
+<!-- Drayton CRM v6.5 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -52,7 +52,8 @@
   }
   .auth-btn:hover { background: var(--gold-dark); }
   .user-info  { color: var(--gray-4); font-size: 12px; display: flex; align-items: center; gap: 10px; }
-  .sign-out   { color: var(--gold); font-size: 12px; cursor: pointer; text-decoration: underline; }
+  .sign-out   { background: var(--gray-1); border: 1px solid var(--gray-2); color: var(--white); font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 6px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .sign-out:hover { background: var(--black-soft); border-color: var(--gold); }
 
   .screen { display: none; }
   .screen.active { display: block; }
@@ -446,6 +447,7 @@
       <div><h2>Company Rankings</h2><div class="meta" id="companyRankingsMeta"></div></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="companyRankingsScope" style="min-width:180px"><option value="ALL">Full Company</option></select>
+        <select id="companyRankingsGroupFilter" style="min-width:160px"><option value="ALL">All Dealer Groups</option><option value="UNASSIGNED">Unassigned</option></select>
         <input type="text" id="companyRankingsSearch" placeholder="Search accounts...">
       </div>
     </div>
@@ -479,6 +481,7 @@
       </div>
       <button class="btn btn-primary btn-sm" id="companyRankingsBtn">Rankings</button>
       <button class="btn btn-primary btn-sm" id="companyMachinesBtn">Machine Reports</button>
+      <button class="btn btn-primary btn-sm" id="companyRecapBtn">Weekly Report</button>
       <button class="btn btn-secondary btn-sm" id="companyBackBtn">← Back to territory select</button>
     </div>
     <div class="big-box-row">
@@ -1169,9 +1172,11 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('companyGroupFilter').addEventListener('change', renderCompanyList);
   document.getElementById('companyRankingsBtn').addEventListener('click', openCompanyRankings);
   document.getElementById('companyMachinesBtn').addEventListener('click', openCompanyMachines);
+  document.getElementById('companyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(true); });
   document.getElementById('companyRankingsBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyMachinesBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyRankingsScope').addEventListener('change', renderCompanyRankingsView);
+  document.getElementById('companyRankingsGroupFilter').addEventListener('change', renderCompanyRankingsView);
   document.getElementById('companyRankingsSearch').addEventListener('input', renderCompanyRankingsView);
   document.getElementById('companyMachinesScope').addEventListener('change', renderCompanyMachinesView);
   document.getElementById('companyMachinesTypeFilter').addEventListener('change', renderCompanyMachinesView);
@@ -1214,7 +1219,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('rankingsSearch').addEventListener('input', renderRankingsTable);
   document.getElementById('machinesSearch').addEventListener('input', renderMachinesTable);
   document.getElementById('machinesTypeFilter').addEventListener('change', renderMachinesTable);
-  document.getElementById('recapBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('recapBackBtn').addEventListener('click', goBack);
   document.getElementById('recapRunBtn').addEventListener('click', runWeeklyRecap);
   document.getElementById('recapSearchInput').addEventListener('input', applyRecapSearch);
   document.querySelectorAll('.recap-cat-cb').forEach(function(cb){
@@ -1272,6 +1277,38 @@ document.addEventListener('DOMContentLoaded', function() {
 function doSignIn() {
   if (!gisReady || !tokenClient) { showToast('Still loading, please wait a moment','error'); return; }
   tokenClient.requestAccessToken({prompt:''});
+}
+
+// Access tokens expire roughly every hour with no built-in renewal. Company
+// Dashboard/Rankings/Machines all fire a big batch of parallel requests across
+// every territory at once — if the token quietly expired since the last
+// action, EVERY one of those fails at once, which looks like a sharing/
+// permissions problem but is really just "please log back in." Call this
+// before any such batch to silently refresh first when possible.
+function ensureFreshToken() {
+  return new Promise(function(resolve){
+    if (!tokenClient) { resolve(); return; }
+    var prevCallback = tokenClient.callback;
+    tokenClient.callback = function(resp){
+      tokenClient.callback = prevCallback;
+      if (resp.error) { console.error('Silent token refresh failed', resp); }
+      resolve();
+    };
+    try {
+      tokenClient.requestAccessToken({prompt:''});
+    } catch(e) {
+      tokenClient.callback = prevCallback;
+      resolve();
+    }
+  });
+}
+
+// True when a failed request looks like an expired/invalid session rather
+// than a genuine per-sheet sharing problem, so the error message can say the
+// right thing instead of always blaming permissions.
+function isAuthError(e) {
+  var code = (e && e.status) || (e && e.result && e.result.error && e.result.error.code);
+  return code === 401 || code === 403 && (e && e.result && e.result.error && /invalid|expired|credential/i.test(e.result.error.message||''));
 }
 
 function gapiLoaded() {
@@ -1367,6 +1404,7 @@ async function loadTerritory() {
   showScreen('screenDashboard');
   document.getElementById('dashTerritoryName').textContent = sel;
   document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading accounts...</div>';
+  await ensureFreshToken();
   await fetchData();
   await fetchRankings();
   await fetchAliases();
@@ -3591,19 +3629,30 @@ var companyTab = 'prospect', companySubfilter = 'all', companySort = 'alpha';
 var companyRankLookup = {};
 var allCompanyChanges = [];
 
+function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
+  if (!failedTerritories.length) return '';
+  var allFailed = failedTerritories.length >= allTerritories.length;
+  if (sawAuthError || allFailed) {
+    return 'Your session may have expired — try refreshing the page and signing in again. (Could not load: '+failedTerritories.join(', ')+')';
+  }
+  return 'Could not load '+failedTerritories.join(', ')+' — check sharing permissions for this account on those sheets';
+}
+
 async function openCompanyView() {
   showScreen('screenCompanyView');
   document.getElementById('companyMeta').textContent = 'Loading...';
   document.getElementById('companyAccountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading company-wide accounts...</div>';
+  await ensureFreshToken();
 
   var territories = Object.keys(TERRITORY_SHEET_IDS);
+  var sawAuthError = false;
   var results = await Promise.all(territories.map(function(t){
     return Promise.all([
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'})
     ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[]}; })
-      .catch(function(e){ console.error('Could not load '+t+' — check sharing permissions', e); return {territory:t, accRows:[], clRows:[], rkRows:[], failed:true}; });
+      .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, accRows:[], clRows:[], rkRows:[], failed:true}; });
   }));
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
@@ -3624,9 +3673,8 @@ async function openCompanyView() {
     });
   });
 
-  if (failedTerritories.length) {
-    showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
-  }
+  var failMsg = describeBatchFailure(failedTerritories, territories, sawAuthError);
+  if (failMsg) showToast(failMsg, 'error');
 
   updateCompanySortOptions();
   var groups = [...new Set(allManagerAccounts.map(function(a){ return a.dealer_group||''; }).filter(Boolean))].sort();
@@ -3848,16 +3896,18 @@ async function openCompanyRankings() {
   showScreen('screenCompanyRankings');
   document.getElementById('companyRankingsMeta').textContent = 'Loading...';
   document.getElementById('companyRankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings across all territories...</div>';
+  await ensureFreshToken();
 
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sel = document.getElementById('companyRankingsScope');
   sel.innerHTML = '<option value="ALL">Full Company</option>'+territories.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
 
+  var sawAuthError = false;
   var results = await Promise.all(territories.map(function(t){
     return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'
     }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
-      .catch(function(e){ console.error('Could not load rankings for '+t, e); return {territory:t, rows:[], failed:true}; });
+      .catch(function(e){ console.error('Could not load rankings for '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, rows:[], failed:true}; });
   }));
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
@@ -3879,7 +3929,8 @@ async function openCompanyRankings() {
   var sorted = allCompanyRankings.slice().sort(function(a,b){ return (parseFloat(b.sales_ytd)||0) - (parseFloat(a.sales_ytd)||0); });
   sorted.forEach(function(r, idx){ r.company_rank = idx+1; });
 
-  if (failedTerritories.length) showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
+  var rankFailMsg = describeBatchFailure(failedTerritories, territories, sawAuthError);
+  if (rankFailMsg) showToast(rankFailMsg, 'error');
 
   companyRankingsGoalTotal = 0;
   await Promise.all(territories.map(async function(t){
@@ -3892,15 +3943,31 @@ async function openCompanyRankings() {
     } catch(e) { /* territory without a Sales Goals tab yet — skip */ }
   }));
 
+  // Attach each account's Dealer Group (Rankings itself doesn't carry this —
+  // it lives on Accounts, so cross-reference by account_id). Company
+  // Dashboard's account list is already loaded by the time this screen is
+  // reachable, since the Rankings button only exists inside it.
+  var dealerGroupByAccountId = {};
+  allManagerAccounts.forEach(function(a){ dealerGroupByAccountId[a.account_id] = a.dealer_group||''; });
+  allCompanyRankings.forEach(function(r){ r.dealer_group = dealerGroupByAccountId[r.account_id] || ''; });
+
+  var rankGroups = [...new Set(allCompanyRankings.map(function(r){ return r.dealer_group; }).filter(Boolean))].sort();
+  document.getElementById('companyRankingsGroupFilter').innerHTML = '<option value="ALL">All Dealer Groups</option>'+
+    '<option value="UNASSIGNED">Unassigned</option>'+
+    rankGroups.map(function(g){ return '<option value="'+esc(g)+'">'+esc(g)+'</option>'; }).join('');
+
   renderCompanyRankingsView();
 }
 
 function renderCompanyRankingsView() {
   var scope = document.getElementById('companyRankingsScope').value;
+  var groupFilter = document.getElementById('companyRankingsGroupFilter').value;
   var q = (document.getElementById('companyRankingsSearch').value||'').toLowerCase();
 
   var data = allCompanyRankings.filter(function(r){
     if (scope!=='ALL' && r.territory!==scope) return false;
+    if (groupFilter==='UNASSIGNED' && r.dealer_group) return false;
+    if (groupFilter!=='ALL' && groupFilter!=='UNASSIGNED' && r.dealer_group!==groupFilter) return false;
     if (q && !r.account_name.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -3962,18 +4029,21 @@ var allCompanyMachines = [];
 
 async function openCompanyMachines() {
   showScreen('screenCompanyMachines');
+  _companyUnderageFilter = null;
   document.getElementById('companyMachinesMeta').textContent = 'Loading...';
   document.getElementById('companyMachinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data across all territories...</div>';
+  await ensureFreshToken();
 
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sel = document.getElementById('companyMachinesScope');
   sel.innerHTML = '<option value="ALL">Full Company</option>'+territories.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
 
+  var sawAuthError = false;
   var results = await Promise.all(territories.map(function(t){
     return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'
     }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
-      .catch(function(e){ console.error('Could not load machine data for '+t, e); return {territory:t, rows:[], failed:true}; });
+      .catch(function(e){ console.error('Could not load machine data for '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, rows:[], failed:true}; });
   }));
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
@@ -3998,10 +4068,13 @@ async function openCompanyMachines() {
   var typeSel = document.getElementById('companyMachinesTypeFilter');
   typeSel.innerHTML = '<option value="ALL">All Report Types</option>'+types.map(function(t){ return '<option value="'+esc(t)+'">'+esc(MACHINE_REPORT_LABELS[t]||t)+'</option>'; }).join('');
 
-  if (failedTerritories.length) showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
+  var machFailMsg = describeBatchFailure(failedTerritories, territories, sawAuthError);
+  if (machFailMsg) showToast(machFailMsg, 'error');
 
   renderCompanyMachinesView();
 }
+
+var _companyUnderageFilter = null; // null | 'ALL' | report code like 'CCT4'
 
 function renderCompanyMachinesView() {
   var scope = document.getElementById('companyMachinesScope').value;
@@ -4012,6 +4085,11 @@ function renderCompanyMachinesView() {
     if (scope!=='ALL' && m.territory!==scope) return false;
     if (typeFilter!=='ALL' && m.report_code!==typeFilter) return false;
     if (q && !m.account_name.toLowerCase().includes(q) && !m.machine_id.includes(q)) return false;
+    if (_companyUnderageFilter) {
+      var charge0 = machineUnderageCharge(m);
+      if (charge0 <= 0) return false;
+      if (_companyUnderageFilter !== 'ALL' && (m.report_code||'').toUpperCase().trim() !== _companyUnderageFilter) return false;
+    }
     return true;
   });
 
@@ -4026,12 +4104,27 @@ function renderCompanyMachinesView() {
   var boxes = Object.keys(UNDERAGE_RULES).map(function(code){
     var rule = UNDERAGE_RULES[code];
     var amt = byType[code]||0;
-    return '<div class="big-box" style="cursor:default"><div class="big-box-num" style="'+(amt>0?'color:#d47070':'')+'">$'+fmtNum(amt)+'</div>'+
+    var active = _companyUnderageFilter === code;
+    return '<div class="big-box underage-filter-box'+(active?' active':'')+'" data-underage="'+code+'" title="Click to show only '+code+' machines behind on quota">'+
+      '<div class="big-box-num" style="'+(amt>0?'color:#d47070':'')+'">$'+fmtNum(amt)+'</div>'+
       '<div class="big-box-lbl">'+esc(code)+' Underage — Last Month (min '+rule.min+' &middot; $'+rule.rate+'/unit)</div></div>';
   }).join('');
+  var totalActive = _companyUnderageFilter === 'ALL';
   document.getElementById('companyMachinesStatsRow').innerHTML = boxes +
-    '<div class="big-box" style="cursor:default"><div class="big-box-num" style="'+(total>0?'color:#d47070':'')+'">$'+fmtNum(total)+'</div>'+
-    '<div class="big-box-lbl">Total Underage — Last Month ('+(scope==='ALL'?'Company-Wide':esc(scope))+')</div></div>';
+    '<div class="big-box underage-filter-box'+(totalActive?' active':'')+'" data-underage="ALL" title="Click to show all machines behind on quota">'+
+    '<div class="big-box-num" style="'+(total>0?'color:#d47070':'')+'">$'+fmtNum(total)+'</div>'+
+    '<div class="big-box-lbl">Total Underage — Last Month ('+(scope==='ALL'?'Company-Wide':esc(scope))+')'+(_companyUnderageFilter?' <span style="color:var(--gold);font-weight:400">(click again to clear)</span>':'')+'</div></div>';
+
+  document.querySelectorAll('#screenCompanyMachines .underage-filter-box').forEach(function(box){
+    box.addEventListener('click', function(){
+      var code = box.dataset.underage;
+      _companyUnderageFilter = (_companyUnderageFilter === code) ? null : code;
+      var typeSelect = document.getElementById('companyMachinesTypeFilter');
+      if (_companyUnderageFilter && _companyUnderageFilter !== 'ALL') typeSelect.value = _companyUnderageFilter;
+      else if (!_companyUnderageFilter) typeSelect.value = 'ALL';
+      renderCompanyMachinesView();
+    });
+  });
 
   document.getElementById('companyMachinesMeta').textContent = data.length+' record'+(data.length!==1?'s':'')+' shown — '+(scope==='ALL'?'Full Company':esc(scope));
 
@@ -4903,7 +4996,7 @@ function applyRecapPreset(preset) {
   runWeeklyRecap();
 }
 
-function openWeeklyRecap() {
+function openWeeklyRecap(fromCompany) {
   var sel = document.getElementById('recapTerritorySelect');
   if (sel.options.length <= 1) {
     ALL_TERRITORIES.forEach(function(t){
@@ -4912,7 +5005,8 @@ function openWeeklyRecap() {
       sel.appendChild(opt);
     });
   }
-  sel.value = currentTerritory || 'ALL';
+  sel.value = fromCompany ? 'ALL' : (currentTerritory || 'ALL');
+  previousScreen = fromCompany ? 'screenCompanyView' : 'screenDashboard';
   document.getElementById('recapSearchInput').value = '';
   document.querySelectorAll('.recap-cat-cb').forEach(function(cb){
     cb.checked = true;
