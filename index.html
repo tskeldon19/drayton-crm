@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.3 - built 2026-07-09 -->
+<!-- Drayton CRM v6.4 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3588,6 +3588,7 @@ async function openAccountFromManagerView(accountId, territory, returnTo) {
 // has. Editing still happens by opening an account, which flips into that
 // one territory's context — there's no bulk cross-territory editing here.
 var companyTab = 'prospect', companySubfilter = 'all', companySort = 'alpha';
+var companyRankLookup = {};
 var allCompanyChanges = [];
 
 async function openCompanyView() {
@@ -3599,14 +3600,16 @@ async function openCompanyView() {
   var results = await Promise.all(territories.map(function(t){
     return Promise.all([
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'})
-    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[]}; })
-      .catch(function(e){ console.error('Could not load '+t+' — check sharing permissions', e); return {territory:t, accRows:[], clRows:[], failed:true}; });
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'})
+    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[]}; })
+      .catch(function(e){ console.error('Could not load '+t+' — check sharing permissions', e); return {territory:t, accRows:[], clRows:[], rkRows:[], failed:true}; });
   }));
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
   allManagerAccounts = [];
   allCompanyChanges = [];
+  companyRankLookup = {};
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
       var acc = rowToAcc(row);
@@ -3616,12 +3619,16 @@ async function openCompanyView() {
       allCompanyChanges.push({ timestamp:row[0]||'', account_id:row[1]||'', account_name:row[2]||'', territory:row[3]||'',
                                 field_key:row[4]||'', field_label:row[5]||'', old_value:row[6]||'', new_value:row[7]||'' });
     });
+    r.rkRows.slice(1).forEach(function(row){
+      if (row[0]) companyRankLookup[row[0]] = parseInt(row[3])||0;
+    });
   });
 
   if (failedTerritories.length) {
     showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
   }
 
+  updateCompanySortOptions();
   var groups = [...new Set(allManagerAccounts.map(function(a){ return a.dealer_group||''; }).filter(Boolean))].sort();
   document.getElementById('companyGroupFilter').innerHTML = '<option value="ALL">All Dealer Groups</option>'+
     '<option value="UNASSIGNED">Unassigned</option>'+
@@ -3636,7 +3643,20 @@ function switchCompanyTab(tab) {
   companyTab = tab;
   document.getElementById('companyTabProspect').classList.toggle('active', tab==='prospect');
   document.getElementById('companyTabActive').classList.toggle('active', tab==='active');
+  updateCompanySortOptions();
   renderCompanyList();
+}
+
+function updateCompanySortOptions() {
+  var lastOpt = document.querySelector('#companySortSelect option:last-child');
+  if (companyTab === 'active') {
+    lastOpt.value = 'ranking'; lastOpt.textContent = 'Sort: Ranking';
+    if (companySort === 'rating') companySort = 'alpha';
+  } else {
+    lastOpt.value = 'rating'; lastOpt.textContent = 'Sort: Rating';
+    if (companySort === 'ranking') companySort = 'alpha';
+  }
+  document.getElementById('companySortSelect').value = companySort;
 }
 
 function updateCompanyStats() {
@@ -3686,6 +3706,16 @@ function renderCompanyList() {
       if (!da) return 1;
       if (!db) return -1;
       return db.localeCompare(da);
+    } else if (companySort === 'ranking') {
+      var rka = companyRankLookup[a.account_id]||0, rkb = companyRankLookup[b.account_id]||0;
+      if (!rka && !rkb) return a.business_name.localeCompare(b.business_name);
+      if (!rka) return 1;
+      if (!rkb) return -1;
+      return rka - rkb;
+    } else if (companySort === 'rating') {
+      var ra2=parseInt(a.rating)||0, rb2=parseInt(b.rating)||0;
+      if (rb2!==ra2) return rb2-ra2;
+      return a.business_name.localeCompare(b.business_name);
     }
     var ra=parseInt(a.rating)||0, rb=parseInt(b.rating)||0;
     if (rb!==ra) return rb-ra;
@@ -5433,8 +5463,11 @@ function openEditModal(section) {
     '<option value="Independent"'+(a.account_type==='Independent'?' selected':'')+'>Independent</option>'+
     '<option value="Dealer"'+(a.account_type==='Dealer'?' selected':'')+'>Dealer</option>'+
     '</select></div>'+
-    '<div class="form-row"><label>Dealer Group</label><input type="text" id="e_dealer_group" list="dealerGroupOptions" value="'+esc(a.dealer_group)+'" placeholder="Start typing or pick from the list — leave blank if unassigned"></div>'+
-    '<datalist id="dealerGroupOptions">'+DEALER_GROUPS.map(function(g){ return '<option value="'+esc(g)+'">'; }).join('')+'</datalist>'+
+    '<div class="form-row"><label>Dealer Group</label><select id="e_dealer_group">'+
+      '<option value=""'+(!a.dealer_group?' selected':'')+'>— Unassigned —</option>'+
+      (a.dealer_group && DEALER_GROUPS.indexOf(a.dealer_group)===-1 ? '<option value="'+esc(a.dealer_group)+'" selected>'+esc(a.dealer_group)+' (not yet on the standard list)</option>' : '')+
+      DEALER_GROUPS.map(function(g){ return '<option value="'+esc(g)+'"'+(a.dealer_group===g?' selected':'')+'>'+esc(g)+'</option>'; }).join('')+
+    '</select></div>'+
     '<div class="form-grid-2"><div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="'+esc(a.bays)+'"></div>'+
     '<div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="'+esc(a.advisors)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Monthly CP RO</label><input type="text" id="e_monthly_ro" value="'+esc(a.monthly_ro)+'"></div>'+
