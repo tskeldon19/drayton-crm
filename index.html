@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.2 - built 2026-07-09 -->
+<!-- Drayton CRM v6.3 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -439,6 +439,37 @@
   </div>
 </div>
 
+<div class="screen" id="screenCompanyRankings">
+  <div class="account-detail">
+    <button class="back-btn" id="companyRankingsBackBtn">← Back to Company Dashboard</button>
+    <div class="detail-header">
+      <div><h2>Company Rankings</h2><div class="meta" id="companyRankingsMeta"></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="companyRankingsScope" style="min-width:180px"><option value="ALL">Full Company</option></select>
+        <input type="text" id="companyRankingsSearch" placeholder="Search accounts...">
+      </div>
+    </div>
+    <div id="companyRankingsStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
+    <div id="companyRankingsContent"><div class="loading"><div class="spinner"></div>Loading rankings across all territories...</div></div>
+  </div>
+</div>
+
+<div class="screen" id="screenCompanyMachines">
+  <div class="account-detail">
+    <button class="back-btn" id="companyMachinesBackBtn">← Back to Company Dashboard</button>
+    <div class="detail-header">
+      <div><h2>Company Machine Reports</h2><div class="meta" id="companyMachinesMeta"></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="companyMachinesScope" style="min-width:180px"><option value="ALL">Full Company</option></select>
+        <select id="companyMachinesTypeFilter" style="min-width:140px"><option value="ALL">All Report Types</option></select>
+        <input type="text" id="companyMachinesSearch" placeholder="Search accounts...">
+      </div>
+    </div>
+    <div id="companyMachinesStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
+    <div id="companyMachinesContent"><div class="loading"><div class="spinner"></div>Loading machine data across all territories...</div></div>
+  </div>
+</div>
+
 <div class="screen" id="screenCompanyView">
   <div class="dashboard">
     <div class="territory-bar">
@@ -446,6 +477,8 @@
         <h2>Company Dashboard</h2>
         <div class="sub" id="companyMeta">Loading company-wide data...</div>
       </div>
+      <button class="btn btn-primary btn-sm" id="companyRankingsBtn">Rankings</button>
+      <button class="btn btn-primary btn-sm" id="companyMachinesBtn">Machine Reports</button>
       <button class="btn btn-secondary btn-sm" id="companyBackBtn">← Back to territory select</button>
     </div>
     <div class="big-box-row">
@@ -919,6 +952,18 @@ const CLIENT_ID = '237629763930-6q7ue607d2u1ka1ortgmlg9on0jhikss.apps.googleuser
 const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
 
 // Territory → Sheet ID map (add entries as territories are onboarded)
+// Confirmed multi-location dealer groups, from an initial pass across all
+// territories' real account names. Not exhaustive — update this list as the
+// full official list comes in from management.
+const DEALER_GROUPS = [
+  'Albrecht','Autofair','Balise','Berlin City','Bernardi','Bertera','Best','Bill Dodge','Bill Dube',
+  'Central','Colonial','Copeland','Darling','Empire','Falmouth','Firestone','First','Flood','Goodwin',
+  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kelly','Key','Langway',
+  'Lia','Liberty','Long','Lundgren','Marty','Mastria','Mcfarland','Mcgee','Mcgovern','Meineke','Midas',
+  'NE Tire','Nucar','Ocean','Patrick','Paul Masse','Pep Boys','Premier','Pride','Quirk','Ron Bouchard',
+  'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Tulley'
+];
+
 const TERRITORY_SHEET_IDS = {
   'Route 101': '1Y7rPVdRODrPFgIhdCHIYqTdPWGSucx2C4Mhdtirb_oA',
   'Route 102': '1ijmFUlLtT4PRrXqt0vQ__Z0EUV_tLiu3LxgPGKa1T14',
@@ -1122,6 +1167,15 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('companySearchInput').addEventListener('input', renderCompanyList);
   document.getElementById('companySortSelect').addEventListener('change', function(){ companySort = this.value; renderCompanyList(); });
   document.getElementById('companyGroupFilter').addEventListener('change', renderCompanyList);
+  document.getElementById('companyRankingsBtn').addEventListener('click', openCompanyRankings);
+  document.getElementById('companyMachinesBtn').addEventListener('click', openCompanyMachines);
+  document.getElementById('companyRankingsBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
+  document.getElementById('companyMachinesBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
+  document.getElementById('companyRankingsScope').addEventListener('change', renderCompanyRankingsView);
+  document.getElementById('companyRankingsSearch').addEventListener('input', renderCompanyRankingsView);
+  document.getElementById('companyMachinesScope').addEventListener('change', renderCompanyMachinesView);
+  document.getElementById('companyMachinesTypeFilter').addEventListener('change', renderCompanyMachinesView);
+  document.getElementById('companyMachinesSearch').addEventListener('input', renderCompanyMachinesView);
   document.querySelectorAll('#screenCompanyView .subfilter-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       companySubfilter = btn.dataset.type;
@@ -1281,6 +1335,10 @@ function goBack() {
     showScreen('screenRankings');
   } else if (dest === 'screenCompanyView') {
     showScreen('screenCompanyView');
+  } else if (dest === 'screenCompanyRankings') {
+    showScreen('screenCompanyRankings');
+  } else if (dest === 'screenCompanyMachines') {
+    showScreen('screenCompanyMachines');
   } else {
     showScreen('screenDashboard'); renderList();
   }
@@ -3750,6 +3808,250 @@ function renderCompanyMetricFilterList(accounts, metricKey) {
   });
 }
 
+// Company Rankings — merges every territory's Rankings tab, computes a fresh
+// company-wide rank by YTD sales while preserving each account's original
+// within-territory rank, and lets you scope down to one territory at a time.
+var allCompanyRankings = [];
+var companyRankingsGoalTotal = 0;
+
+async function openCompanyRankings() {
+  showScreen('screenCompanyRankings');
+  document.getElementById('companyRankingsMeta').textContent = 'Loading...';
+  document.getElementById('companyRankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings across all territories...</div>';
+
+  var territories = Object.keys(TERRITORY_SHEET_IDS);
+  var sel = document.getElementById('companyRankingsScope');
+  sel.innerHTML = '<option value="ALL">Full Company</option>'+territories.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
+
+  var results = await Promise.all(territories.map(function(t){
+    return gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'
+    }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
+      .catch(function(e){ console.error('Could not load rankings for '+t, e); return {territory:t, rows:[], failed:true}; });
+  }));
+
+  var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
+  allCompanyRankings = [];
+  results.forEach(function(r){
+    r.rows.slice(1).forEach(function(row){
+      if (!row[1]) return;
+      allCompanyRankings.push({
+        account_id: row[0]||'', account_name: row[1]||'', customer_number: row[2]||'',
+        territory_rank: parseInt(row[3])||0, sales_ptd: row[4]||'', sales_ytd: row[5]||'',
+        sales_lastyear: row[6]||'', pct_change: row[7]||'', report_month: row[8]||'',
+        uploaded_at: row[9]||'', territory: r.territory
+      });
+    });
+  });
+
+  // Fresh company-wide rank, sorted by YTD sales — separate from each
+  // account's own territory_rank, which stays exactly as uploaded.
+  var sorted = allCompanyRankings.slice().sort(function(a,b){ return (parseFloat(b.sales_ytd)||0) - (parseFloat(a.sales_ytd)||0); });
+  sorted.forEach(function(r, idx){ r.company_rank = idx+1; });
+
+  if (failedTerritories.length) showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
+
+  companyRankingsGoalTotal = 0;
+  await Promise.all(territories.map(async function(t){
+    try {
+      var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range:'Sales Goals!A:D'});
+      var rows = res.result.values||[];
+      var year = String(new Date().getFullYear());
+      var match = rows.slice(1).find(function(r){ return r[0]===t && r[1]===year; });
+      if (match) companyRankingsGoalTotal += parseFloat(match[2])||0;
+    } catch(e) { /* territory without a Sales Goals tab yet — skip */ }
+  }));
+
+  renderCompanyRankingsView();
+}
+
+function renderCompanyRankingsView() {
+  var scope = document.getElementById('companyRankingsScope').value;
+  var q = (document.getElementById('companyRankingsSearch').value||'').toLowerCase();
+
+  var data = allCompanyRankings.filter(function(r){
+    if (scope!=='ALL' && r.territory!==scope) return false;
+    if (q && !r.account_name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  var ytdTotal = data.reduce(function(s,r){ return s+(parseFloat(r.sales_ytd)||0); }, 0);
+  var lastYear = data.reduce(function(s,r){ return s+(parseFloat(r.sales_lastyear)||0); }, 0);
+  var yoyPct = lastYear>0 ? ((ytdTotal-lastYear)/lastYear*100) : null;
+  var yoyColor = yoyPct===null ? '' : (yoyPct>=0 ? 'color:#5dba7d' : 'color:#d47070');
+
+  var goalBox = '';
+  if (scope === 'ALL') {
+    var goalPct = companyRankingsGoalTotal>0 ? (ytdTotal/companyRankingsGoalTotal*100) : null;
+    goalBox = '<div class="big-box" style="cursor:default"><div class="big-box-num">'+(goalPct===null?'—':goalPct.toFixed(1)+'%')+'</div>'+
+      '<div class="big-box-lbl">YTD Goal Progress'+(companyRankingsGoalTotal>0?' (Sum of Goals: $'+fmtNum(companyRankingsGoalTotal)+')':' (no goals set yet)')+'</div></div>';
+  }
+
+  document.getElementById('companyRankingsStatsRow').innerHTML =
+    '<div class="big-box" style="cursor:default"><div class="big-box-num">$'+fmtNum(ytdTotal)+'</div><div class="big-box-lbl">'+(scope==='ALL'?'Company-Wide':esc(scope))+' YTD Total Sales</div></div>'+
+    '<div class="big-box" style="cursor:default"><div class="big-box-num" style="'+yoyColor+'">'+(yoyPct===null?'—':(yoyPct>=0?'+':'')+yoyPct.toFixed(1)+'%')+'</div><div class="big-box-lbl">YTD YoY Change</div></div>'+
+    goalBox;
+
+  document.getElementById('companyRankingsMeta').textContent = data.length+' account'+(data.length!==1?'s':'')+' shown — '+(scope==='ALL'?'Full Company':esc(scope));
+
+  if (!data.length) {
+    document.getElementById('companyRankingsContent').innerHTML = '<div class="empty-state"><div>🏆</div><div style="margin-top:8px">No accounts match this view.</div></div>';
+    return;
+  }
+
+  var sorted = data.slice().sort(function(a,b){
+    return scope==='ALL' ? a.company_rank-b.company_rank : a.territory_rank-b.territory_rank;
+  });
+
+  var html = '<div style="overflow-x:auto"><table class="report-table"><thead><tr>'+
+    (scope==='ALL' ? '<th>Company Rank</th><th>Territory Rank</th><th>Territory</th>' : '<th>Rank</th>')+
+    '<th>Account</th><th>PTD Sales</th><th>YTD Sales</th><th>Last Year YTD</th><th>% Change</th>'+
+    '</tr></thead><tbody>';
+  sorted.forEach(function(r){
+    var pct = parseFloat(r.pct_change)||0;
+    var pctColor = pct>0?'color:#5dba7d':pct<0?'color:#d47070':'';
+    html += '<tr class="company-rank-row" data-id="'+esc(r.account_id)+'" data-terr="'+esc(r.territory)+'" style="cursor:pointer">'+
+      (scope==='ALL' ? '<td style="font-weight:700;color:var(--gold)">#'+r.company_rank+'</td><td>#'+r.territory_rank+'</td><td>'+esc(r.territory)+'</td>' : '<td style="font-weight:700;color:var(--gold)">#'+r.territory_rank+'</td>')+
+      '<td>'+esc(r.account_name)+'</td>'+
+      '<td>'+fmtNum(r.sales_ptd)+'</td><td>'+fmtNum(r.sales_ytd)+'</td><td>'+fmtNum(r.sales_lastyear)+'</td>'+
+      '<td style="'+pctColor+'">'+fmtPct(r.pct_change)+'</td>'+
+    '</tr>';
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('companyRankingsContent').innerHTML = html;
+  document.querySelectorAll('.company-rank-row').forEach(function(tr){
+    tr.addEventListener('click', function(){
+      if (this.dataset.id) openAccountFromManagerView(this.dataset.id, this.dataset.terr, 'screenCompanyRankings');
+    });
+  });
+}
+
+// Company Machine Reports — same underage math and card layout as the
+// per-territory version, merged across every territory with a scope dropdown.
+var allCompanyMachines = [];
+
+async function openCompanyMachines() {
+  showScreen('screenCompanyMachines');
+  document.getElementById('companyMachinesMeta').textContent = 'Loading...';
+  document.getElementById('companyMachinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data across all territories...</div>';
+
+  var territories = Object.keys(TERRITORY_SHEET_IDS);
+  var sel = document.getElementById('companyMachinesScope');
+  sel.innerHTML = '<option value="ALL">Full Company</option>'+territories.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
+
+  var results = await Promise.all(territories.map(function(t){
+    return gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'
+    }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
+      .catch(function(e){ console.error('Could not load machine data for '+t, e); return {territory:t, rows:[], failed:true}; });
+  }));
+
+  var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
+  allCompanyMachines = [];
+  results.forEach(function(r){
+    r.rows.slice(1).forEach(function(row){
+      if (!row[4]) return;
+      allCompanyMachines.push({
+        record_id:row[0]||'', report_code:row[1]||'', report_label:row[2]||'',
+        account_id:row[3]||'', account_name:row[4]||'', territory:row[5]||'',
+        machine_id:row[6]||'',
+        apr:row[7]||'',may:row[8]||'',jun:row[9]||'',jul:row[10]||'',
+        aug:row[11]||'',sep:row[12]||'',oct:row[13]||'',nov:row[14]||'',
+        dec:row[15]||'',jan:row[16]||'',feb:row[17]||'',mar:row[18]||'',
+        required:row[19]||'',total_sold:row[20]||'',difference:row[21]||'',
+        report_month:row[22]||'',uploaded_at:row[23]||'',machine_count:row[24]||'1'
+      });
+    });
+  });
+
+  var types = [...new Set(allCompanyMachines.map(function(m){ return m.report_code; }))].sort();
+  var typeSel = document.getElementById('companyMachinesTypeFilter');
+  typeSel.innerHTML = '<option value="ALL">All Report Types</option>'+types.map(function(t){ return '<option value="'+esc(t)+'">'+esc(MACHINE_REPORT_LABELS[t]||t)+'</option>'; }).join('');
+
+  if (failedTerritories.length) showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
+
+  renderCompanyMachinesView();
+}
+
+function renderCompanyMachinesView() {
+  var scope = document.getElementById('companyMachinesScope').value;
+  var typeFilter = document.getElementById('companyMachinesTypeFilter').value;
+  var q = (document.getElementById('companyMachinesSearch').value||'').toLowerCase();
+
+  var data = allCompanyMachines.filter(function(m){
+    if (scope!=='ALL' && m.territory!==scope) return false;
+    if (typeFilter!=='ALL' && m.report_code!==typeFilter) return false;
+    if (q && !m.account_name.toLowerCase().includes(q) && !m.machine_id.includes(q)) return false;
+    return true;
+  });
+
+  var byType = {}; var total = 0;
+  data.forEach(function(m){
+    var charge = machineUnderageCharge(m);
+    if (charge<=0) return;
+    var code = (m.report_code||'').toUpperCase().trim();
+    byType[code] = (byType[code]||0)+charge;
+    total += charge;
+  });
+  var boxes = Object.keys(UNDERAGE_RULES).map(function(code){
+    var rule = UNDERAGE_RULES[code];
+    var amt = byType[code]||0;
+    return '<div class="big-box" style="cursor:default"><div class="big-box-num" style="'+(amt>0?'color:#d47070':'')+'">$'+fmtNum(amt)+'</div>'+
+      '<div class="big-box-lbl">'+esc(code)+' Underage — Last Month (min '+rule.min+' &middot; $'+rule.rate+'/unit)</div></div>';
+  }).join('');
+  document.getElementById('companyMachinesStatsRow').innerHTML = boxes +
+    '<div class="big-box" style="cursor:default"><div class="big-box-num" style="'+(total>0?'color:#d47070':'')+'">$'+fmtNum(total)+'</div>'+
+    '<div class="big-box-lbl">Total Underage — Last Month ('+(scope==='ALL'?'Company-Wide':esc(scope))+')</div></div>';
+
+  document.getElementById('companyMachinesMeta').textContent = data.length+' record'+(data.length!==1?'s':'')+' shown — '+(scope==='ALL'?'Full Company':esc(scope));
+
+  if (!data.length) {
+    document.getElementById('companyMachinesContent').innerHTML = '<div class="empty-state"><div>⚙️</div><div style="margin-top:8px">No machine records match this view.</div></div>';
+    return;
+  }
+
+  document.getElementById('companyMachinesContent').innerHTML = data.map(function(m){
+    var underage = machineUnderageCharge(m);
+    var count = parseInt(m.machine_count)||1;
+    var idLabel = count>1 ? count+' machines' : esc(m.machine_id);
+    var monthOrder = chronologicalMonthOrder(m.report_month);
+    var clickable = !!m.account_id;
+    return '<div class="card machine-list-card" data-id="'+esc(m.account_id)+'" data-terr="'+esc(m.territory)+'" style="margin-bottom:12px;'+(clickable?'cursor:pointer':'')+'">'+
+      '<div class="card-body">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">'+
+          '<div>'+
+            '<div style="font-weight:600;color:var(--white);font-size:14px">'+esc(m.account_name)+(clickable?'':' <span style="font-size:11px;color:var(--gray-3);font-weight:400">(no account match)</span>')+'</div>'+
+            '<div style="font-size:11px;color:var(--gray-3);margin-top:3px">'+
+              '<span style="background:var(--gray-2);padding:2px 6px;border-radius:4px">'+esc(m.report_code)+'</span>'+
+              ' <span style="color:var(--gold);font-family:monospace">'+idLabel+'</span>'+
+              ' &middot; '+esc(m.territory)+
+              (underage>0?' &middot; <span style="color:#d47070;font-weight:600">Underage: $'+fmtNum(underage)+'</span>':'')+
+            '</div>'+
+            '<div style="font-size:12px;color:var(--gray-3);margin-top:4px">Req: '+esc(m.required)+' &middot; Total: '+esc(m.total_sold)+'</div>'+
+          '</div>'+
+          '<div style="text-align:right;flex-shrink:0">'+machinePerfBadge(m)+'</div>'+
+        '</div>'+
+        '<div class="machine-grid">'+
+          monthOrder.map(function(mk,idx){
+            var val = m[mk];
+            var isCurrent = (idx===monthOrder.length-1);
+            return '<div class="machine-cell'+(val&&val!=='0'?' has-data':'')+'" title="'+MONTH_LABEL_MAP[mk]+(isCurrent?' (most recent)':'')+'" style="'+(isCurrent?'border:1px solid var(--gold)':'')+'">'+
+              '<div style="font-size:9px;opacity:0.7">'+MONTH_LABEL_MAP[mk]+'</div>'+
+              '<div>'+(val||'—')+'</div>'+
+            '</div>';
+          }).join('')+
+        '</div>'+
+      '</div></div>';
+  }).join('');
+
+  document.querySelectorAll('#companyMachinesContent .machine-list-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      if (card.dataset.id) openAccountFromManagerView(card.dataset.id, card.dataset.terr, 'screenCompanyMachines');
+    });
+  });
+}
+
+
 async function handleMachinesUpload(evt) {
   var file = evt.target.files[0];
   evt.target.value = '';
@@ -5131,7 +5433,8 @@ function openEditModal(section) {
     '<option value="Independent"'+(a.account_type==='Independent'?' selected':'')+'>Independent</option>'+
     '<option value="Dealer"'+(a.account_type==='Dealer'?' selected':'')+'>Dealer</option>'+
     '</select></div>'+
-    '<div class="form-row"><label>Dealer Group</label><input type="text" id="e_dealer_group" value="'+esc(a.dealer_group)+'" placeholder="e.g. Nucar — leave blank if unassigned"></div>'+
+    '<div class="form-row"><label>Dealer Group</label><input type="text" id="e_dealer_group" list="dealerGroupOptions" value="'+esc(a.dealer_group)+'" placeholder="Start typing or pick from the list — leave blank if unassigned"></div>'+
+    '<datalist id="dealerGroupOptions">'+DEALER_GROUPS.map(function(g){ return '<option value="'+esc(g)+'">'; }).join('')+'</datalist>'+
     '<div class="form-grid-2"><div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="'+esc(a.bays)+'"></div>'+
     '<div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="'+esc(a.advisors)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Monthly CP RO</label><input type="text" id="e_monthly_ro" value="'+esc(a.monthly_ro)+'"></div>'+
