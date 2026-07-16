@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.1 - built 2026-07-09 -->
+<!-- Drayton CRM v6.2 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -435,8 +435,7 @@
       </select>
     </div>
     <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
-    <button class="btn btn-secondary btn-full" id="openManagerViewBtn" style="margin-top:10px">📊 Manager View — Compare Across Territories</button>
-    <button class="btn btn-secondary btn-full" id="openCompanyViewBtn" style="margin-top:10px">🏢 Company Dashboard — All Accounts, All Territories</button>
+    <button class="btn btn-secondary btn-full" id="openCompanyViewBtn" style="margin-top:10px">Company Dashboard — All Accounts, All Territories</button>
   </div>
 </div>
 
@@ -444,7 +443,7 @@
   <div class="dashboard">
     <div class="territory-bar">
       <div>
-        <h2>🏢 Company Dashboard</h2>
+        <h2>Company Dashboard</h2>
         <div class="sub" id="companyMeta">Loading company-wide data...</div>
       </div>
       <button class="btn btn-secondary btn-sm" id="companyBackBtn">← Back to territory select</button>
@@ -481,8 +480,8 @@
       </button>
     </div>
     <div class="tab-row">
-      <button class="tab active" id="companyTabProspect">🔍 Prospective</button>
-      <button class="tab" id="companyTabActive">✅ Active Clients</button>
+      <button class="tab active" id="companyTabProspect">Prospective</button>
+      <button class="tab" id="companyTabActive">Active Clients</button>
     </div>
     <div class="subfilter-row">
       <button class="subfilter-btn active" data-type="all">All</button>
@@ -500,25 +499,14 @@
         <option value="recent">Sort: Recent Visit</option>
         <option value="rating">Sort: Rating</option>
       </select>
+      <select id="companyGroupFilter" class="sort-select" style="min-width:160px">
+        <option value="ALL">All Dealer Groups</option>
+        <option value="UNASSIGNED">Unassigned</option>
+      </select>
     </div>
     <div id="companyAccountList" class="account-list">
       <div class="loading"><div class="spinner"></div>Loading company-wide accounts...</div>
     </div>
-  </div>
-</div>
-
-<div class="screen" id="screenManagerView">
-  <div class="account-detail">
-    <button class="back-btn" id="managerViewBackBtn">← Back to territory select</button>
-    <div class="detail-header">
-      <div><h2>📊 Manager View</h2><div class="meta" id="managerViewMeta">Loading accounts across all territories...</div></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="managerGroupFilter" style="min-width:200px"><option value="ALL">All Dealer Groups</option></select>
-        <input type="text" id="managerSearch" placeholder="Search accounts..." style="width:200px">
-      </div>
-    </div>
-    <div id="managerViewStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
-    <div id="managerViewContent"><div class="loading"><div class="spinner"></div>Loading accounts from every territory...</div></div>
   </div>
 </div>
 
@@ -1127,16 +1115,13 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('signInBtn').addEventListener('click', doSignIn);
   document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
   document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
-  document.getElementById('openManagerViewBtn').addEventListener('click', openManagerView);
-  document.getElementById('managerViewBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
-  document.getElementById('managerGroupFilter').addEventListener('change', renderManagerView);
-  document.getElementById('managerSearch').addEventListener('input', renderManagerView);
   document.getElementById('openCompanyViewBtn').addEventListener('click', openCompanyView);
   document.getElementById('companyBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
   document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
   document.getElementById('companyTabActive').addEventListener('click', function(){ switchCompanyTab('active'); });
   document.getElementById('companySearchInput').addEventListener('input', renderCompanyList);
   document.getElementById('companySortSelect').addEventListener('change', function(){ companySort = this.value; renderCompanyList(); });
+  document.getElementById('companyGroupFilter').addEventListener('change', renderCompanyList);
   document.querySelectorAll('#screenCompanyView .subfilter-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       companySubfilter = btn.dataset.type;
@@ -1294,8 +1279,6 @@ function goBack() {
     showScreen('screenMachines');
   } else if (dest === 'screenRankings') {
     showScreen('screenRankings');
-  } else if (dest === 'screenManagerView') {
-    showScreen('screenManagerView');
   } else if (dest === 'screenCompanyView') {
     showScreen('screenCompanyView');
   } else {
@@ -3518,119 +3501,11 @@ async function getTerritoryAliasesForMatching(territory) {
   }
 }
 
-// Manager View — read-only cross-territory account comparison, grouped by
-// Dealer Group. Pulls every configured territory's Accounts tab in parallel.
-// Google's own sharing permissions are the real access control here: a
-// manager needs their account added to every territory sheet for this to
-// work at all, so reps who aren't shared on other territories simply can't
-// pull this data even if they found this button.
+// Cross-territory account data, populated by Company Dashboard. Google's own
+// sharing permissions are the real access control here: a manager needs their
+// account added to every territory sheet for this to work at all, so reps who
+// aren't shared on other territories simply can't pull this data.
 var allManagerAccounts = [];
-
-async function openManagerView() {
-  showScreen('screenManagerView');
-  document.getElementById('managerViewMeta').textContent = 'Loading...';
-  document.getElementById('managerViewStatsRow').innerHTML = '';
-  document.getElementById('managerViewContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading accounts from every territory...</div>';
-
-  var territories = Object.keys(TERRITORY_SHEET_IDS);
-  var results = await Promise.all(territories.map(function(t){
-    return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'
-    }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
-      .catch(function(e){ console.error('Could not load accounts for '+t+' — check sharing permissions', e); return {territory:t, rows:[], failed:true}; });
-  }));
-
-  var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
-  allManagerAccounts = [];
-  results.forEach(function(r){
-    r.rows.slice(1).forEach(function(row){
-      var acc = rowToAcc(row);
-      if (acc.account_id && acc.status!=='deleted' && acc.status!=='disqualified') allManagerAccounts.push(acc);
-    });
-  });
-
-  var groups = [...new Set(allManagerAccounts.map(function(a){ return a.dealer_group||''; }).filter(Boolean))].sort();
-  var sel = document.getElementById('managerGroupFilter');
-  sel.innerHTML = '<option value="ALL">All Dealer Groups</option>'+
-    '<option value="UNASSIGNED">Unassigned</option>'+
-    groups.map(function(g){ return '<option value="'+esc(g)+'">'+esc(g)+'</option>'; }).join('');
-
-  if (failedTerritories.length) {
-    showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions on those sheets', 'error');
-  }
-
-  renderManagerViewStats();
-  renderManagerView();
-}
-
-function renderManagerViewStats() {
-  var total = allManagerAccounts.length;
-  var groupsCount = new Set(allManagerAccounts.map(function(a){ return a.dealer_group; }).filter(Boolean)).size;
-  var unassigned = allManagerAccounts.filter(function(a){ return !a.dealer_group; }).length;
-  document.getElementById('managerViewStatsRow').innerHTML =
-    '<div class="big-box" style="cursor:default"><div class="big-box-num">'+total+'</div><div class="big-box-lbl">Total Accounts — All Territories</div></div>'+
-    '<div class="big-box" style="cursor:default"><div class="big-box-num">'+groupsCount+'</div><div class="big-box-lbl">Dealer Groups Identified</div></div>'+
-    '<div class="big-box" style="cursor:default"><div class="big-box-num">'+unassigned+'</div><div class="big-box-lbl">Unassigned Accounts</div></div>';
-}
-
-function renderManagerView() {
-  var groupFilter = document.getElementById('managerGroupFilter').value;
-  var q = (document.getElementById('managerSearch').value||'').toLowerCase();
-
-  var data = allManagerAccounts.filter(function(a){
-    if (groupFilter==='UNASSIGNED' && a.dealer_group) return false;
-    if (groupFilter!=='ALL' && groupFilter!=='UNASSIGNED' && a.dealer_group!==groupFilter) return false;
-    if (q && !a.business_name.toLowerCase().includes(q) && !(a.town||'').toLowerCase().includes(q)) return false;
-    return true;
-  });
-
-  document.getElementById('managerViewMeta').textContent =
-    data.length+' account'+(data.length!==1?'s':'')+' shown across '+Object.keys(TERRITORY_SHEET_IDS).length+' territories';
-
-  if (!data.length) {
-    document.getElementById('managerViewContent').innerHTML = '<div class="empty-state"><div>📊</div><div style="margin-top:8px">No accounts match this filter.</div></div>';
-    return;
-  }
-
-  var html;
-  if (groupFilter === 'ALL') {
-    var byGroup = {};
-    data.forEach(function(a){
-      var g = a.dealer_group || 'Unassigned';
-      if (!byGroup[g]) byGroup[g] = [];
-      byGroup[g].push(a);
-    });
-    var groupNames = Object.keys(byGroup).sort(function(x,y){
-      if (x==='Unassigned') return 1; if (y==='Unassigned') return -1;
-      return x.localeCompare(y);
-    });
-    html = groupNames.map(function(g){
-      return '<div style="margin:14px 0 8px;font-weight:700;color:var(--gold);font-size:13px">'+esc(g)+' ('+byGroup[g].length+')</div>'+
-        byGroup[g].map(managerAccountCard).join('');
-    }).join('');
-  } else {
-    html = data.map(managerAccountCard).join('');
-  }
-
-  document.getElementById('managerViewContent').innerHTML = html;
-  document.querySelectorAll('.manager-account-card').forEach(function(card){
-    card.addEventListener('click', function(){ openAccountFromManagerView(card.dataset.aid, card.dataset.terr); });
-  });
-}
-
-function managerAccountCard(a) {
-  return '<div class="card machine-list-card manager-account-card" data-aid="'+esc(a.account_id)+'" data-terr="'+esc(a.territory)+'" style="margin-bottom:10px">'+
-    '<div class="card-body" style="display:flex;justify-content:space-between;align-items:center;gap:12px">'+
-      '<div>'+
-        '<div style="font-weight:600;color:var(--white);font-size:14px">'+esc(a.business_name)+'</div>'+
-        '<div style="font-size:11px;color:var(--gray-3);margin-top:3px">'+esc(a.territory)+
-          (a.town?' &middot; '+esc(a.town):'')+(a.account_type?' &middot; '+esc(a.account_type):'')+'</div>'+
-      '</div>'+
-      '<div style="text-align:right;flex-shrink:0">'+
-        '<span class="status-pill '+(a.status==='active'?'pill-active':'pill-prospect')+'">'+esc(a.status)+'</span>'+
-      '</div>'+
-    '</div></div>';
-}
 
 async function openAccountFromManagerView(accountId, territory, returnTo) {
   showToast('Loading account...');
@@ -3641,7 +3516,7 @@ async function openAccountFromManagerView(accountId, territory, returnTo) {
     await fetchAliases();
     currentAccount = allAccounts.find(function(a){ return a.account_id===accountId; });
     if (!currentAccount) { showToast('Account not found in '+territory,'error'); return; }
-    previousScreen = returnTo || 'screenManagerView';
+    previousScreen = returnTo || 'screenCompanyView';
     renderDetail();
     showScreen('screenDetail');
   } catch(e) {
@@ -3689,6 +3564,11 @@ async function openCompanyView() {
     showToast('Could not load '+failedTerritories.join(', ')+' — check sharing permissions', 'error');
   }
 
+  var groups = [...new Set(allManagerAccounts.map(function(a){ return a.dealer_group||''; }).filter(Boolean))].sort();
+  document.getElementById('companyGroupFilter').innerHTML = '<option value="ALL">All Dealer Groups</option>'+
+    '<option value="UNASSIGNED">Unassigned</option>'+
+    groups.map(function(g){ return '<option value="'+esc(g)+'">'+esc(g)+'</option>'; }).join('');
+
   document.getElementById('companyMeta').textContent = allManagerAccounts.length+' total accounts across '+territories.length+' territories';
   updateCompanyStats();
   renderCompanyList();
@@ -3726,10 +3606,13 @@ function updateCompanyStats() {
 
 function renderCompanyList() {
   var q = (document.getElementById('companySearchInput').value||'').toLowerCase();
+  var groupFilter = document.getElementById('companyGroupFilter').value;
 
   var filtered = allManagerAccounts.filter(function(a){
     if (a.status!==companyTab) return false;
     if (companySubfilter!=='all' && a.account_type!==companySubfilter) return false;
+    if (groupFilter==='UNASSIGNED' && a.dealer_group) return false;
+    if (groupFilter!=='ALL' && groupFilter!=='UNASSIGNED' && a.dealer_group!==groupFilter) return false;
     if (!q) return true;
     return a.business_name.toLowerCase().includes(q) || (a.town||'').toLowerCase().includes(q) ||
            (a.owner_name||'').toLowerCase().includes(q) || (a.sm_name||'').toLowerCase().includes(q);
