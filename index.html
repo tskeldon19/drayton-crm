@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v7.2 - built 2026-07-09 -->
+<!-- Drayton CRM v7.3 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1173,7 +1173,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('signInBtn').addEventListener('click', doSignIn);
   document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
   document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
-  document.getElementById('openCompanyViewBtn').addEventListener('click', openCompanyView);
+  document.getElementById('openCompanyViewBtn').addEventListener('click', function(){
+    var pin = prompt('Enter the manager PIN to open Company Dashboard:');
+    if (pin === null) return;
+    if (pin.trim() !== COMPANY_REFRESH_PIN) { showToast('Incorrect PIN','error'); return; }
+    openCompanyView();
+  });
   document.getElementById('companyRefreshBtn').addEventListener('click', refreshCompanyMasterData);
   document.getElementById('companyBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
   document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
@@ -3698,13 +3703,17 @@ async function pullAllTerritoriesForMaster() {
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'})
-    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[], mdRows:r[3].result.values||[]}; })
-      .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, accRows:[], clRows:[], rkRows:[], mdRows:[], failed:true}; });
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Visits!A:J'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Territory Updates!A:H'})
+    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[],
+                                  mdRows:r[3].result.values||[], vRows:r[4].result.values||[], tuRows:r[5].result.values||[]}; })
+      .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true;
+        return {territory:t, accRows:[], clRows:[], rkRows:[], mdRows:[], vRows:[], tuRows:[], failed:true}; });
   }));
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
-  var accounts = [], changes = [], rankings = [], machines = [];
+  var accounts = [], changes = [], rankings = [], machines = [], visits = [], territoryUpdates = [];
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
       if (row[0] && row[2]!=='deleted' && row[2]!=='disqualified') accounts.push(row);
@@ -3712,16 +3721,14 @@ async function pullAllTerritoriesForMaster() {
     r.clRows.slice(1).forEach(function(row){ if (row[1]) changes.push(row); });
     r.rkRows.slice(1).forEach(function(row){ if (row[1]) rankings.push(row.slice(0,10).concat([r.territory])); });
     r.mdRows.slice(1).forEach(function(row){ if (row[4]) machines.push(row); });
+    r.vRows.slice(1).forEach(function(row){ if (row[1]) visits.push(row); });
+    r.tuRows.slice(1).forEach(function(row){ if (row[0]) territoryUpdates.push(row); });
   });
-  return {accounts:accounts, changes:changes, rankings:rankings, machines:machines,
+  return {accounts:accounts, changes:changes, rankings:rankings, machines:machines, visits:visits, territoryUpdates:territoryUpdates,
           failedTerritories:failedTerritories, sawAuthError:sawAuthError, territories:territories};
 }
 
 async function refreshCompanyMasterData() {
-  var pin = prompt('Enter the manager PIN to refresh company-wide data:');
-  if (pin === null) return;
-  if (pin.trim() !== COMPANY_REFRESH_PIN) { showToast('Incorrect PIN','error'); return; }
-
   showToast('Refreshing company data across all territories — this may take a moment...');
   await ensureFreshToken();
   var pulled = await pullAllTerritoriesForMaster();
@@ -3753,6 +3760,20 @@ async function refreshCompanyMasterData() {
       await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2',
         valueInputOption:'RAW', resource:{values: pulled.machines}
+      });
+    }
+    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Visits!A2:J'});
+    if (pulled.visits.length) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Visits!A2',
+        valueInputOption:'RAW', resource:{values: pulled.visits}
+      });
+    }
+    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Territory Updates!A2:H'});
+    if (pulled.territoryUpdates.length) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Territory Updates!A2',
+        valueInputOption:'RAW', resource:{values: pulled.territoryUpdates}
       });
     }
 
@@ -5221,24 +5242,19 @@ async function runWeeklyRecap() {
       accountStatusMap = {};
       allAccounts.forEach(function(a){ accountStatusMap[a.account_id] = { status:a.status, town:a.town }; });
     } else if (territory === 'ALL') {
-      // Merge across every territory that's actually been set up with its own sheet
-      var allTerrKeys = Object.keys(TERRITORY_SHEET_IDS);
-      var perTerrResults = await Promise.all(allTerrKeys.map(function(t){
-        var sid = territorySheetId(t);
-        return Promise.all([
-          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:J'}),
-          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
-          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FW'}),
-          gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
-        ]);
-      }));
-      var visRaw=[], clRaw=[], accRaw=[], tuRaw=[];
-      perTerrResults.forEach(function(results){
-        visRaw = visRaw.concat((results[0].result.values||[]).slice(1));
-        clRaw  = clRaw.concat((results[1].result.values||[]).slice(1));
-        accRaw = accRaw.concat((results[2].result.values||[]).slice(1));
-        tuRaw  = tuRaw.concat((results[3].result.values||[]).slice(1));
-      });
+      // Reads the master sheet instead of pulling all 10 territories directly —
+      // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
+      // (PIN-gated, on Company Dashboard) still hits every territory at once.
+      var mResults = await Promise.all([
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Visits!A:J'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Change Log!A:H'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Accounts!A:FW'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Territory Updates!A:H'}),
+      ]);
+      var visRaw = (mResults[0].result.values||[]).slice(1);
+      var clRaw  = (mResults[1].result.values||[]).slice(1);
+      var accRaw = (mResults[2].result.values||[]).slice(1);
+      var tuRaw  = (mResults[3].result.values||[]).slice(1);
       var parsed = parseRecapRawRows(visRaw, clRaw, accRaw, tuRaw);
       visitRows = parsed.visitRows; changeRows = parsed.changeRows;
       tuRows = parsed.tuRows; accountStatusMap = parsed.accountStatusMap;
