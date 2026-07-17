@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v7.8 - built 2026-07-09 -->
+<!-- Drayton CRM v7.9 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -329,6 +329,18 @@
   .visit-date { font-weight: 700; color: var(--gold); margin-bottom: 4px; font-size: 12px; }
   .visit-notes { color: var(--gray-4); line-height: 1.5; }
   .visit-followup { margin-top: 6px; font-size: 12px; color: var(--gray-3); }
+
+  .pto-cal { margin-bottom: 24px; background: var(--black-soft); border: 1px solid var(--gray-2); border-radius: 10px; padding: 16px; }
+  .pto-cal-nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .pto-cal-month { font-weight:700; color: var(--gold); font-size:15px; }
+  .pto-cal-headerrow { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:2px; }
+  .pto-cal-headercell { text-align:center; font-size:11px; color:var(--gray-3); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+  .pto-cal-week { margin-bottom:2px; }
+  .pto-cal-daynums { display:grid; grid-template-columns:repeat(7,1fr); }
+  .pto-cal-daynum { text-align:center; font-size:11px; color:var(--gray-3); padding:4px 0; border-top:1px solid var(--gray-2); }
+  .pto-cal-daynum.today { color:var(--gold); font-weight:700; }
+  .pto-cal-bars { position:relative; margin-top:2px; }
+  .pto-bar { position:absolute; height:18px; line-height:18px; font-size:10px; color:#1a1a1a; background:var(--gold); border-radius:4px; padding:0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:700; cursor:default; }
   .expand-btn { background: var(--black); border: none; border-top: 1px solid var(--gray-1); color: var(--gold); width: 100%; padding: 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
   .expand-btn:hover { background: var(--gray-1); }
 
@@ -506,21 +518,23 @@
 
 <div class="screen" id="screenCompanyView">
   <div class="dashboard">
-    <div class="territory-bar">
+    <div class="territory-bar" style="flex-direction:column;align-items:stretch;gap:12px">
       <div>
         <h2>Company Dashboard</h2>
         <div class="sub" id="companyMeta">Loading company-wide data...</div>
         <div class="sub" id="companyLastRefreshed" style="font-size:11px;color:var(--gray-3)"></div>
       </div>
-      <button class="btn btn-gold btn-sm" id="companyRefreshBtn" title="Manager PIN required">Refresh Company Data</button>
-      <button class="btn btn-primary btn-sm" id="companyRankingsBtn">Rankings</button>
-      <button class="btn btn-primary btn-sm" id="companyMachinesBtn">Machine Reports</button>
-      <button class="btn btn-primary btn-sm" id="companyRecapBtn">Weekly Report</button>
-      <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" title="Upload ranking files">Upload Ranking</button>
-      <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" title="Upload machine report">Upload Machines</button>
+      <div style="display:flex;gap:8px;width:100%">
+        <button class="btn btn-gold btn-sm" id="companyRefreshBtn" style="flex:1" title="Manager PIN required">Refresh Company Data</button>
+        <button class="btn btn-primary btn-sm" id="companyRankingsBtn" style="flex:1">Rankings</button>
+        <button class="btn btn-primary btn-sm" id="companyMachinesBtn" style="flex:1">Machine Reports</button>
+        <button class="btn btn-primary btn-sm" id="companyRecapBtn" style="flex:1">Weekly Report</button>
+        <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" style="flex:1" title="Upload ranking files">Upload Ranking</button>
+        <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" style="flex:1" title="Upload machine report">Upload Machines</button>
+        <button class="btn btn-secondary btn-sm" id="companyBackBtn" style="flex:1">← Back</button>
+      </div>
       <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
       <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
-      <button class="btn btn-secondary btn-sm" id="companyBackBtn">← Back to territory select</button>
     </div>
     <div class="big-box-row">
       <button type="button" class="big-box" id="companyMetricActive" data-metric="active_accounts">
@@ -904,6 +918,8 @@
       <label class="product-check" style="margin-top:4px"><input type="checkbox" id="visitEditHighlight">⭐ Key event / highlight</label>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-secondary" id="visitEditEmailBtn" title="Email this visit">✉️ Email</button>
+      <button class="btn btn-secondary" id="visitEditCalBtn" title="Add follow-up to calendar">📅 Calendar</button>
       <button class="btn btn-secondary" id="visitEditCancel">Cancel</button>
       <button class="btn btn-gold" id="visitEditSave">Save Changes</button>
     </div>
@@ -1329,6 +1345,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitEditClose').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
   document.getElementById('visitEditCancel').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
   document.getElementById('visitEditSave').addEventListener('click', saveVisitEdit);
+  document.getElementById('visitEditEmailBtn').addEventListener('click', function(){ emailVisit(_editingVisitId); });
+  document.getElementById('visitEditCalBtn').addEventListener('click', function(){ downloadFollowupIcs(_editingVisitId); });
   document.getElementById('activityLogClose').addEventListener('click', function(){ closeModal('modalActivityLog'); });
   document.getElementById('activityLogCancel').addEventListener('click', function(){ closeModal('modalActivityLog'); });
   document.getElementById('activityLogSave').addEventListener('click', saveActivityLog);
@@ -2914,6 +2932,75 @@ async function openPTOCalendar() {
   renderPTOList();
 }
 
+var _ptoCalMonth = new Date(); // only year/month are used
+
+function renderPTOCalendarGrid() {
+  var year = _ptoCalMonth.getFullYear();
+  var month = _ptoCalMonth.getMonth();
+  var firstOfMonth = new Date(year, month, 1);
+  var startOffset = firstOfMonth.getDay();
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+  var monthLabel = firstOfMonth.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+
+  var cells = [];
+  for (var i=0; i<startOffset; i++) cells.push(null);
+  for (var d=1; d<=daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  var weeks = [];
+  for (var w=0; w<cells.length; w+=7) weeks.push(cells.slice(w, w+7));
+
+  function toKey(d){ return d ? (d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')) : null; }
+
+  var dayHeaders = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var html = '<div class="pto-cal">'+
+    '<div class="pto-cal-nav">'+
+      '<button type="button" class="btn btn-secondary btn-sm" id="ptoCalPrev">‹ Prev</button>'+
+      '<div class="pto-cal-month">'+monthLabel+'</div>'+
+      '<button type="button" class="btn btn-secondary btn-sm" id="ptoCalNext">Next ›</button>'+
+    '</div>'+
+    '<div class="pto-cal-headerrow">'+dayHeaders.map(function(h){ return '<div class="pto-cal-headercell">'+h+'</div>'; }).join('')+'</div>';
+
+  weeks.forEach(function(week){
+    var anchor = week.find(function(x){ return x; });
+    var anchorIdx = week.indexOf(anchor);
+    var weekDates = week.map(function(x, ci){
+      if (x) return x;
+      if (!anchor) return null;
+      return new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate()+(ci-anchorIdx));
+    });
+    var wsKey = toKey(weekDates[0]), weKey = toKey(weekDates[6]);
+
+    var weekEntries = allPTOEntries.filter(function(p){
+      return p.start_date <= weKey && p.end_date >= wsKey;
+    }).sort(function(a,b){ return a.start_date.localeCompare(b.start_date); });
+
+    var barsHtml = '';
+    var laneEnds = [];
+    weekEntries.forEach(function(p){
+      var startCol = 0, endCol = 6;
+      for (var ci=0; ci<7; ci++) { if (toKey(weekDates[ci]) >= p.start_date) { startCol = ci; break; } }
+      for (var ci=6; ci>=0; ci--) { if (toKey(weekDates[ci]) <= p.end_date) { endCol = ci; break; } }
+      if (endCol < startCol) return;
+      var lane = 0;
+      while (laneEnds[lane] !== undefined && laneEnds[lane] >= startCol) lane++;
+      laneEnds[lane] = endCol;
+      var leftPct = (startCol/7*100);
+      var widthPct = ((endCol-startCol+1)/7*100);
+      barsHtml += '<div class="pto-bar" style="left:'+leftPct+'%;width:calc('+widthPct+'% - 4px);top:'+(lane*22)+'px" title="'+esc(p.name)+': '+esc(p.start_date)+' to '+esc(p.end_date)+(p.notes?' — '+esc(p.notes):'')+'">'+esc(p.name)+'</div>';
+    });
+    var maxLanes = laneEnds.length || 1;
+
+    html += '<div class="pto-cal-week">'+
+      '<div class="pto-cal-daynums">'+week.map(function(x){ return '<div class="pto-cal-daynum'+(x && x.toDateString()===new Date().toDateString()?' today':'')+'">'+(x?x.getDate():'')+'</div>'; }).join('')+'</div>'+
+      '<div class="pto-cal-bars" style="height:'+(maxLanes*22+6)+'px">'+barsHtml+'</div>'+
+    '</div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
 function renderPTOList() {
   var today = new Date().toISOString().split('T')[0];
   var sorted = allPTOEntries.slice().sort(function(a,b){ return a.start_date.localeCompare(b.start_date); });
@@ -2934,9 +3021,19 @@ function renderPTOList() {
   }
 
   document.getElementById('ptoContent').innerHTML =
+    renderPTOCalendarGrid() +
     section('Currently Out', current, 'No one is currently out.') +
     section('Upcoming', upcoming, 'Nothing scheduled.') +
     section('Past', past, 'No past entries.');
+
+  document.getElementById('ptoCalPrev').addEventListener('click', function(){
+    _ptoCalMonth = new Date(_ptoCalMonth.getFullYear(), _ptoCalMonth.getMonth()-1, 1);
+    renderPTOList();
+  });
+  document.getElementById('ptoCalNext').addEventListener('click', function(){
+    _ptoCalMonth = new Date(_ptoCalMonth.getFullYear(), _ptoCalMonth.getMonth()+1, 1);
+    renderPTOList();
+  });
 }
 
 async function savePTOEntry() {
