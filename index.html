@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v7.4 - built 2026-07-09 -->
+<!-- Drayton CRM v7.8 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -440,6 +440,38 @@
   </div>
 </div>
 
+<div class="screen" id="screenPTO">
+  <div class="account-detail">
+    <button class="back-btn" id="ptoBackBtn">← Back</button>
+    <div class="detail-header">
+      <div><h2>🗓 PTO Calendar</h2><div class="meta">Approved time off — visible to everyone</div></div>
+      <button class="btn btn-gold btn-sm" id="ptoAddBtn" title="Manager PIN required">+ Add PTO Entry</button>
+    </div>
+    <div id="ptoContent"><div class="loading"><div class="spinner"></div>Loading PTO calendar...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalPTOAdd">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add PTO Entry</h3>
+      <button class="modal-close" id="ptoAddModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Name</label><input type="text" id="ptoName" placeholder="Who's out?"></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Start Date</label><input type="date" id="ptoStart"></div>
+        <div class="form-row"><label>End Date</label><input type="date" id="ptoEnd"></div>
+      </div>
+      <div class="form-row"><label>Notes (optional)</label><input type="text" id="ptoNotes" placeholder="e.g. reachable by phone"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="ptoAddCancelBtn">Cancel</button>
+      <button class="btn btn-gold" id="ptoAddSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="screen" id="screenCompanyRankings">
   <div class="account-detail">
     <button class="back-btn" id="companyRankingsBackBtn">← Back to Company Dashboard</button>
@@ -484,6 +516,10 @@
       <button class="btn btn-primary btn-sm" id="companyRankingsBtn">Rankings</button>
       <button class="btn btn-primary btn-sm" id="companyMachinesBtn">Machine Reports</button>
       <button class="btn btn-primary btn-sm" id="companyRecapBtn">Weekly Report</button>
+      <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" title="Upload ranking files">Upload Ranking</button>
+      <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" title="Upload machine report">Upload Machines</button>
+      <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
+      <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
       <button class="btn btn-secondary btn-sm" id="companyBackBtn">← Back to territory select</button>
     </div>
     <div class="big-box-row">
@@ -558,10 +594,8 @@
       <button class="btn btn-primary btn-sm" id="weeklyRecapBtn">📊 Weekly Recap</button>
       <button class="btn btn-primary btn-sm" id="rankingsViewBtn">🏆 Rankings</button>
       <button class="btn btn-primary btn-sm" id="machinesViewBtn">⚙️ Machines</button>
-      <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" title="Upload ranking files">Upload Ranking</button>
-      <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" title="Upload machine report">Upload Machines</button>
-      <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
-      <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
+      <button class="btn btn-secondary btn-sm" id="repLibraryBtn" title="Templates and reference docs">📁 File Library</button>
+      <button class="btn btn-secondary btn-sm" id="ptoCalendarBtn" title="See who's out">🗓 PTO Calendar</button>
     </div>
     <div class="big-box-row">
       <button type="button" class="big-box" id="metricActive" data-metric="active_accounts">
@@ -978,6 +1012,15 @@ const COMPANY_MASTER_SHEET_ID = '1ll-J9zifuLRDbC0aHXWZlbBUW03-eM3MzT4y4-nWxGE';
 // Simple deterrent, not real security — reps not being shared on the master
 // sheet at all is the actual access control. Change this to whatever you want.
 const COMPANY_REFRESH_PIN = '6700';
+// A shared file library link — SharePoint, Drive, or anything else that's
+// already set up. This just opens whatever URL is provided in a new tab, so
+// it works with any link reps can already access with their existing login.
+const REP_LIBRARY_DRIVE_URL = 'https://bggreenwood.sharepoint.com/:u:/s/SalesResources/IQCEF4r0X-LTSr1ULtm0tXmtATnt0L15U9QdmUPSCqsqUqM?e=k6SnwX';
+// A separate sheet from the master file on purpose — PTO needs to be visible
+// to everyone, but the master file has sensitive data (Accounts, Rankings)
+// reps shouldn't see. Share THIS sheet with everyone (Viewer for reps,
+// Editor for HR/management), and it stays fully isolated from the rest.
+const PTO_SHEET_ID = '1XZIVDrVhGYhqSTVsnwikIjvDvoAD2aRJqfYI6wjsnDA';
 
 const TERRITORY_SHEET_IDS = {
   'Route 101': '1Y7rPVdRODrPFgIhdCHIYqTdPWGSucx2C4Mhdtirb_oA',
@@ -1180,6 +1223,23 @@ document.addEventListener('DOMContentLoaded', function() {
     openCompanyView();
   });
   document.getElementById('companyRefreshBtn').addEventListener('click', refreshCompanyMasterData);
+  document.getElementById('repLibraryBtn').addEventListener('click', function(){
+    if (REP_LIBRARY_DRIVE_URL === 'REPLACE_WITH_SHAREPOINT_OR_DRIVE_URL') { showToast('File library not set up yet — ask your manager','error'); return; }
+    window.open(REP_LIBRARY_DRIVE_URL, '_blank');
+  });
+  document.getElementById('ptoCalendarBtn').addEventListener('click', openPTOCalendar);
+  document.getElementById('ptoBackBtn').addEventListener('click', goBack);
+  document.getElementById('ptoAddBtn').addEventListener('click', function(){
+    if (!checkManagerPin('add a PTO entry')) return;
+    document.getElementById('ptoName').value = '';
+    document.getElementById('ptoStart').value = '';
+    document.getElementById('ptoEnd').value = '';
+    document.getElementById('ptoNotes').value = '';
+    document.getElementById('modalPTOAdd').classList.add('open');
+  });
+  document.getElementById('ptoAddModalClose').addEventListener('click', function(){ closeModal('modalPTOAdd'); });
+  document.getElementById('ptoAddCancelBtn').addEventListener('click', function(){ closeModal('modalPTOAdd'); });
+  document.getElementById('ptoAddSaveBtn').addEventListener('click', savePTOEntry);
   document.getElementById('companyBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
   document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
   document.getElementById('companyTabActive').addEventListener('click', function(){ switchCompanyTab('active'); });
@@ -2313,6 +2373,12 @@ function renderDetail() {
       downloadFollowupIcs(btn.dataset.vid);
     });
   });
+  document.querySelectorAll('.visit-email-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      emailVisit(btn.dataset.vid);
+    });
+  });
 
   // Wire up detail buttons
   var eb = document.getElementById('editBtn'); if(eb) eb.addEventListener('click', function(){ openEditModal(); });
@@ -2448,12 +2514,13 @@ async function saveProductDetails(pkey) {
 
 function renderVisitEntry(v) {
   var isStar = (v.is_highlight||'').toLowerCase() === 'yes';
-  var hasFollowup = v.followup_date || v.followup_notes;
+  var hasFollowup = v.followup_date || v.followup_notes || v.followup_prep_date;
   return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
     '<div class="visit-entry-top">'+
       '<div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
         (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-cal-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up to calendar">📅</button>':'')+
+        '<button type="button" class="btn btn-secondary btn-sm visit-email-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Email this visit">✉️</button>'+
         '<button type="button" class="btn btn-secondary btn-sm visit-edit-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px">✏️</button>'+
         '<button type="button" class="visit-star-btn'+(isStar?' starred':'')+'" data-vid="'+v.visit_id+'" title="'+(isStar?'Remove highlight':'Mark as key event')+'">'+(isStar?'⭐':'☆')+'</button>'+
       '</div>'+
@@ -2815,54 +2882,176 @@ async function saveVisitEdit() {
   renderDetail();
 }
 
+// ── Email a visit ─────────────────────────────────────────────────────────
+// Uses a plain mailto: link rather than a real Outlook/Gmail API integration
+// — that would mean building and maintaining a whole separate login system
+// alongside the Google one already here. This opens whatever email client
+// is already the person's default (Outlook, if that's what they use) with
+// the visit pre-filled, ready to send to whoever needs to see it.
+// ── PTO Calendar ──────────────────────────────────────────────────────────
+// Lives on its own dedicated sheet (PTO_SHEET_ID), separate from the master
+// file, since this needs to be visible to everyone while the master file
+// has sensitive data reps shouldn't see. Schema: pto_id | name | start_date
+// | end_date | notes | added_at.
+var allPTOEntries = [];
+
+async function openPTOCalendar() {
+  showScreen('screenPTO');
+  previousScreen = 'screenDashboard';
+  document.getElementById('ptoContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading PTO calendar...</div>';
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F'});
+    var rows = res.result.values || [];
+    allPTOEntries = rows.slice(1).map(function(r){
+      return { pto_id:r[0]||'', name:r[1]||'', start_date:r[2]||'', end_date:r[3]||'', notes:r[4]||'', added_at:r[5]||'' };
+    }).filter(function(p){ return p.name && p.start_date; });
+  } catch(e) {
+    console.error(e);
+    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load PTO calendar — has it been set up yet?';
+    document.getElementById('ptoContent').innerHTML = '<div class="empty-state">'+msg+'</div>';
+    return;
+  }
+  renderPTOList();
+}
+
+function renderPTOList() {
+  var today = new Date().toISOString().split('T')[0];
+  var sorted = allPTOEntries.slice().sort(function(a,b){ return a.start_date.localeCompare(b.start_date); });
+  var current = sorted.filter(function(p){ return p.start_date<=today && p.end_date>=today; });
+  var upcoming = sorted.filter(function(p){ return p.start_date>today; });
+  var past = sorted.filter(function(p){ return p.end_date<today; });
+
+  function section(title, entries, emptyMsg) {
+    if (!entries.length) return '<div style="margin-bottom:20px"><div style="font-weight:700;color:var(--gold);font-size:13px;margin-bottom:8px">'+title+'</div><div class="empty-state" style="padding:16px 0">'+emptyMsg+'</div></div>';
+    return '<div style="margin-bottom:20px"><div style="font-weight:700;color:var(--gold);font-size:13px;margin-bottom:8px">'+title+'</div>'+
+      entries.map(function(p){
+        return '<div class="card" style="margin-bottom:8px"><div class="card-body">'+
+          '<div style="font-weight:600;color:var(--white)">'+esc(p.name)+'</div>'+
+          '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(p.start_date)+' → '+esc(p.end_date)+(p.notes?' · '+esc(p.notes):'')+'</div>'+
+        '</div></div>';
+      }).join('')+
+    '</div>';
+  }
+
+  document.getElementById('ptoContent').innerHTML =
+    section('Currently Out', current, 'No one is currently out.') +
+    section('Upcoming', upcoming, 'Nothing scheduled.') +
+    section('Past', past, 'No past entries.');
+}
+
+async function savePTOEntry() {
+  var name  = document.getElementById('ptoName').value.trim();
+  var start = document.getElementById('ptoStart').value;
+  var end   = document.getElementById('ptoEnd').value;
+  var notes = document.getElementById('ptoNotes').value.trim();
+  if (!name || !start || !end) { showToast('Name, start date, and end date are required','error'); return; }
+  if (end < start) { showToast('End date must be on or after the start date','error'); return; }
+
+  var pid = 'PTO'+Date.now();
+  var now = new Date().toISOString();
+  try {
+    await gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F',
+      valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[pid,name,start,end,notes,now]]}
+    });
+    allPTOEntries.push({pto_id:pid,name:name,start_date:start,end_date:end,notes:notes,added_at:now});
+    showToast('PTO entry saved ✓');
+    closeModal('modalPTOAdd');
+    renderPTOList();
+  } catch(e) {
+    showToast('Error saving PTO entry — has the sheet been set up yet?','error'); console.error(e);
+  }
+}
+
+function emailVisit(vid) {
+  var v = allVisits.find(function(x){ return x.visit_id===vid; });
+  if (!v) return;
+  var acc = currentAccount;
+  var subject = 'Visit recap: '+acc.business_name+(v.visit_date?' — '+v.visit_date:'');
+  var bodyLines = [
+    'Account: '+acc.business_name,
+    acc.town ? 'Town: '+acc.town : '',
+    v.visit_date ? 'Visit date: '+v.visit_date : '',
+    v.attendees ? 'Attendees: '+v.attendees : '',
+    '',
+    'Notes:',
+    v.notes || '(none)',
+  ];
+  if (v.followup_date || v.followup_notes) {
+    bodyLines.push('', 'Follow-up: '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:''));
+  }
+  if (v.followup_prep_date) {
+    bodyLines.push('Follow-up prep date: '+v.followup_prep_date);
+  }
+  var body = bodyLines.join('\n');
+  var mailto = 'mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  window.location.href = mailto;
+}
+
 // ── Outlook / Calendar .ics Download ─────────────────────────────────────────
 function downloadFollowupIcs(vid) {
   var v = allVisits.find(function(x){ return x.visit_id===vid; });
-  if (!v || !v.followup_date) { showToast('No follow-up date on this visit','error'); return; }
+  if (!v || (!v.followup_date && !v.followup_prep_date)) { showToast('No follow-up date on this visit','error'); return; }
   var acc = currentAccount;
-  var dateStr = v.followup_date.replace(/-/g,'');        // YYYYMMDD
-  var summary = 'Follow-Up: '+acc.business_name;
-  var description = [
-    'Account: '+acc.business_name,
-    acc.town ? 'Town: '+acc.town : '',
-    v.followup_notes ? 'Notes: '+v.followup_notes : '',
-    v.notes ? 'Visit recap: '+v.notes : ''
-  ].filter(Boolean).join('\\n');
   var location = [acc.address,acc.town,acc.state].filter(Boolean).join(', ');
-  var uid = vid+'@drayton-crm';
   var now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15)+'Z';
 
-  var ics = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//Drayton CRM//EN',
-    'BEGIN:VEVENT',
-    'UID:'+uid,
-    'DTSTAMP:'+now,
-    'DTSTART;VALUE=DATE:'+dateStr,
-    'DTEND;VALUE=DATE:'+dateStr,
-    'SUMMARY:'+summary,
-    'DESCRIPTION:'+description,
-    'LOCATION:'+location,
-    'BEGIN:VALARM',
-    'TRIGGER:-PT30M',
-    'ACTION:DISPLAY',
-    'DESCRIPTION:Reminder: '+summary,
-    'END:VALARM',
-    'END:VEVENT',
-    'END:VCALENDAR'
-  ].join('\r\n');
+  var events = [];
+  if (v.followup_date) {
+    var summary = 'Follow-Up: '+acc.business_name;
+    var description = [
+      'Account: '+acc.business_name,
+      acc.town ? 'Town: '+acc.town : '',
+      v.followup_notes ? 'Notes: '+v.followup_notes : '',
+      v.notes ? 'Visit recap: '+v.notes : ''
+    ].filter(Boolean).join('\\n');
+    events.push([
+      'BEGIN:VEVENT',
+      'UID:'+vid+'@drayton-crm',
+      'DTSTAMP:'+now,
+      'DTSTART;VALUE=DATE:'+v.followup_date.replace(/-/g,''),
+      'DTEND;VALUE=DATE:'+v.followup_date.replace(/-/g,''),
+      'SUMMARY:'+summary,
+      'DESCRIPTION:'+description,
+      'LOCATION:'+location,
+      'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:Reminder: '+summary,'END:VALARM',
+      'END:VEVENT'
+    ].join('\r\n'));
+  }
+  if (v.followup_prep_date) {
+    var prepSummary = 'Follow-Up Prep: '+acc.business_name;
+    var prepDescription = [
+      'Account: '+acc.business_name,
+      acc.town ? 'Town: '+acc.town : '',
+      v.followup_date ? 'Real follow-up is on: '+v.followup_date : '',
+      v.notes ? 'Visit recap: '+v.notes : ''
+    ].filter(Boolean).join('\\n');
+    events.push([
+      'BEGIN:VEVENT',
+      'UID:'+vid+'-prep@drayton-crm',
+      'DTSTAMP:'+now,
+      'DTSTART;VALUE=DATE:'+v.followup_prep_date.replace(/-/g,''),
+      'DTEND;VALUE=DATE:'+v.followup_prep_date.replace(/-/g,''),
+      'SUMMARY:'+prepSummary,
+      'DESCRIPTION:'+prepDescription,
+      'LOCATION:'+location,
+      'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:Reminder: '+prepSummary,'END:VALARM',
+      'END:VEVENT'
+    ].join('\r\n'));
+  }
+
+  var ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Drayton CRM//EN'].concat(events).concat(['END:VCALENDAR']).join('\r\n');
 
   var blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
   a.href     = url;
-  a.download = 'followup-'+acc.business_name.replace(/[^a-z0-9]/gi,'-').toLowerCase()+'-'+v.followup_date+'.ics';
+  a.download = 'followup-'+acc.business_name.replace(/[^a-z0-9]/gi,'-').toLowerCase()+'-'+(v.followup_date||v.followup_prep_date)+'.ics';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showToast('Calendar event downloaded ✓');
+  showToast('Calendar event'+(events.length>1?'s':'')+' downloaded ✓');
 }
 
 // ── Weekly Recap — Territory Updates section ──────────────────────────────────
