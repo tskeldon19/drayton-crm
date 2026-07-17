@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v7.9 - built 2026-07-09 -->
+<!-- Drayton CRM v8.0 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -76,7 +76,7 @@
   .field-wrap { margin-bottom: 20px; text-align: left; }
   .field-wrap label { display: block; font-size: 12px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
 
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 6px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; border-radius: 6px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
   .btn:hover { opacity: 0.85; }
   .btn-gold      { background: var(--gold); color: var(--black); }
   .btn-primary   { background: var(--gray-2); color: var(--white); border: 1px solid var(--gray-3); }
@@ -335,7 +335,7 @@
   .pto-cal-month { font-weight:700; color: var(--gold); font-size:15px; }
   .pto-cal-headerrow { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:2px; }
   .pto-cal-headercell { text-align:center; font-size:11px; color:var(--gray-3); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
-  .pto-cal-week { margin-bottom:2px; }
+  .pto-cal-week { margin-bottom:2px; background-image: linear-gradient(to right, var(--gray-2) 1px, transparent 1px); background-size: calc(100%/7) 100%; border-bottom: 1px solid var(--gray-2); }
   .pto-cal-daynums { display:grid; grid-template-columns:repeat(7,1fr); }
   .pto-cal-daynum { text-align:center; font-size:11px; color:var(--gray-3); padding:4px 0; border-top:1px solid var(--gray-2); }
   .pto-cal-daynum.today { color:var(--gold); font-weight:700; }
@@ -997,6 +997,8 @@
       <label class="product-check" style="margin-top:4px"><input type="checkbox" id="visitHighlight">⭐ Mark as a key event / highlight for the weekly recap</label>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-secondary" id="visitEmailBtn" title="Email this visit">✉️ Email</button>
+      <button class="btn btn-secondary" id="visitCalBtn" title="Add follow-up to calendar">📅 Calendar</button>
       <button class="btn btn-secondary" id="visitCancelBtn">Cancel</button>
       <button class="btn btn-gold" id="visitSaveBtn">Log Visit</button>
     </div>
@@ -1296,6 +1298,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('editCancelBtn').addEventListener('click', function(){ closeModal('modalEdit'); });
   document.getElementById('visitModalClose').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitCancelBtn').addEventListener('click', function(){ closeModal('modalVisit'); });
+  document.getElementById('visitEmailBtn').addEventListener('click', function(){ emailVisit(visitFormToObj()); });
+  document.getElementById('visitCalBtn').addEventListener('click', function(){ downloadFollowupIcs(visitFormToObj()); });
   document.getElementById('visitSaveBtn').addEventListener('click', saveVisit);
   document.getElementById('weeklyRecapBtn').addEventListener('click', openWeeklyRecap);
   document.getElementById('rankingsViewBtn').addEventListener('click', openRankingsView);
@@ -3060,8 +3064,19 @@ async function savePTOEntry() {
   }
 }
 
-function emailVisit(vid) {
-  var v = allVisits.find(function(x){ return x.visit_id===vid; });
+function visitFormToObj() {
+  return {
+    visit_date: document.getElementById('visitDate').value,
+    attendees: document.getElementById('visitAttendees').value,
+    notes: document.getElementById('visitNotes').value,
+    followup_date: document.getElementById('visitFollowup').value,
+    followup_notes: document.getElementById('visitFollowupNotes').value,
+    followup_prep_date: document.getElementById('visitFollowupPrep').value
+  };
+}
+
+function emailVisit(vidOrObj) {
+  var v = typeof vidOrObj === 'string' ? allVisits.find(function(x){ return x.visit_id===vidOrObj; }) : vidOrObj;
   if (!v) return;
   var acc = currentAccount;
   var subject = 'Visit recap: '+acc.business_name+(v.visit_date?' — '+v.visit_date:'');
@@ -3086,8 +3101,9 @@ function emailVisit(vid) {
 }
 
 // ── Outlook / Calendar .ics Download ─────────────────────────────────────────
-function downloadFollowupIcs(vid) {
-  var v = allVisits.find(function(x){ return x.visit_id===vid; });
+function downloadFollowupIcs(vidOrObj) {
+  var v = typeof vidOrObj === 'string' ? allVisits.find(function(x){ return x.visit_id===vidOrObj; }) : vidOrObj;
+  var vid = (v && v.visit_id) || 'draft'+Date.now();
   if (!v || (!v.followup_date && !v.followup_prep_date)) { showToast('No follow-up date on this visit','error'); return; }
   var acc = currentAccount;
   var location = [acc.address,acc.town,acc.state].filter(Boolean).join(', ');
@@ -4099,7 +4115,11 @@ async function refreshCompanyMasterData() {
     if (document.getElementById('screenCompanyView').classList.contains('active')) await openCompanyView();
   } catch(e) {
     console.error(e);
-    showToast('Error writing to the master sheet — has it been set up with the right tabs yet?','error');
+    var detail = (e && e.result && e.result.error && e.result.error.message) || (e && e.message) || '';
+    var msg = isAuthError(e)
+      ? 'Your session may have expired — try refreshing the page and signing in again.'
+      : 'Error writing to the master sheet'+(detail?': '+detail:' — has it been set up with the right tabs yet?');
+    showToast(msg,'error');
   }
 }
 
