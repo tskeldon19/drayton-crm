@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.0 - built 2026-07-09 -->
+<!-- Drayton CRM v8.1 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -374,6 +374,8 @@
   .product-check input { accent-color: var(--gold); }
 
   .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gold); color: var(--black); padding: 12px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; z-index: 999; opacity: 0; transform: translateY(12px); transition: all 0.3s; pointer-events: none; }
+  .corner-spinner { position: fixed; bottom: 24px; right: 24px; background: var(--black-soft); border: 1px solid var(--gray-2); color: var(--white); padding: 10px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; z-index: 1000; display: flex; align-items: center; gap: 10px; }
+  .corner-spinner .spinner { width: 16px; height: 16px; border: 2px solid var(--gray-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; }
   .toast.show { opacity: 1; transform: translateY(0); }
   .toast.error { background: var(--red); color: var(--white); }
 
@@ -416,6 +418,10 @@
 </header>
 
 <div class="toast" id="toast"></div>
+<div class="corner-spinner" id="cornerSpinner" style="display:none">
+  <div class="spinner"></div>
+  <span id="cornerSpinnerLabel">Working...</span>
+</div>
 
 <div class="screen active" id="screenLanding">
   <div class="landing">
@@ -466,7 +472,7 @@
 <div class="modal-overlay" id="modalPTOAdd">
   <div class="modal">
     <div class="modal-header">
-      <h3>Add PTO Entry</h3>
+      <h3 id="ptoModalTitle">Add PTO Entry</h3>
       <button class="modal-close" id="ptoAddModalClose">✕</button>
     </div>
     <div class="modal-body">
@@ -478,6 +484,7 @@
       <div class="form-row"><label>Notes (optional)</label><input type="text" id="ptoNotes" placeholder="e.g. reachable by phone"></div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-danger" id="ptoDeleteBtn" style="display:none">Delete</button>
       <button class="btn btn-secondary" id="ptoAddCancelBtn">Cancel</button>
       <button class="btn btn-gold" id="ptoAddSaveBtn">Save</button>
     </div>
@@ -1249,15 +1256,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('ptoBackBtn').addEventListener('click', goBack);
   document.getElementById('ptoAddBtn').addEventListener('click', function(){
     if (!checkManagerPin('add a PTO entry')) return;
-    document.getElementById('ptoName').value = '';
-    document.getElementById('ptoStart').value = '';
-    document.getElementById('ptoEnd').value = '';
-    document.getElementById('ptoNotes').value = '';
-    document.getElementById('modalPTOAdd').classList.add('open');
+    openPTOAddModal();
   });
   document.getElementById('ptoAddModalClose').addEventListener('click', function(){ closeModal('modalPTOAdd'); });
   document.getElementById('ptoAddCancelBtn').addEventListener('click', function(){ closeModal('modalPTOAdd'); });
   document.getElementById('ptoAddSaveBtn').addEventListener('click', savePTOEntry);
+  document.getElementById('ptoDeleteBtn').addEventListener('click', deletePTOEntry);
   document.getElementById('companyBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
   document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
   document.getElementById('companyTabActive').addEventListener('click', function(){ switchCompanyTab('active'); });
@@ -1525,6 +1529,14 @@ function goBack() {
   }
 }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showCornerSpinner(label) {
+  document.getElementById('cornerSpinnerLabel').textContent = label || 'Working...';
+  document.getElementById('cornerSpinner').style.display = 'flex';
+}
+function hideCornerSpinner() {
+  document.getElementById('cornerSpinner').style.display = 'none';
+}
 
 function showToast(msg, type) {
   var t = document.getElementById('toast');
@@ -2916,6 +2928,8 @@ async function saveVisitEdit() {
 // has sensitive data reps shouldn't see. Schema: pto_id | name | start_date
 // | end_date | notes | added_at.
 var allPTOEntries = [];
+var ptoRowMap = {}; // pto_id -> sheet row number
+var _editingPTOId = null;
 
 async function openPTOCalendar() {
   showScreen('screenPTO');
@@ -2924,6 +2938,8 @@ async function openPTOCalendar() {
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F'});
     var rows = res.result.values || [];
+    ptoRowMap = {};
+    rows.forEach(function(r,i){ if (r[0]) ptoRowMap[r[0]] = i+1; });
     allPTOEntries = rows.slice(1).map(function(r){
       return { pto_id:r[0]||'', name:r[1]||'', start_date:r[2]||'', end_date:r[3]||'', notes:r[4]||'', added_at:r[5]||'' };
     }).filter(function(p){ return p.name && p.start_date; });
@@ -2991,7 +3007,7 @@ function renderPTOCalendarGrid() {
       laneEnds[lane] = endCol;
       var leftPct = (startCol/7*100);
       var widthPct = ((endCol-startCol+1)/7*100);
-      barsHtml += '<div class="pto-bar" style="left:'+leftPct+'%;width:calc('+widthPct+'% - 4px);top:'+(lane*22)+'px" title="'+esc(p.name)+': '+esc(p.start_date)+' to '+esc(p.end_date)+(p.notes?' — '+esc(p.notes):'')+'">'+esc(p.name)+'</div>';
+      barsHtml += '<div class="pto-bar" data-pid="'+esc(p.pto_id)+'" style="left:'+leftPct+'%;width:calc('+widthPct+'% - 4px);top:'+(lane*22)+'px;cursor:pointer" title="'+esc(p.name)+': '+esc(p.start_date)+' to '+esc(p.end_date)+(p.notes?' — '+esc(p.notes):'')+' (click to edit)">'+esc(p.name)+'</div>';
     });
     var maxLanes = laneEnds.length || 1;
 
@@ -3016,9 +3032,10 @@ function renderPTOList() {
     if (!entries.length) return '<div style="margin-bottom:20px"><div style="font-weight:700;color:var(--gold);font-size:13px;margin-bottom:8px">'+title+'</div><div class="empty-state" style="padding:16px 0">'+emptyMsg+'</div></div>';
     return '<div style="margin-bottom:20px"><div style="font-weight:700;color:var(--gold);font-size:13px;margin-bottom:8px">'+title+'</div>'+
       entries.map(function(p){
-        return '<div class="card" style="margin-bottom:8px"><div class="card-body">'+
-          '<div style="font-weight:600;color:var(--white)">'+esc(p.name)+'</div>'+
-          '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(p.start_date)+' → '+esc(p.end_date)+(p.notes?' · '+esc(p.notes):'')+'</div>'+
+        return '<div class="card pto-list-card" data-pid="'+esc(p.pto_id)+'" style="margin-bottom:8px;cursor:pointer"><div class="card-body" style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div><div style="font-weight:600;color:var(--white)">'+esc(p.name)+'</div>'+
+          '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(p.start_date)+' → '+esc(p.end_date)+(p.notes?' · '+esc(p.notes):'')+'</div></div>'+
+          '<span style="font-size:11px;color:var(--gray-3)">✏️ Edit</span>'+
         '</div></div>';
       }).join('')+
     '</div>';
@@ -3038,6 +3055,55 @@ function renderPTOList() {
     _ptoCalMonth = new Date(_ptoCalMonth.getFullYear(), _ptoCalMonth.getMonth()+1, 1);
     renderPTOList();
   });
+  document.querySelectorAll('.pto-bar, .pto-list-card').forEach(function(el){
+    el.addEventListener('click', function(){ openPTOEditModal(el.dataset.pid); });
+  });
+}
+
+function openPTOAddModal() {
+  _editingPTOId = null;
+  document.getElementById('ptoModalTitle').textContent = 'Add PTO Entry';
+  document.getElementById('ptoDeleteBtn').style.display = 'none';
+  document.getElementById('ptoName').value = '';
+  document.getElementById('ptoStart').value = '';
+  document.getElementById('ptoEnd').value = '';
+  document.getElementById('ptoNotes').value = '';
+  document.getElementById('modalPTOAdd').classList.add('open');
+}
+
+function openPTOEditModal(pid) {
+  if (!checkManagerPin('edit this PTO entry')) return;
+  var p = allPTOEntries.find(function(x){ return x.pto_id===pid; });
+  if (!p) return;
+  _editingPTOId = pid;
+  document.getElementById('ptoModalTitle').textContent = 'Edit PTO Entry';
+  document.getElementById('ptoDeleteBtn').style.display = '';
+  document.getElementById('ptoName').value = p.name;
+  document.getElementById('ptoStart').value = p.start_date;
+  document.getElementById('ptoEnd').value = p.end_date;
+  document.getElementById('ptoNotes').value = p.notes;
+  document.getElementById('modalPTOAdd').classList.add('open');
+}
+
+async function deletePTOEntry() {
+  if (!_editingPTOId) return;
+  var p = allPTOEntries.find(function(x){ return x.pto_id===_editingPTOId; });
+  if (!p || !confirm('Delete PTO entry for "'+p.name+'" ('+p.start_date+' to '+p.end_date+')?')) return;
+  var rowNum = ptoRowMap[_editingPTOId];
+  try {
+    if (rowNum) {
+      await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: PTO_SHEET_ID,
+        resource: { requests: [{ deleteDimension: { range: { sheetId: 0, dimension: 'ROWS', startIndex: rowNum-1, endIndex: rowNum } } }] }
+      });
+    }
+    allPTOEntries = allPTOEntries.filter(function(x){ return x.pto_id!==_editingPTOId; });
+    showToast('PTO entry deleted ✓');
+    closeModal('modalPTOAdd');
+    await openPTOCalendar();
+  } catch(e) {
+    showToast('Error deleting PTO entry','error'); console.error(e);
+  }
 }
 
 async function savePTOEntry() {
@@ -3048,17 +3114,31 @@ async function savePTOEntry() {
   if (!name || !start || !end) { showToast('Name, start date, and end date are required','error'); return; }
   if (end < start) { showToast('End date must be on or after the start date','error'); return; }
 
-  var pid = 'PTO'+Date.now();
-  var now = new Date().toISOString();
   try {
-    await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F',
-      valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[pid,name,start,end,notes,now]]}
-    });
-    allPTOEntries.push({pto_id:pid,name:name,start_date:start,end_date:end,notes:notes,added_at:now});
-    showToast('PTO entry saved ✓');
+    if (_editingPTOId) {
+      var rowNum = ptoRowMap[_editingPTOId];
+      var existing = allPTOEntries.find(function(x){ return x.pto_id===_editingPTOId; });
+      var addedAt = existing ? existing.added_at : new Date().toISOString();
+      if (rowNum) {
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: PTO_SHEET_ID, range: 'PTO!A'+rowNum+':F'+rowNum,
+          valueInputOption:'RAW', resource:{values:[[_editingPTOId,name,start,end,notes,addedAt]]}
+        });
+      }
+      if (existing) { existing.name=name; existing.start_date=start; existing.end_date=end; existing.notes=notes; }
+      showToast('PTO entry updated ✓');
+    } else {
+      var pid = 'PTO'+Date.now();
+      var now = new Date().toISOString();
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F',
+        valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[pid,name,start,end,notes,now]]}
+      });
+      allPTOEntries.push({pto_id:pid,name:name,start_date:start,end_date:end,notes:notes,added_at:now});
+      showToast('PTO entry saved ✓');
+    }
     closeModal('modalPTOAdd');
-    renderPTOList();
+    if (_editingPTOId) { await openPTOCalendar(); } else { renderPTOList(); }
   } catch(e) {
     showToast('Error saving PTO entry — has the sheet been set up yet?','error'); console.error(e);
   }
@@ -4053,7 +4133,7 @@ async function pullAllTerritoriesForMaster() {
 }
 
 async function refreshCompanyMasterData() {
-  showToast('Refreshing company data across all territories — this may take a moment...');
+  showCornerSpinner('Refreshing company data...');
   await ensureFreshToken();
   var pulled = await pullAllTerritoriesForMaster();
 
@@ -4110,10 +4190,12 @@ async function refreshCompanyMasterData() {
 
     var msg = 'Company data refreshed — '+pulled.accounts.length+' accounts, '+pulled.rankings.length+' rankings, '+pulled.machines.length+' machine records';
     if (pulled.failedTerritories.length) msg += '. Could not load: '+pulled.failedTerritories.join(', ');
+    hideCornerSpinner();
     showToast(msg, pulled.failedTerritories.length ? 'error' : undefined);
 
     if (document.getElementById('screenCompanyView').classList.contains('active')) await openCompanyView();
   } catch(e) {
+    hideCornerSpinner();
     console.error(e);
     var detail = (e && e.result && e.result.error && e.result.error.message) || (e && e.message) || '';
     var msg = isAuthError(e)
