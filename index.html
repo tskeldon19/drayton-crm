@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.9 - built 2026-07-09 -->
+<!-- Drayton CRM v7.2 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -478,7 +478,9 @@
       <div>
         <h2>Company Dashboard</h2>
         <div class="sub" id="companyMeta">Loading company-wide data...</div>
+        <div class="sub" id="companyLastRefreshed" style="font-size:11px;color:var(--gray-3)"></div>
       </div>
+      <button class="btn btn-gold btn-sm" id="companyRefreshBtn" title="Manager PIN required">Refresh Company Data</button>
       <button class="btn btn-primary btn-sm" id="companyRankingsBtn">Rankings</button>
       <button class="btn btn-primary btn-sm" id="companyMachinesBtn">Machine Reports</button>
       <button class="btn btn-primary btn-sm" id="companyRecapBtn">Weekly Report</button>
@@ -967,6 +969,14 @@ const DEALER_GROUPS = [
   'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Tulley'
 ];
 
+// Company Dashboard reads from this ONE spreadsheet instead of hitting all
+// 10 territory sheets in parallel — set once, after creating the sheet from
+// the provided template and sharing it with managers only (never reps).
+const COMPANY_MASTER_SHEET_ID = '1ll-J9zifuLRDbC0aHXWZlbBUW03-eM3MzT4y4-nWxGE';
+// Simple deterrent, not real security — reps not being shared on the master
+// sheet at all is the actual access control. Change this to whatever you want.
+const COMPANY_REFRESH_PIN = '6700';
+
 const TERRITORY_SHEET_IDS = {
   'Route 101': '1Y7rPVdRODrPFgIhdCHIYqTdPWGSucx2C4Mhdtirb_oA',
   'Route 102': '1ijmFUlLtT4PRrXqt0vQ__Z0EUV_tLiu3LxgPGKa1T14',
@@ -1164,6 +1174,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
   document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
   document.getElementById('openCompanyViewBtn').addEventListener('click', openCompanyView);
+  document.getElementById('companyRefreshBtn').addEventListener('click', refreshCompanyMasterData);
   document.getElementById('companyBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
   document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
   document.getElementById('companyTabActive').addEventListener('click', function(){ switchCompanyTab('active'); });
@@ -1331,33 +1342,9 @@ function isAuthError(e) {
 function gapiLoaded() {
   gapi.load('client', function() {
     gapi.client.init({discoveryDocs:[DISCOVERY]}).then(function() {
-      installGapiRetryWrapper();
       gapiReady = true; maybeReady();
     });
   });
-}
-
-// The permanent fix: every gapi.client.sheets.spreadsheets.values.* method
-// (get/update/append/clear) is a thin generated wrapper that delegates to
-// this one function under the hood. Wrapping it here means an expired token
-// gets caught and silently retried EVERYWHERE at once — every screen, every
-// save, including ones this fix never explicitly touches — without editing
-// any of the 50+ individual call sites scattered through the app.
-//
-// This is reactive, not proactive: it only ever touches the token in
-// response to an actual failure, on that one specific call. It never runs
-// on a timer, so it can't collide with something else that's mid-flight the
-// way the earlier interval-based attempt could.
-function installGapiRetryWrapper() {
-  var orig = gapi.client.request.bind(gapi.client);
-  gapi.client.request = function(args) {
-    return orig(args).catch(function(e){
-      if (!isAuthError(e)) throw e;
-      return ensureFreshToken().then(function(){
-        return orig(args); // one silent retry with the refreshed token
-      });
-    });
-  };
 }
 
 function gisLoaded() {
@@ -3697,43 +3684,132 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
   return 'Could not load '+failedTerritories.join(', ')+' — check sharing permissions for this account on those sheets';
 }
 
-async function openCompanyView() {
-  showScreen('screenCompanyView');
-  document.getElementById('companyMeta').textContent = 'Loading...';
-  document.getElementById('companyAccountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading company-wide accounts...</div>';
-  await ensureFreshToken();
-
+// Pulls fresh data from all 10 territory sheets in one big batch — this is
+// now ONLY used by the explicit, PIN-gated refresh action below, never by
+// normal navigation. Normal screen loads read the cached master sheet
+// instead, which is the whole point: the risky 10-parallel-call pattern now
+// only happens when a manager deliberately triggers it, not every time
+// someone opens or flips into Company Dashboard.
+async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
   var results = await Promise.all(territories.map(function(t){
     return Promise.all([
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'})
-    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[]}; })
-      .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, accRows:[], clRows:[], rkRows:[], failed:true}; });
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'})
+    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[], mdRows:r[3].result.values||[]}; })
+      .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, accRows:[], clRows:[], rkRows:[], mdRows:[], failed:true}; });
   }));
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
-  allManagerAccounts = [];
-  allCompanyChanges = [];
-  companyRankLookup = {};
+  var accounts = [], changes = [], rankings = [], machines = [];
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
-      var acc = rowToAcc(row);
-      if (acc.account_id && acc.status!=='deleted' && acc.status!=='disqualified') allManagerAccounts.push(acc);
+      if (row[0] && row[2]!=='deleted' && row[2]!=='disqualified') accounts.push(row);
     });
-    r.clRows.slice(1).forEach(function(row){
-      allCompanyChanges.push({ timestamp:row[0]||'', account_id:row[1]||'', account_name:row[2]||'', territory:row[3]||'',
-                                field_key:row[4]||'', field_label:row[5]||'', old_value:row[6]||'', new_value:row[7]||'' });
-    });
-    r.rkRows.slice(1).forEach(function(row){
-      if (row[0]) companyRankLookup[row[0]] = parseInt(row[3])||0;
-    });
+    r.clRows.slice(1).forEach(function(row){ if (row[1]) changes.push(row); });
+    r.rkRows.slice(1).forEach(function(row){ if (row[1]) rankings.push(row.slice(0,10).concat([r.territory])); });
+    r.mdRows.slice(1).forEach(function(row){ if (row[4]) machines.push(row); });
   });
+  return {accounts:accounts, changes:changes, rankings:rankings, machines:machines,
+          failedTerritories:failedTerritories, sawAuthError:sawAuthError, territories:territories};
+}
 
-  var failMsg = describeBatchFailure(failedTerritories, territories, sawAuthError);
-  if (failMsg) showToast(failMsg, 'error');
+async function refreshCompanyMasterData() {
+  var pin = prompt('Enter the manager PIN to refresh company-wide data:');
+  if (pin === null) return;
+  if (pin.trim() !== COMPANY_REFRESH_PIN) { showToast('Incorrect PIN','error'); return; }
+
+  showToast('Refreshing company data across all territories — this may take a moment...');
+  await ensureFreshToken();
+  var pulled = await pullAllTerritoriesForMaster();
+
+  try {
+    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A2:FW'});
+    if (pulled.accounts.length) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A2',
+        valueInputOption:'RAW', resource:{values: pulled.accounts}
+      });
+    }
+    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A2:H'});
+    if (pulled.changes.length) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A2',
+        valueInputOption:'RAW', resource:{values: pulled.changes}
+      });
+    }
+    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A2:K'});
+    if (pulled.rankings.length) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A2',
+        valueInputOption:'RAW', resource:{values: pulled.rankings}
+      });
+    }
+    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2:Z'});
+    if (pulled.machines.length) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2',
+        valueInputOption:'RAW', resource:{values: pulled.machines}
+      });
+    }
+
+    var now = new Date().toISOString();
+    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:B'});
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2',
+      valueInputOption:'RAW', resource:{values: [[now, '']]}
+    });
+
+    var msg = 'Company data refreshed — '+pulled.accounts.length+' accounts, '+pulled.rankings.length+' rankings, '+pulled.machines.length+' machine records';
+    if (pulled.failedTerritories.length) msg += '. Could not load: '+pulled.failedTerritories.join(', ');
+    showToast(msg, pulled.failedTerritories.length ? 'error' : undefined);
+
+    if (document.getElementById('screenCompanyView').classList.contains('active')) await openCompanyView();
+  } catch(e) {
+    console.error(e);
+    showToast('Error writing to the master sheet — has it been set up with the right tabs yet?','error');
+  }
+}
+
+async function openCompanyView() {
+  showScreen('screenCompanyView');
+  document.getElementById('companyMeta').textContent = 'Loading...';
+  document.getElementById('companyAccountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading company-wide accounts...</div>';
+  await ensureFreshToken();
+
+  try {
+    var results = await Promise.all([
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A:FW'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A:H'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A:K'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A:B'})
+    ]);
+    var accRows = results[0].result.values||[];
+    var clRows = results[1].result.values||[];
+    var rkRows = results[2].result.values||[];
+    var metaRows = results[3].result.values||[];
+
+    allManagerAccounts = accRows.slice(1).map(rowToAcc).filter(function(a){ return a.account_id; });
+    allCompanyChanges = clRows.slice(1).map(function(row){
+      return { timestamp:row[0]||'', account_id:row[1]||'', account_name:row[2]||'', territory:row[3]||'',
+               field_key:row[4]||'', field_label:row[5]||'', old_value:row[6]||'', new_value:row[7]||'' };
+    });
+    companyRankLookup = {};
+    rkRows.slice(1).forEach(function(row){ if (row[0]) companyRankLookup[row[0]] = parseInt(row[3])||0; });
+
+    var lastRefreshed = metaRows[1] ? metaRows[1][0] : '';
+    document.getElementById('companyLastRefreshed').textContent = lastRefreshed
+      ? 'Data as of last refresh: '+new Date(lastRefreshed).toLocaleString()
+      : 'No data yet — a manager needs to click "Refresh Company Data" below';
+  } catch(e) {
+    console.error(e);
+    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load company data — has the master sheet been set up yet?';
+    showToast(msg,'error');
+    allManagerAccounts = []; allCompanyChanges = []; companyRankLookup = {};
+  }
 
   updateCompanySortOptions();
   var groups = [...new Set(allManagerAccounts.map(function(a){ return a.dealer_group||''; }).filter(Boolean))].sort();
@@ -3741,7 +3817,7 @@ async function openCompanyView() {
     '<option value="UNASSIGNED">Unassigned</option>'+
     groups.map(function(g){ return '<option value="'+esc(g)+'">'+esc(g)+'</option>'; }).join('');
 
-  document.getElementById('companyMeta').textContent = allManagerAccounts.length+' total accounts across '+territories.length+' territories';
+  document.getElementById('companyMeta').textContent = allManagerAccounts.length+' total accounts (from last refresh)';
   updateCompanyStats();
   renderCompanyList();
 }
@@ -3951,56 +4027,67 @@ function renderCompanyMetricFilterList(accounts, metricKey) {
 var allCompanyRankings = [];
 var companyRankingsGoalTotal = 0;
 
+async function saveCompanyGoal(newGoal) {
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:C2'});
+    var row = (res.result.values && res.result.values[0]) || ['', '', ''];
+    row[2] = newGoal;
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:C2',
+      valueInputOption:'RAW', resource:{values: [row]}
+    });
+    companyRankingsGoalTotal = newGoal;
+    showToast('Company goal saved ✓');
+  } catch(e) {
+    showToast('Error saving goal','error'); console.error(e);
+  }
+}
+
 async function openCompanyRankings() {
   showScreen('screenCompanyRankings');
   document.getElementById('companyRankingsMeta').textContent = 'Loading...';
-  document.getElementById('companyRankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings across all territories...</div>';
+  document.getElementById('companyRankingsContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading rankings...</div>';
   await ensureFreshToken();
 
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sel = document.getElementById('companyRankingsScope');
   sel.innerHTML = '<option value="ALL">Full Company</option>'+territories.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
 
-  var sawAuthError = false;
-  var results = await Promise.all(territories.map(function(t){
-    return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'
-    }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
-      .catch(function(e){ console.error('Could not load rankings for '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, rows:[], failed:true}; });
-  }));
-
-  var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
   allCompanyRankings = [];
-  results.forEach(function(r){
-    r.rows.slice(1).forEach(function(row){
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A:K'});
+    var rows = res.result.values||[];
+    rows.slice(1).forEach(function(row){
       if (!row[1]) return;
       allCompanyRankings.push({
         account_id: row[0]||'', account_name: row[1]||'', customer_number: row[2]||'',
         territory_rank: parseInt(row[3])||0, sales_ptd: row[4]||'', sales_ytd: row[5]||'',
         sales_lastyear: row[6]||'', pct_change: row[7]||'', report_month: row[8]||'',
-        uploaded_at: row[9]||'', territory: r.territory
+        uploaded_at: row[9]||'', territory: row[10]||''
       });
     });
-  });
+  } catch(e) {
+    console.error(e);
+    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load company rankings — has the master sheet been set up yet?';
+    showToast(msg,'error');
+  }
 
   // Fresh company-wide rank, sorted by YTD sales — separate from each
   // account's own territory_rank, which stays exactly as uploaded.
   var sorted = allCompanyRankings.slice().sort(function(a,b){ return (parseFloat(b.sales_ytd)||0) - (parseFloat(a.sales_ytd)||0); });
   sorted.forEach(function(r, idx){ r.company_rank = idx+1; });
 
-  var rankFailMsg = describeBatchFailure(failedTerritories, territories, sawAuthError);
-  if (rankFailMsg) showToast(rankFailMsg, 'error');
-
+  // A static, manager-set goal (like reps set per territory) instead of
+  // summing 10 separate Sales Goals tabs — that per-territory pull would
+  // reintroduce the exact call pattern this whole rebuild exists to avoid.
+  // Lives in the master sheet's own Meta tab, so this is one more read of
+  // the SAME file already being hit, not a new per-territory pattern.
   companyRankingsGoalTotal = 0;
-  await Promise.all(territories.map(async function(t){
-    try {
-      var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range:'Sales Goals!A:D'});
-      var rows = res.result.values||[];
-      var year = String(new Date().getFullYear());
-      var match = rows.slice(1).find(function(r){ return r[0]===t && r[1]===year; });
-      if (match) companyRankingsGoalTotal += parseFloat(match[2])||0;
-    } catch(e) { /* territory without a Sales Goals tab yet — skip */ }
-  }));
+  try {
+    var metaRes = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A:C'});
+    var metaRows = metaRes.result.values||[];
+    if (metaRows[1] && metaRows[1][2]) companyRankingsGoalTotal = parseFloat(metaRows[1][2])||0;
+  } catch(e) { /* Meta tab not set up with a goal yet — skip */ }
 
   // Attach each account's Dealer Group (Rankings itself doesn't carry this —
   // it lives on Accounts, so cross-reference by account_id). Company
@@ -4039,14 +4126,27 @@ function renderCompanyRankingsView() {
   var goalBox = '';
   if (scope === 'ALL') {
     var goalPct = companyRankingsGoalTotal>0 ? (ytdTotal/companyRankingsGoalTotal*100) : null;
-    goalBox = '<div class="big-box" style="cursor:default"><div class="big-box-num">'+(goalPct===null?'—':goalPct.toFixed(1)+'%')+'</div>'+
-      '<div class="big-box-lbl">YTD Goal Progress'+(companyRankingsGoalTotal>0?' (Sum of Goals: $'+fmtNum(companyRankingsGoalTotal)+')':' (no goals set yet)')+'</div></div>';
+    goalBox = '<div class="big-box" style="cursor:default">'+
+      '<div class="big-box-num">'+(goalPct===null?'—':goalPct.toFixed(1)+'%')+'</div>'+
+      '<div class="big-box-lbl">YTD Goal Progress'+(companyRankingsGoalTotal>0?' (Goal: $'+fmtNum(companyRankingsGoalTotal)+')':' (no goal set)')+'</div>'+
+      '<div style="margin-top:8px;display:flex;gap:6px;align-items:center">'+
+        '<input type="number" id="companyGoalInput" placeholder="Yearly goal $" value="'+(companyRankingsGoalTotal>0?companyRankingsGoalTotal:'')+'" style="font-size:12px;padding:6px 8px;width:120px">'+
+        '<button type="button" class="btn btn-gold btn-sm" id="companyGoalSaveBtn" style="padding:6px 10px">Save</button>'+
+      '</div>'+
+    '</div>';
   }
 
   document.getElementById('companyRankingsStatsRow').innerHTML =
     '<div class="big-box" style="cursor:default"><div class="big-box-num">$'+fmtNum(ytdTotal)+'</div><div class="big-box-lbl">'+(scope==='ALL'?'Company-Wide':esc(scope))+' YTD Total Sales</div></div>'+
     '<div class="big-box" style="cursor:default"><div class="big-box-num" style="'+yoyColor+'">'+(yoyPct===null?'—':(yoyPct>=0?'+':'')+yoyPct.toFixed(1)+'%')+'</div><div class="big-box-lbl">YTD YoY Change</div></div>'+
     goalBox;
+
+  if (scope === 'ALL') {
+    document.getElementById('companyGoalSaveBtn').addEventListener('click', function(){
+      var val = parseFloat(document.getElementById('companyGoalInput').value)||0;
+      saveCompanyGoal(val).then(renderCompanyRankingsView);
+    });
+  }
 
   document.getElementById('companyRankingsMeta').textContent = data.length+' account'+(data.length!==1?'s':'')+' shown — '+(scope==='ALL'?'Full Company':esc(scope));
 
@@ -4090,25 +4190,18 @@ async function openCompanyMachines() {
   showScreen('screenCompanyMachines');
   _companyUnderageFilter = null;
   document.getElementById('companyMachinesMeta').textContent = 'Loading...';
-  document.getElementById('companyMachinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data across all territories...</div>';
+  document.getElementById('companyMachinesContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading machine data...</div>';
   await ensureFreshToken();
 
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sel = document.getElementById('companyMachinesScope');
   sel.innerHTML = '<option value="ALL">Full Company</option>'+territories.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
 
-  var sawAuthError = false;
-  var results = await Promise.all(territories.map(function(t){
-    return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'
-    }).then(function(res){ return {territory:t, rows: res.result.values||[]}; })
-      .catch(function(e){ console.error('Could not load machine data for '+t, e); if (isAuthError(e)) sawAuthError = true; return {territory:t, rows:[], failed:true}; });
-  }));
-
-  var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
   allCompanyMachines = [];
-  results.forEach(function(r){
-    r.rows.slice(1).forEach(function(row){
+  try {
+    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A:Z'});
+    var rows = res.result.values||[];
+    rows.slice(1).forEach(function(row){
       if (!row[4]) return;
       allCompanyMachines.push({
         record_id:row[0]||'', report_code:row[1]||'', report_label:row[2]||'',
@@ -4121,14 +4214,15 @@ async function openCompanyMachines() {
         report_month:row[22]||'',uploaded_at:row[23]||'',machine_count:row[24]||'1'
       });
     });
-  });
+  } catch(e) {
+    console.error(e);
+    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load company machine data — has the master sheet been set up yet?';
+    showToast(msg,'error');
+  }
 
   var types = [...new Set(allCompanyMachines.map(function(m){ return m.report_code; }))].sort();
   var typeSel = document.getElementById('companyMachinesTypeFilter');
   typeSel.innerHTML = '<option value="ALL">All Report Types</option>'+types.map(function(t){ return '<option value="'+esc(t)+'">'+esc(MACHINE_REPORT_LABELS[t]||t)+'</option>'; }).join('');
-
-  var machFailMsg = describeBatchFailure(failedTerritories, territories, sawAuthError);
-  if (machFailMsg) showToast(machFailMsg, 'error');
 
   renderCompanyMachinesView();
 }
