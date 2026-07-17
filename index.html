@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v6.8 - built 2026-07-09 -->
+<!-- Drayton CRM v6.9 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1331,9 +1331,33 @@ function isAuthError(e) {
 function gapiLoaded() {
   gapi.load('client', function() {
     gapi.client.init({discoveryDocs:[DISCOVERY]}).then(function() {
+      installGapiRetryWrapper();
       gapiReady = true; maybeReady();
     });
   });
+}
+
+// The permanent fix: every gapi.client.sheets.spreadsheets.values.* method
+// (get/update/append/clear) is a thin generated wrapper that delegates to
+// this one function under the hood. Wrapping it here means an expired token
+// gets caught and silently retried EVERYWHERE at once — every screen, every
+// save, including ones this fix never explicitly touches — without editing
+// any of the 50+ individual call sites scattered through the app.
+//
+// This is reactive, not proactive: it only ever touches the token in
+// response to an actual failure, on that one specific call. It never runs
+// on a timer, so it can't collide with something else that's mid-flight the
+// way the earlier interval-based attempt could.
+function installGapiRetryWrapper() {
+  var orig = gapi.client.request.bind(gapi.client);
+  gapi.client.request = function(args) {
+    return orig(args).catch(function(e){
+      if (!isAuthError(e)) throw e;
+      return ensureFreshToken().then(function(){
+        return orig(args); // one silent retry with the refreshed token
+      });
+    });
+  };
 }
 
 function gisLoaded() {
