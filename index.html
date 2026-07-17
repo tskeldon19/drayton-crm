@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v7.3 - built 2026-07-09 -->
+<!-- Drayton CRM v7.4 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -866,6 +866,7 @@
         <div class="form-row"><label>Follow-Up Date</label><input type="date" id="visitEditFollowup"></div>
         <div class="form-row"><label>Follow-Up Notes</label><input type="text" id="visitEditFollowupNotes"></div>
       </div>
+      <div class="form-row"><label>Follow Up Prep (optional)</label><input type="date" id="visitEditFollowupPrep"></div>
       <label class="product-check" style="margin-top:4px"><input type="checkbox" id="visitEditHighlight">⭐ Key event / highlight</label>
     </div>
     <div class="modal-footer">
@@ -942,6 +943,7 @@
         <div class="form-row"><label>Follow-Up Date</label><input type="date" id="visitFollowup"></div>
         <div class="form-row"><label>Follow-Up Notes</label><input type="text" id="visitFollowupNotes" placeholder="Next steps..."></div>
       </div>
+      <div class="form-row"><label>Follow Up Prep (optional)</label><input type="date" id="visitFollowupPrep" title="A second date — e.g. a reminder to prep before the real follow-up"></div>
       <label class="product-check" style="margin-top:4px"><input type="checkbox" id="visitHighlight">⭐ Mark as a key event / highlight for the weekly recap</label>
     </div>
     <div class="modal-footer">
@@ -1087,7 +1089,7 @@ function colLetter(idx) {
   }
   return letters;
 }
-const VCOL = {visit_id:0,account_id:1,account_name:2,territory:3,visit_date:4,attendees:5,notes:6,followup_date:7,followup_notes:8,is_highlight:9};
+const VCOL = {visit_id:0,account_id:1,account_name:2,territory:3,visit_date:4,attendees:5,notes:6,followup_date:7,followup_notes:8,is_highlight:9,followup_prep_date:10};
 
 const CLCOL = {timestamp:0,account_id:1,account_name:2,territory:3,field_key:4,field_label:5,old_value:6,new_value:7};
 
@@ -1174,9 +1176,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('landingSignInBtn').addEventListener('click', doSignIn);
   document.getElementById('loadTerritoryBtn').addEventListener('click', loadTerritory);
   document.getElementById('openCompanyViewBtn').addEventListener('click', function(){
-    var pin = prompt('Enter the manager PIN to open Company Dashboard:');
-    if (pin === null) return;
-    if (pin.trim() !== COMPANY_REFRESH_PIN) { showToast('Incorrect PIN','error'); return; }
+    if (!checkManagerPin('open Company Dashboard')) return;
     openCompanyView();
   });
   document.getElementById('companyRefreshBtn').addEventListener('click', refreshCompanyMasterData);
@@ -1224,8 +1224,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('weeklyRecapBtn').addEventListener('click', openWeeklyRecap);
   document.getElementById('rankingsViewBtn').addEventListener('click', openRankingsView);
   document.getElementById('machinesViewBtn').addEventListener('click', openMachinesView);
-  document.getElementById('uploadRankingsBtn').addEventListener('click', function(){ document.getElementById('rankingsFileInput').click(); });
-  document.getElementById('uploadMachinesBtn').addEventListener('click', function(){ document.getElementById('machinesFileInput').click(); });
+  document.getElementById('uploadRankingsBtn').addEventListener('click', function(){ if (checkManagerPin('upload a ranking report')) document.getElementById('rankingsFileInput').click(); });
+  document.getElementById('uploadMachinesBtn').addEventListener('click', function(){ if (checkManagerPin('upload a machine report')) document.getElementById('machinesFileInput').click(); });
   document.getElementById('rankingsFileInput').addEventListener('change', handleRankingsUpload);
   document.getElementById('machinesFileInput').addEventListener('change', handleMachinesUpload);
   document.getElementById('rankingsBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
@@ -1342,6 +1342,17 @@ function ensureFreshToken() {
 function isAuthError(e) {
   var code = (e && e.status) || (e && e.result && e.result.error && e.result.error.code);
   return code === 401 || code === 403 && (e && e.result && e.result.error && /invalid|expired|credential/i.test(e.result.error.message||''));
+}
+
+// Shared PIN check for manager-only actions (Delete, Upload Machine/Ranking
+// Reports, etc). Same deterrent-not-real-security caveat as Company
+// Dashboard's PIN — reps not being shared on sensitive sheets is the actual
+// access control; this just stops casual clicking.
+function checkManagerPin(actionLabel) {
+  var pin = prompt('Enter the manager PIN to '+actionLabel+':');
+  if (pin === null) return false;
+  if (pin.trim() !== COMPANY_REFRESH_PIN) { showToast('Incorrect PIN','error'); return false; }
+  return true;
 }
 
 function gapiLoaded() {
@@ -1484,7 +1495,7 @@ async function fetchData() {
   try {
     var results = await Promise.all([
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:J'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:K'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Change Log!A:H'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'}),
@@ -1504,7 +1515,7 @@ async function fetchData() {
     allVisits = visRows.slice(1).filter(function(r){ return r[VCOL.territory]===currentTerritory; }).map(function(r){
       return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
                visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
-               followup_notes:r[8]||'', is_highlight:r[9]||'' };
+               followup_notes:r[8]||'', is_highlight:r[9]||'', followup_prep_date:r[10]||'' };
     });
 
     allChangeLog = clRows.slice(1).map(function(r){
@@ -2222,7 +2233,10 @@ function renderDetail() {
               '<div class="product-detail-field"><label>Part Number</label><input type="text" id="pf_'+p.key+'_part_number" value="'+esc(a[p.key+'_part_number'])+'"></div>'+
               '<div class="product-detail-field"><label>Spiff ($)</label><input type="number" step="0.01" min="0" id="pf_'+p.key+'_spiff" value="'+esc(a[p.key+'_spiff'])+'" placeholder="0"></div>'+
             '</div>'+
-            '<div class="product-detail-field" style="margin-bottom:10px"><label>Notes</label><input type="text" id="pf_'+p.key+'_part_notes" value="'+esc(a[p.key+'_part_notes'])+'" placeholder="Notes for this part..."></div>'+
+            '<div class="product-detail-field" style="margin-bottom:10px">'+
+              '<label>'+(status==='red'?'What was the objection? <span style="color:#d47070">*</span>':'Notes')+'</label>'+
+              '<input type="text" id="pf_'+p.key+'_part_notes" value="'+esc(a[p.key+'_part_notes'])+'" placeholder="'+(status==='red'?'Required — helps management focus training and guidance':'Notes for this part...')+'">'+
+            '</div>'+
             (history.length ? '<div class="product-status-history"><label>Status History</label>'+
               history.map(function(h){
                 var fromLbl = statusLabel(h.old_value), toLbl = statusLabel(h.new_value);
@@ -2313,7 +2327,7 @@ function renderDetail() {
     btn.addEventListener('click', function(e){ e.stopPropagation(); openActivityLog(btn.dataset.fkey, btn.dataset.flabel); });
   });
   var lb = document.getElementById('logVisitBtn'); if(lb) lb.addEventListener('click', openVisitModal);
-  var db = document.getElementById('deleteBtn'); if(db) db.addEventListener('click', softDelete);
+  var db = document.getElementById('deleteBtn'); if(db) db.addEventListener('click', function(){ if (checkManagerPin('delete this account')) softDelete(); });
   var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreAccount);
   var rvb = document.getElementById('revertBtn'); if(rvb) rvb.addEventListener('click', revertToProspect);
   var atlb = document.getElementById('addToListDetailBtn'); if(atlb) atlb.addEventListener('click', function(){ openAddToList(currentAccount); });
@@ -2394,6 +2408,11 @@ async function saveProductDetails(pkey) {
   var partNotes= document.getElementById('pf_'+pkey+'_part_notes').value;
   var spiff    = document.getElementById('pf_'+pkey+'_spiff').value;
 
+  if (statusAfter === 'red' && !partNotes.trim()) {
+    showToast('Please note what the objection was before saving a Declined product','error');
+    return;
+  }
+
   a[pkey+'_profile_pricing'] = pricing;
   a[pkey+'_training'] = training;
   a[pkey+'_part_number'] = partNum;
@@ -2441,6 +2460,7 @@ function renderVisitEntry(v) {
     '</div>'+
     '<div class="visit-notes">'+esc(v.notes||'—')+'</div>'+
     (hasFollowup?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
+    (v.followup_prep_date?'<div class="visit-followup">🗓 Follow up prep: '+esc(v.followup_prep_date)+'</div>':'')+
   '</div>';
 }
 
@@ -2746,6 +2766,7 @@ function openVisitEdit(vid) {
   document.getElementById('visitEditNotes').value        = v.notes||'';
   document.getElementById('visitEditFollowup').value     = v.followup_date||'';
   document.getElementById('visitEditFollowupNotes').value= v.followup_notes||'';
+  document.getElementById('visitEditFollowupPrep').value = v.followup_prep_date||'';
   document.getElementById('visitEditHighlight').checked  = (v.is_highlight||'').toLowerCase()==='yes';
   document.getElementById('modalVisitEdit').classList.add('open');
 }
@@ -2758,19 +2779,20 @@ async function saveVisitEdit() {
   var notes   = document.getElementById('visitEditNotes').value;
   var fu      = document.getElementById('visitEditFollowup').value;
   var fuN     = document.getElementById('visitEditFollowupNotes').value;
+  var fuPrep  = document.getElementById('visitEditFollowupPrep').value;
   var hl      = document.getElementById('visitEditHighlight').checked ? 'Yes' : '';
   if (!notes) { showToast('Visit notes cannot be empty','error'); return; }
   if (!date)  { showToast('Please enter a visit date','error'); return; }
 
   v.visit_date=date; v.attendees=attend; v.notes=notes;
-  v.followup_date=fu; v.followup_notes=fuN; v.is_highlight=hl;
+  v.followup_date=fu; v.followup_notes=fuN; v.is_highlight=hl; v.followup_prep_date=fuPrep;
 
   var rowNum = visitRowMap[v.visit_id];
   if (rowNum) {
     try {
       await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId:territorySheetId(currentTerritory), range:'Visits!E'+rowNum+':J'+rowNum,
-        valueInputOption:'RAW', resource:{values:[[date,attend,notes,fu,fuN,hl]]}
+        spreadsheetId:territorySheetId(currentTerritory), range:'Visits!E'+rowNum+':K'+rowNum,
+        valueInputOption:'RAW', resource:{values:[[date,attend,notes,fu,fuN,hl,fuPrep]]}
       });
       showToast('Visit updated ✓');
     } catch(e) { showToast('Error saving visit','error'); console.error(e); return; }
@@ -3704,7 +3726,7 @@ async function pullAllTerritoriesForMaster() {
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Visits!A:J'}),
+      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Visits!A:K'}),
       gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Territory Updates!A:H'})
     ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[],
                                   mdRows:r[3].result.values||[], vRows:r[4].result.values||[], tuRows:r[5].result.values||[]}; })
@@ -5207,7 +5229,7 @@ function parseRecapRawRows(visRaw, clRaw, accRaw, tuRaw) {
   var visitRows = visRaw.map(function(r){
     return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
              visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
-             followup_notes:r[8]||'', is_highlight:r[9]||'' };
+             followup_notes:r[8]||'', is_highlight:r[9]||'', followup_prep_date:r[10]||'' };
   });
   var changeRows = clRaw.map(function(r){
     return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
@@ -5246,7 +5268,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mResults = await Promise.all([
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Visits!A:J'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Visits!A:K'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Change Log!A:H'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Accounts!A:FW'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Territory Updates!A:H'}),
@@ -5262,7 +5284,7 @@ async function runWeeklyRecap() {
       // A specific territory other than the one currently loaded
       var sid = territorySheetId(territory);
       var results = await Promise.all([
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:J'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FW'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
@@ -5963,6 +5985,7 @@ function openVisitModal() {
   document.getElementById('visitNotes').value = '';
   document.getElementById('visitFollowup').value = '';
   document.getElementById('visitFollowupNotes').value = '';
+  document.getElementById('visitFollowupPrep').value = '';
   document.getElementById('modalVisit').classList.add('open');
 }
 
@@ -5973,14 +5996,15 @@ async function saveVisit() {
   var notes  = document.getElementById('visitNotes').value;
   var fu     = document.getElementById('visitFollowup').value;
   var fuN    = document.getElementById('visitFollowupNotes').value;
+  var fuPrep = document.getElementById('visitFollowupPrep').value;
   var hl     = document.getElementById('visitHighlight').checked ? 'Yes' : '';
   if (!notes) { showToast('Please add visit notes','error'); return; }
   if (!date)  { showToast('Please select a visit date','error'); return; }
   var vid = 'VIS'+Date.now();
   try {
     var appendRes = await gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:J',
-      valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN,hl]]}
+      spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:K',
+      valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN,hl,fuPrep]]}
     });
     var newRange = appendRes.result.updates.updatedRange;
     var visitRowNum = parseInt(newRange.match(/\d+/)[0]);
@@ -5991,7 +6015,7 @@ async function saveVisit() {
       if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
       if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
     }
-    allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl});
+    allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl,followup_prep_date:fuPrep});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
   } catch(e) { showToast('Error logging visit','error'); console.error(e); }
 }
