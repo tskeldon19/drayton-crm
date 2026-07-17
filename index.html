@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.1 - built 2026-07-09 -->
+<!-- Drayton CRM v8.2 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -926,7 +926,8 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="visitEditEmailBtn" title="Email this visit">✉️ Email</button>
-      <button class="btn btn-secondary" id="visitEditCalBtn" title="Add follow-up to calendar">📅 Calendar</button>
+      <button class="btn btn-secondary" id="visitEditCalBtn" title="Add follow-up to Outlook">📅 Outlook</button>
+      <button class="btn btn-secondary" id="visitEditIcsBtn" title="Download .ics file instead" style="padding:10px 12px">⬇</button>
       <button class="btn btn-secondary" id="visitEditCancel">Cancel</button>
       <button class="btn btn-gold" id="visitEditSave">Save Changes</button>
     </div>
@@ -1005,7 +1006,8 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="visitEmailBtn" title="Email this visit">✉️ Email</button>
-      <button class="btn btn-secondary" id="visitCalBtn" title="Add follow-up to calendar">📅 Calendar</button>
+      <button class="btn btn-secondary" id="visitCalBtn" title="Add follow-up to Outlook">📅 Outlook</button>
+      <button class="btn btn-secondary" id="visitIcsBtn" title="Download .ics file instead" style="padding:10px 12px">⬇</button>
       <button class="btn btn-secondary" id="visitCancelBtn">Cancel</button>
       <button class="btn btn-gold" id="visitSaveBtn">Log Visit</button>
     </div>
@@ -1303,9 +1305,10 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitModalClose').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitCancelBtn').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitEmailBtn').addEventListener('click', function(){ emailVisit(visitFormToObj()); });
-  document.getElementById('visitCalBtn').addEventListener('click', function(){ downloadFollowupIcs(visitFormToObj()); });
+  document.getElementById('visitCalBtn').addEventListener('click', function(){ addFollowupToOutlook(visitFormToObj()); });
+  document.getElementById('visitIcsBtn').addEventListener('click', function(){ downloadFollowupIcs(visitFormToObj()); });
   document.getElementById('visitSaveBtn').addEventListener('click', saveVisit);
-  document.getElementById('weeklyRecapBtn').addEventListener('click', openWeeklyRecap);
+  document.getElementById('weeklyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(false); });
   document.getElementById('rankingsViewBtn').addEventListener('click', openRankingsView);
   document.getElementById('machinesViewBtn').addEventListener('click', openMachinesView);
   document.getElementById('uploadRankingsBtn').addEventListener('click', function(){ if (checkManagerPin('upload a ranking report')) document.getElementById('rankingsFileInput').click(); });
@@ -1354,7 +1357,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitEditCancel').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
   document.getElementById('visitEditSave').addEventListener('click', saveVisitEdit);
   document.getElementById('visitEditEmailBtn').addEventListener('click', function(){ emailVisit(_editingVisitId); });
-  document.getElementById('visitEditCalBtn').addEventListener('click', function(){ downloadFollowupIcs(_editingVisitId); });
+  document.getElementById('visitEditCalBtn').addEventListener('click', function(){ addFollowupToOutlook(_editingVisitId); });
+  document.getElementById('visitEditIcsBtn').addEventListener('click', function(){ downloadFollowupIcs(_editingVisitId); });
   document.getElementById('activityLogClose').addEventListener('click', function(){ closeModal('modalActivityLog'); });
   document.getElementById('activityLogCancel').addEventListener('click', function(){ closeModal('modalActivityLog'); });
   document.getElementById('activityLogSave').addEventListener('click', saveActivityLog);
@@ -2404,6 +2408,12 @@ function renderDetail() {
   document.querySelectorAll('.visit-cal-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
+      addFollowupToOutlook(btn.dataset.vid);
+    });
+  });
+  document.querySelectorAll('.visit-ics-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
       downloadFollowupIcs(btn.dataset.vid);
     });
   });
@@ -2553,7 +2563,8 @@ function renderVisitEntry(v) {
     '<div class="visit-entry-top">'+
       '<div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
-        (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-cal-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up to calendar">📅</button>':'')+
+        (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-cal-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up to Outlook">📅</button>':'')+
+        (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-ics-btn" data-vid="'+v.visit_id+'" style="padding:4px 6px;font-size:10px" title="Download .ics file instead">⬇</button>':'')+
         '<button type="button" class="btn btn-secondary btn-sm visit-email-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Email this visit">✉️</button>'+
         '<button type="button" class="btn btn-secondary btn-sm visit-edit-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px">✏️</button>'+
         '<button type="button" class="visit-star-btn'+(isStar?' starred':'')+'" data-vid="'+v.visit_id+'" title="'+(isStar?'Remove highlight':'Mark as key event')+'">'+(isStar?'⭐':'☆')+'</button>'+
@@ -3181,6 +3192,52 @@ function emailVisit(vidOrObj) {
 }
 
 // ── Outlook / Calendar .ics Download ─────────────────────────────────────────
+// ── Add to Outlook (primary) ─────────────────────────────────────────────
+// Opens Outlook web directly with the event pre-filled — no file to
+// download and open separately, which is the whole point over the .ics
+// approach. If both a follow-up and a prep date are set, this opens the
+// follow-up (the more important of the two) and offers a second link for
+// the prep date rather than silently dropping it or opening two tabs at
+// once (browsers tend to block the second popup anyway).
+function outlookComposeUrl(dateStr, summary, description, location) {
+  var params = new URLSearchParams({
+    subject: summary,
+    body: description,
+    location: location || '',
+    startdt: dateStr,
+    enddt: dateStr,
+    allday: 'true',
+    path: '/calendar/action/compose'
+  });
+  return 'https://outlook.office.com/calendar/0/deeplink/compose?'+params.toString();
+}
+
+function addFollowupToOutlook(vidOrObj) {
+  var v = typeof vidOrObj === 'string' ? allVisits.find(function(x){ return x.visit_id===vidOrObj; }) : vidOrObj;
+  if (!v || (!v.followup_date && !v.followup_prep_date)) { showToast('No follow-up date on this visit','error'); return; }
+  var acc = currentAccount;
+  var location = [acc.address,acc.town,acc.state].filter(Boolean).join(', ');
+
+  var primaryDate = v.followup_date || v.followup_prep_date;
+  var isPrimaryPrep = !v.followup_date;
+  var summary = (isPrimaryPrep ? 'Follow-Up Prep: ' : 'Follow-Up: ')+acc.business_name;
+  var description = [
+    'Account: '+acc.business_name,
+    acc.town ? 'Town: '+acc.town : '',
+    v.followup_notes ? 'Notes: '+v.followup_notes : '',
+    v.notes ? 'Visit recap: '+v.notes : ''
+  ].filter(Boolean).join('\n');
+
+  window.open(outlookComposeUrl(primaryDate, summary, description, location), '_blank');
+
+  // Outlook's deep link only opens one event at a time. When both dates
+  // exist, this opens the more important one (the real follow-up) and
+  // points to the .ics download for getting both in a single action.
+  if (v.followup_date && v.followup_prep_date) {
+    showToast('Opened Outlook for the follow-up date. Use "Download .ics" to get both events at once.');
+  }
+}
+
 function downloadFollowupIcs(vidOrObj) {
   var v = typeof vidOrObj === 'string' ? allVisits.find(function(x){ return x.visit_id===vidOrObj; }) : vidOrObj;
   var vid = (v && v.visit_id) || 'draft'+Date.now();
