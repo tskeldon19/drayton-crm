@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.2 - built 2026-07-09 -->
+<!-- Drayton CRM v8.3 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -525,7 +525,7 @@
 
 <div class="screen" id="screenCompanyView">
   <div class="dashboard">
-    <div class="territory-bar" style="flex-direction:column;align-items:stretch;gap:12px">
+    <div class="territory-bar" style="flex-direction:column;align-items:stretch;gap:10px">
       <div>
         <h2>Company Dashboard</h2>
         <div class="sub" id="companyMeta">Loading company-wide data...</div>
@@ -533,11 +533,15 @@
       </div>
       <div style="display:flex;gap:8px;width:100%">
         <button class="btn btn-gold btn-sm" id="companyRefreshBtn" style="flex:1" title="Manager PIN required">Refresh Company Data</button>
+        <button class="btn btn-gold btn-sm" id="uploadRankingsBtn" style="flex:1" title="Upload ranking files">Upload Ranking</button>
+        <button class="btn btn-gold btn-sm" id="uploadMachinesBtn" style="flex:1" title="Upload machine report">Upload Machines</button>
+      </div>
+      <div style="display:flex;gap:8px;width:100%">
         <button class="btn btn-primary btn-sm" id="companyRankingsBtn" style="flex:1">Rankings</button>
         <button class="btn btn-primary btn-sm" id="companyMachinesBtn" style="flex:1">Machine Reports</button>
         <button class="btn btn-primary btn-sm" id="companyRecapBtn" style="flex:1">Weekly Report</button>
-        <button class="btn btn-secondary btn-sm" id="uploadRankingsBtn" style="flex:1" title="Upload ranking files">Upload Ranking</button>
-        <button class="btn btn-secondary btn-sm" id="uploadMachinesBtn" style="flex:1" title="Upload machine report">Upload Machines</button>
+        <button class="btn btn-secondary btn-sm" id="companyRepLibraryBtn" style="flex:1" title="Templates and reference docs">📁 File Library</button>
+        <button class="btn btn-secondary btn-sm" id="companyPtoCalendarBtn" style="flex:1" title="See who's out">🗓 PTO Calendar</button>
         <button class="btn btn-secondary btn-sm" id="companyBackBtn" style="flex:1">← Back</button>
       </div>
       <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
@@ -926,7 +930,8 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="visitEditEmailBtn" title="Email this visit">✉️ Email</button>
-      <button class="btn btn-secondary" id="visitEditCalBtn" title="Add follow-up to Outlook">📅 Outlook</button>
+      <button class="btn btn-secondary" id="visitEditCalBtn" title="Add follow-up to Outlook">📅 Follow-Up Outlook</button>
+      <button class="btn btn-secondary" id="visitEditCalPrepBtn" title="Add follow-up prep to Outlook">📅 Prep Outlook</button>
       <button class="btn btn-secondary" id="visitEditIcsBtn" title="Download .ics file instead" style="padding:10px 12px">⬇</button>
       <button class="btn btn-secondary" id="visitEditCancel">Cancel</button>
       <button class="btn btn-gold" id="visitEditSave">Save Changes</button>
@@ -1006,7 +1011,8 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="visitEmailBtn" title="Email this visit">✉️ Email</button>
-      <button class="btn btn-secondary" id="visitCalBtn" title="Add follow-up to Outlook">📅 Outlook</button>
+      <button class="btn btn-secondary" id="visitCalBtn" title="Add follow-up to Outlook">📅 Follow-Up Outlook</button>
+      <button class="btn btn-secondary" id="visitCalPrepBtn" title="Add follow-up prep to Outlook">📅 Prep Outlook</button>
       <button class="btn btn-secondary" id="visitIcsBtn" title="Download .ics file instead" style="padding:10px 12px">⬇</button>
       <button class="btn btn-secondary" id="visitCancelBtn">Cancel</button>
       <button class="btn btn-gold" id="visitSaveBtn">Log Visit</button>
@@ -1254,7 +1260,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (REP_LIBRARY_DRIVE_URL === 'REPLACE_WITH_SHAREPOINT_OR_DRIVE_URL') { showToast('File library not set up yet — ask your manager','error'); return; }
     window.open(REP_LIBRARY_DRIVE_URL, '_blank');
   });
-  document.getElementById('ptoCalendarBtn').addEventListener('click', openPTOCalendar);
+  document.getElementById('ptoCalendarBtn').addEventListener('click', function(){ openPTOCalendar(false); });
   document.getElementById('ptoBackBtn').addEventListener('click', goBack);
   document.getElementById('ptoAddBtn').addEventListener('click', function(){
     if (!checkManagerPin('add a PTO entry')) return;
@@ -1273,6 +1279,11 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('companyRankingsBtn').addEventListener('click', openCompanyRankings);
   document.getElementById('companyMachinesBtn').addEventListener('click', openCompanyMachines);
   document.getElementById('companyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(true); });
+  document.getElementById('companyRepLibraryBtn').addEventListener('click', function(){
+    if (REP_LIBRARY_DRIVE_URL === 'REPLACE_WITH_SHAREPOINT_OR_DRIVE_URL') { showToast('File library not set up yet','error'); return; }
+    window.open(REP_LIBRARY_DRIVE_URL, '_blank');
+  });
+  document.getElementById('companyPtoCalendarBtn').addEventListener('click', function(){ openPTOCalendar(true); });
   document.getElementById('companyRankingsBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyMachinesBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyRankingsScope').addEventListener('change', renderCompanyRankingsView);
@@ -1305,7 +1316,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitModalClose').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitCancelBtn').addEventListener('click', function(){ closeModal('modalVisit'); });
   document.getElementById('visitEmailBtn').addEventListener('click', function(){ emailVisit(visitFormToObj()); });
-  document.getElementById('visitCalBtn').addEventListener('click', function(){ addFollowupToOutlook(visitFormToObj()); });
+  document.getElementById('visitCalBtn').addEventListener('click', function(){ addFollowupToOutlook(visitFormToObj(), false); });
+  document.getElementById('visitCalPrepBtn').addEventListener('click', function(){ addFollowupToOutlook(visitFormToObj(), true); });
   document.getElementById('visitIcsBtn').addEventListener('click', function(){ downloadFollowupIcs(visitFormToObj()); });
   document.getElementById('visitSaveBtn').addEventListener('click', saveVisit);
   document.getElementById('weeklyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(false); });
@@ -1357,7 +1369,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitEditCancel').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
   document.getElementById('visitEditSave').addEventListener('click', saveVisitEdit);
   document.getElementById('visitEditEmailBtn').addEventListener('click', function(){ emailVisit(_editingVisitId); });
-  document.getElementById('visitEditCalBtn').addEventListener('click', function(){ addFollowupToOutlook(_editingVisitId); });
+  document.getElementById('visitEditCalBtn').addEventListener('click', function(){ addFollowupToOutlook(_editingVisitId, false); });
+  document.getElementById('visitEditCalPrepBtn').addEventListener('click', function(){ addFollowupToOutlook(_editingVisitId, true); });
   document.getElementById('visitEditIcsBtn').addEventListener('click', function(){ downloadFollowupIcs(_editingVisitId); });
   document.getElementById('activityLogClose').addEventListener('click', function(){ closeModal('modalActivityLog'); });
   document.getElementById('activityLogCancel').addEventListener('click', function(){ closeModal('modalActivityLog'); });
@@ -2408,7 +2421,13 @@ function renderDetail() {
   document.querySelectorAll('.visit-cal-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      addFollowupToOutlook(btn.dataset.vid);
+      addFollowupToOutlook(btn.dataset.vid, false);
+    });
+  });
+  document.querySelectorAll('.visit-cal-prep-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      addFollowupToOutlook(btn.dataset.vid, true);
     });
   });
   document.querySelectorAll('.visit-ics-btn').forEach(function(btn){
@@ -2563,7 +2582,8 @@ function renderVisitEntry(v) {
     '<div class="visit-entry-top">'+
       '<div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
-        (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-cal-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up to Outlook">📅</button>':'')+
+        (v.followup_date?'<button type="button" class="btn btn-secondary btn-sm visit-cal-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up to Outlook">📅 Follow-Up</button>':'')+
+        (v.followup_prep_date?'<button type="button" class="btn btn-secondary btn-sm visit-cal-prep-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up prep to Outlook">📅 Prep</button>':'')+
         (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-ics-btn" data-vid="'+v.visit_id+'" style="padding:4px 6px;font-size:10px" title="Download .ics file instead">⬇</button>':'')+
         '<button type="button" class="btn btn-secondary btn-sm visit-email-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Email this visit">✉️</button>'+
         '<button type="button" class="btn btn-secondary btn-sm visit-edit-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px">✏️</button>'+
@@ -2942,9 +2962,9 @@ var allPTOEntries = [];
 var ptoRowMap = {}; // pto_id -> sheet row number
 var _editingPTOId = null;
 
-async function openPTOCalendar() {
+async function openPTOCalendar(fromCompany) {
   showScreen('screenPTO');
-  previousScreen = 'screenDashboard';
+  previousScreen = fromCompany ? 'screenCompanyView' : 'screenDashboard';
   document.getElementById('ptoContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading PTO calendar...</div>';
   try {
     var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F'});
@@ -3212,30 +3232,21 @@ function outlookComposeUrl(dateStr, summary, description, location) {
   return 'https://outlook.office.com/calendar/0/deeplink/compose?'+params.toString();
 }
 
-function addFollowupToOutlook(vidOrObj) {
+function addFollowupToOutlook(vidOrObj, isPrep) {
   var v = typeof vidOrObj === 'string' ? allVisits.find(function(x){ return x.visit_id===vidOrObj; }) : vidOrObj;
-  if (!v || (!v.followup_date && !v.followup_prep_date)) { showToast('No follow-up date on this visit','error'); return; }
+  var date = isPrep ? (v && v.followup_prep_date) : (v && v.followup_date);
+  if (!v || !date) { showToast('No '+(isPrep?'follow-up prep':'follow-up')+' date on this visit','error'); return; }
   var acc = currentAccount;
   var location = [acc.address,acc.town,acc.state].filter(Boolean).join(', ');
-
-  var primaryDate = v.followup_date || v.followup_prep_date;
-  var isPrimaryPrep = !v.followup_date;
-  var summary = (isPrimaryPrep ? 'Follow-Up Prep: ' : 'Follow-Up: ')+acc.business_name;
+  var summary = (isPrep ? 'Follow-Up Prep: ' : 'Follow-Up: ')+acc.business_name;
   var description = [
     'Account: '+acc.business_name,
     acc.town ? 'Town: '+acc.town : '',
-    v.followup_notes ? 'Notes: '+v.followup_notes : '',
+    isPrep && v.followup_date ? 'Real follow-up is on: '+v.followup_date : '',
+    !isPrep && v.followup_notes ? 'Notes: '+v.followup_notes : '',
     v.notes ? 'Visit recap: '+v.notes : ''
   ].filter(Boolean).join('\n');
-
-  window.open(outlookComposeUrl(primaryDate, summary, description, location), '_blank');
-
-  // Outlook's deep link only opens one event at a time. When both dates
-  // exist, this opens the more important one (the real follow-up) and
-  // points to the .ics download for getting both in a single action.
-  if (v.followup_date && v.followup_prep_date) {
-    showToast('Opened Outlook for the follow-up date. Use "Download .ics" to get both events at once.');
-  }
+  window.open(outlookComposeUrl(date, summary, description, location), '_blank');
 }
 
 function downloadFollowupIcs(vidOrObj) {
