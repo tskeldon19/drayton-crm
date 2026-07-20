@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.7 - built 2026-07-09 -->
+<!-- Drayton CRM v8.8 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1608,6 +1608,30 @@ function showToast(msg, type) {
 // fixed General Manager field (same columns, re-read as gm_name/phone/email).
 // Migration completed — function removed after use.
 
+// Caches each territory's loaded data for a short window so flipping back to
+// a territory you were just on doesn't refetch from scratch. Stores the
+// array/map references themselves (not copies), so any edit made during the
+// session — a saved account, a logged visit — is automatically reflected
+// even from cache, since it's literally the same object in memory.
+var _territoryCache = {};
+var CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+function cacheCurrentTerritoryData(territory) {
+  _territoryCache[territory] = {
+    ts: Date.now(), allAccounts: allAccounts, allVisits: allVisits, allChangeLog: allChangeLog,
+    allActivityLog: allActivityLog, allPersonnel: allPersonnel, allRankings: allRankings,
+    allAliases: allAliases, sheetRowMap: sheetRowMap, visitRowMap: visitRowMap
+  };
+}
+function restoreTerritoryDataFromCache(territory) {
+  var c = _territoryCache[territory];
+  if (!c) return false;
+  allAccounts = c.allAccounts; allVisits = c.allVisits; allChangeLog = c.allChangeLog;
+  allActivityLog = c.allActivityLog; allPersonnel = c.allPersonnel; allRankings = c.allRankings;
+  allAliases = c.allAliases; sheetRowMap = c.sheetRowMap; visitRowMap = c.visitRowMap;
+  return true;
+}
+
 async function loadTerritory() {
   var sel = document.getElementById('territorySelect').value;
   if (!sel) { showToast('Please select a territory','error'); return; }
@@ -1619,10 +1643,17 @@ async function loadTerritory() {
   showScreen('screenDashboard');
   document.getElementById('dashTerritoryName').textContent = sel;
   document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading accounts...</div>';
-  await ensureFreshToken();
-  await fetchData();
-  await fetchRankings();
-  await fetchAliases();
+
+  var cached = _territoryCache[sel];
+  if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
+    restoreTerritoryDataFromCache(sel);
+  } else {
+    await ensureFreshToken();
+    await fetchData();
+    await fetchRankings();
+    await fetchAliases();
+    cacheCurrentTerritoryData(sel);
+  }
   updateSortOptions();
   updateStats(); renderList();
 }
@@ -1646,18 +1677,16 @@ async function fetchAliases() {
 
 async function fetchData() {
   try {
-    var results = await Promise.all([
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW'}); }),
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:K'}); }),
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Change Log!A:H'}); }),
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H'}); }),
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'}); }),
-    ]);
-    var accRows = results[0].result.values || [];
-    var visRows = results[1].result.values || [];
-    var clRows  = results[2].result.values || [];
-    var alRows  = results[3].result.values || [];
-    var perRows = results[4].result.values || [];
+    var sid = territorySheetId(currentTerritory);
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
+      spreadsheetId: sid, ranges: ['Accounts!A:FW','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H']
+    }); });
+    var vr = res.result.valueRanges || [];
+    var accRows = (vr[0] && vr[0].values) || [];
+    var visRows = (vr[1] && vr[1].values) || [];
+    var clRows  = (vr[2] && vr[2].values) || [];
+    var alRows  = (vr[3] && vr[3].values) || [];
+    var perRows = (vr[4] && vr[4].values) || [];
 
     sheetRowMap = {};
     accRows.forEach(function(r,i){ if(r[0]) sheetRowMap[r[0]] = i+1; });
@@ -4179,9 +4208,15 @@ async function openAccountFromManagerView(accountId, territory, returnTo) {
   showToast('Loading account...');
   try {
     currentTerritory = territory;
-    await fetchData();
-    await fetchRankings();
-    await fetchAliases();
+    var cached = _territoryCache[territory];
+    if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
+      restoreTerritoryDataFromCache(territory);
+    } else {
+      await fetchData();
+      await fetchRankings();
+      await fetchAliases();
+      cacheCurrentTerritoryData(territory);
+    }
     currentAccount = allAccounts.find(function(a){ return a.account_id===accountId; });
     if (!currentAccount) { showToast('Account not found in '+territory,'error'); return; }
     previousScreen = returnTo || 'screenCompanyView';
@@ -4219,26 +4254,27 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var results = [];
-  var BATCH_SIZE = 3; // 3 territories × 6 tabs = 18 calls in flight at once, not 60
+  var ranges = ['Accounts!A:FW','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
-  for (var bi=0; bi<territories.length; bi+=BATCH_SIZE) {
-    var batch = territories.slice(bi, bi+BATCH_SIZE);
-    var batchResults = await Promise.all(batch.map(function(t){
-      return Promise.all([
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Visits!A:K'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Territory Updates!A:H'}); })
-      ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[],
-                                    mdRows:r[3].result.values||[], vRows:r[4].result.values||[], tuRows:r[5].result.values||[]}; })
-        .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true;
-          return {territory:t, accRows:[], clRows:[], rkRows:[], mdRows:[], vRows:[], tuRows:[], failed:true}; });
-    }));
-    results = results.concat(batchResults);
-  }
+  var results = await Promise.all(territories.map(function(t){
+    return withRetry(function(){
+      return gapi.client.sheets.spreadsheets.values.batchGet({spreadsheetId: TERRITORY_SHEET_IDS[t], ranges: ranges});
+    }).then(function(res){
+      var vr = res.result.valueRanges || [];
+      return {
+        territory: t,
+        accRows: (vr[0] && vr[0].values) || [],
+        clRows:  (vr[1] && vr[1].values) || [],
+        rkRows:  (vr[2] && vr[2].values) || [],
+        mdRows:  (vr[3] && vr[3].values) || [],
+        vRows:   (vr[4] && vr[4].values) || [],
+        tuRows:  (vr[5] && vr[5].values) || []
+      };
+    }).catch(function(e){
+      console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true;
+      return {territory:t, accRows:[], clRows:[], rkRows:[], mdRows:[], vRows:[], tuRows:[], failed:true};
+    });
+  }));
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
   var accounts = [], changes = [], rankings = [], machines = [], visits = [], territoryUpdates = [];
@@ -4279,56 +4315,26 @@ async function refreshCompanyMasterData() {
 async function refreshCompanyMasterDataInner() {
   await ensureFreshToken();
   var pulled = await pullAllTerritoriesForMaster();
+  var now = new Date().toISOString();
 
   try {
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A2:FW'}); });
-    if (pulled.accounts.length) {
-      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A2',
-        valueInputOption:'RAW', resource:{values: pulled.accounts}
-      }); });
-    }
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A2:H'}); });
-    if (pulled.changes.length) {
-      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A2',
-        valueInputOption:'RAW', resource:{values: pulled.changes}
-      }); });
-    }
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A2:K'}); });
-    if (pulled.rankings.length) {
-      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A2',
-        valueInputOption:'RAW', resource:{values: pulled.rankings}
-      }); });
-    }
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2:Z'}); });
-    if (pulled.machines.length) {
-      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2',
-        valueInputOption:'RAW', resource:{values: pulled.machines}
-      }); });
-    }
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Visits!A2:J'}); });
-    if (pulled.visits.length) {
-      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Visits!A2',
-        valueInputOption:'RAW', resource:{values: pulled.visits}
-      }); });
-    }
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Territory Updates!A2:H'}); });
-    if (pulled.territoryUpdates.length) {
-      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Territory Updates!A2',
-        valueInputOption:'RAW', resource:{values: pulled.territoryUpdates}
-      }); });
-    }
+    var clearRanges = ['Accounts!A2:FW','Change Log!A2:H','Rankings!A2:K','Machine Data!A2:Z','Visits!A2:J','Territory Updates!A2:H','Meta!A2:B'];
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchClear({
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, resource: { ranges: clearRanges }
+    }); });
 
-    var now = new Date().toISOString();
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:B'}); });
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2',
-      valueInputOption:'RAW', resource:{values: [[now, '']]}
+    var updateData = [];
+    if (pulled.accounts.length) updateData.push({ range:'Accounts!A2', values: pulled.accounts });
+    if (pulled.changes.length) updateData.push({ range:'Change Log!A2', values: pulled.changes });
+    if (pulled.rankings.length) updateData.push({ range:'Rankings!A2', values: pulled.rankings });
+    if (pulled.machines.length) updateData.push({ range:'Machine Data!A2', values: pulled.machines });
+    if (pulled.visits.length) updateData.push({ range:'Visits!A2', values: pulled.visits });
+    if (pulled.territoryUpdates.length) updateData.push({ range:'Territory Updates!A2', values: pulled.territoryUpdates });
+    updateData.push({ range:'Meta!A2', values: [[now, '']] });
+
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: COMPANY_MASTER_SHEET_ID,
+      resource: { valueInputOption: 'RAW', data: updateData }
     }); });
 
     var msg = 'Company data refreshed — '+pulled.accounts.length+' accounts, '+pulled.rankings.length+' rankings, '+pulled.machines.length+' machine records';
@@ -4358,16 +4364,14 @@ async function openCompanyView() {
   await ensureFreshToken();
 
   try {
-    var results = await Promise.all([
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A:FW'}); }),
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A:H'}); }),
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A:K'}); }),
-      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A:B'}); })
-    ]);
-    var accRows = results[0].result.values||[];
-    var clRows = results[1].result.values||[];
-    var rkRows = results[2].result.values||[];
-    var metaRows = results[3].result.values||[];
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:FW','Change Log!A:H','Rankings!A:K','Meta!A:B']
+    }); });
+    var vr = res.result.valueRanges || [];
+    var accRows = (vr[0] && vr[0].values) || [];
+    var clRows = (vr[1] && vr[1].values) || [];
+    var rkRows = (vr[2] && vr[2].values) || [];
+    var metaRows = (vr[3] && vr[3].values) || [];
 
     allManagerAccounts = accRows.slice(1).map(rowToAcc).filter(function(a){ return a.account_id; });
     allCompanyChanges = clRows.slice(1).map(function(row){
@@ -5805,16 +5809,14 @@ async function runWeeklyRecap() {
       // Reads the master sheet instead of pulling all 10 territories directly —
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
-      var mResults = await Promise.all([
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Visits!A:K'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Accounts!A:FW'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:COMPANY_MASTER_SHEET_ID, range:'Territory Updates!A:H'}),
-      ]);
-      var visRaw = (mResults[0].result.values||[]).slice(1);
-      var clRaw  = (mResults[1].result.values||[]).slice(1);
-      var accRaw = (mResults[2].result.values||[]).slice(1);
-      var tuRaw  = (mResults[3].result.values||[]).slice(1);
+      var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:FW','Territory Updates!A:H']
+      }); });
+      var mvr = mRes.result.valueRanges || [];
+      var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
+      var clRaw  = ((mvr[1] && mvr[1].values) || []).slice(1);
+      var accRaw = ((mvr[2] && mvr[2].values) || []).slice(1);
+      var tuRaw  = ((mvr[3] && mvr[3].values) || []).slice(1);
       var parsed = parseRecapRawRows(visRaw, clRaw, accRaw, tuRaw);
       visitRows = parsed.visitRows; changeRows = parsed.changeRows;
       tuRows = parsed.tuRows; accountStatusMap = parsed.accountStatusMap;
