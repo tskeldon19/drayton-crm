@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.8 - built 2026-07-09 -->
+<!-- Drayton CRM v8.9 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -130,6 +130,25 @@
 
     /* Machine month grid: 12 columns is unreadably tiny on a phone — use 4x3 */
     .machine-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+
+    /* Modal footers now carry 4-5 buttons in places (Log Visit/Edit Visit
+       with Email/Outlook/Prep/Save) — wrap into a 2-up grid instead of
+       overflowing or squeezing unreadably small */
+    .modal-footer { flex-wrap: wrap; justify-content: stretch; }
+    .modal-footer .btn { flex: 1 1 calc(50% - 5px); }
+
+    /* Company Dashboard's stretched equal-width button rows: wrap to 2-up
+       instead of squeezing 3-7 buttons into one unbroken row */
+    .company-btn-row { flex-wrap: wrap !important; }
+    .company-btn-row .btn { flex: 1 1 calc(50% - 4px) !important; }
+
+    /* PTO calendar: 7 columns is tight on a phone — trim padding/text so it
+       stays usable; the list view below it already has full names as a
+       readable fallback for anything a truncated bar can't show */
+    .pto-cal { padding: 8px; }
+    .pto-cal-headercell { font-size: 9px; letter-spacing: 0; }
+    .pto-cal-daynum { font-size: 10px; padding: 3px 0; }
+    .pto-bar { font-size: 9px; padding: 0 3px; }
   }
   .metric-card {
     flex: 1; min-width: 130px; background: var(--black-soft); border: 1px solid var(--gray-1);
@@ -373,8 +392,8 @@
   .product-check:hover { background: var(--gold-dim); border-color: var(--gold); color: var(--gold); }
   .product-check input { accent-color: var(--gold); }
 
-  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gold); color: var(--black); padding: 12px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; z-index: 999; opacity: 0; transform: translateY(12px); transition: all 0.3s; pointer-events: none; }
-  .corner-spinner { position: fixed; bottom: 24px; right: 24px; background: var(--black-soft); border: 1px solid var(--gray-2); color: var(--white); padding: 10px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; z-index: 1000; display: flex; align-items: center; gap: 10px; }
+  .toast { position: fixed; bottom: 24px; right: 24px; left: 24px; max-width: 420px; margin-left: auto; background: var(--gold); color: var(--black); padding: 12px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; z-index: 999; opacity: 0; transform: translateY(12px); transition: all 0.3s; pointer-events: none; }
+  .corner-spinner { position: fixed; bottom: 24px; right: 24px; left: 24px; max-width: 420px; margin-left: auto; background: var(--black-soft); border: 1px solid var(--gray-2); color: var(--white); padding: 10px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; z-index: 1000; display: flex; align-items: center; gap: 10px; }
   .corner-spinner .spinner { width: 16px; height: 16px; border: 2px solid var(--gray-2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; }
   .toast.show { opacity: 1; transform: translateY(0); }
   .toast.error { background: var(--red); color: var(--white); }
@@ -531,12 +550,12 @@
         <div class="sub" id="companyMeta">Loading company-wide data...</div>
         <div class="sub" id="companyLastRefreshed" style="font-size:11px;color:var(--gray-3)"></div>
       </div>
-      <div style="display:flex;gap:8px;width:100%">
+      <div class="company-btn-row" style="display:flex;gap:8px;width:100%">
         <button class="btn btn-gold btn-sm" id="companyRefreshBtn" style="flex:1" title="Manager PIN required">Refresh Company Data</button>
         <button class="btn btn-gold btn-sm" id="uploadRankingsBtn" style="flex:1" title="Upload ranking files">Upload Ranking</button>
         <button class="btn btn-gold btn-sm" id="uploadMachinesBtn" style="flex:1" title="Upload machine report">Upload Machines</button>
       </div>
-      <div style="display:flex;gap:8px;width:100%">
+      <div class="company-btn-row" style="display:flex;gap:8px;width:100%">
         <button class="btn btn-primary btn-sm" id="companyRankingsBtn" style="flex:1">Rankings</button>
         <button class="btn btn-primary btn-sm" id="companyMachinesBtn" style="flex:1">Machine Reports</button>
         <button class="btn btn-primary btn-sm" id="companyRecapBtn" style="flex:1">Weekly Report</button>
