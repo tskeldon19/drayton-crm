@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.6 - built 2026-07-09 -->
+<!-- Drayton CRM v8.7 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1632,9 +1632,9 @@ async function loadTerritory() {
 // Tab: raw_name | account_id | account_name | territory | status | confidence | created_at
 async function fetchAliases() {
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: territorySheetId(currentTerritory), range: 'Account Aliases!A:H'
-    });
+    }); });
     var rows = res.result.values || [];
     allAliases = rows.slice(1).map(function(r){
       return { alias_id:r[0]||'', raw_name:r[1]||'', account_id:r[2]||'',
@@ -1647,11 +1647,11 @@ async function fetchAliases() {
 async function fetchData() {
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:K'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Change Log!A:H'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'}),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW'}); }),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:K'}); }),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Change Log!A:H'}); }),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H'}); }),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'}); }),
     ]);
     var accRows = results[0].result.values || [];
     var visRows = results[1].result.values || [];
@@ -1688,7 +1688,14 @@ async function fetchData() {
                role:r[4]||'', name:r[5]||'', phone:r[6]||'', email:r[7]||'' };
     });
 
-  } catch(e) { showToast('Error loading data','error'); console.error(e); }
+  } catch(e) {
+    console.error(e);
+    var msg = 'Error loading data';
+    if (isAuthError(e)) msg = 'Your session may have expired — try refreshing the page and signing in again.';
+    else if (isRateLimitError(e)) msg = 'Google rate-limited this request — wait a moment and try again.';
+    else if (e && e.timedOut) msg = 'Request timed out — check your connection and try again.';
+    showToast(msg,'error');
+  }
 }
 
 // Appends a single row to the Change Log sheet. Timestamp is time-of-save —
@@ -3418,9 +3425,9 @@ async function getTerritoryAccountsForMatching(territory) {
 async function fetchRankings() {
   try {
     var rankingsSheetId = TERRITORY_SHEET_IDS[currentTerritory] || SHEET_ID;
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: rankingsSheetId, range: 'Rankings!A:J'
-    });
+    }); });
     var rows = res.result.values || [];
     allRankings = rows.slice(1).map(function(r){
       return { account_id:r[0]||'', account_name:r[1]||'', customer_number:r[2]||'',
@@ -4352,10 +4359,10 @@ async function openCompanyView() {
 
   try {
     var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A:FW'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A:H'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A:K'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A:B'})
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A:FW'}); }),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A:H'}); }),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A:K'}); }),
+      withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A:B'}); })
     ]);
     var accRows = results[0].result.values||[];
     var clRows = results[1].result.values||[];
@@ -4376,7 +4383,11 @@ async function openCompanyView() {
       : 'No data yet — a manager needs to click "Refresh Company Data" below';
   } catch(e) {
     console.error(e);
-    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load company data — has the master sheet been set up yet?';
+    var msg;
+    if (isAuthError(e)) msg = 'Your session may have expired — try refreshing the page and signing in again.';
+    else if (isRateLimitError(e)) msg = 'Google rate-limited this request — wait a moment and try again.';
+    else if (e && e.timedOut) msg = 'Request timed out — check your connection and try again.';
+    else msg = 'Could not load company data — has the master sheet been set up yet?';
     showToast(msg,'error');
     allManagerAccounts = []; allCompanyChanges = []; companyRankLookup = {};
   }
