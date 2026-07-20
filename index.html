@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.5 - built 2026-07-09 -->
+<!-- Drayton CRM v8.6 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4329,7 +4329,16 @@ async function refreshCompanyMasterDataInner() {
     hideCornerSpinner();
     showToast(msg, pulled.failedTerritories.length ? 'error' : undefined);
 
-    if (document.getElementById('screenCompanyView').classList.contains('active')) await openCompanyView();
+    if (document.getElementById('screenCompanyView').classList.contains('active')) {
+      // Brief pause before re-reading what we just wrote — Sheets can have a
+      // short propagation gap between a write completing and a follow-up
+      // read reflecting it, which is exactly the "zeros now, fine if you
+      // leave and come back" symptom.
+      showCornerSpinner('Loading fresh data...');
+      await new Promise(function(resolve){ setTimeout(resolve, 1500); });
+      hideCornerSpinner();
+      await openCompanyView();
+    }
   } catch(e) {
     throw e; // handled by the outer refreshCompanyMasterData wrapper
   }
