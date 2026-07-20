@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.3 - built 2026-07-09 -->
+<!-- Drayton CRM v8.4 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1445,6 +1445,30 @@ function ensureFreshToken() {
 function isAuthError(e) {
   var code = (e && e.status) || (e && e.result && e.result.error && e.result.error.code);
   return code === 401 || code === 403 && (e && e.result && e.result.error && /invalid|expired|credential/i.test(e.result.error.message||''));
+}
+
+function isRateLimitError(e) {
+  var code = (e && e.status) || (e && e.result && e.result.error && e.result.error.code);
+  return code === 429 || (code === 403 && e && e.result && e.result.error && /rate|quota/i.test(e.result.error.message||''));
+}
+
+// Retries a Sheets API call (or any promise-returning function) on rate-limit
+// errors specifically, with a short growing delay between attempts. The
+// master refresh fires 40+ calls in a tight burst (10 territories × 4 tabs
+// at once) — that's exactly the kind of pattern that trips a rate limit
+// occasionally even when nothing is actually wrong, and the fix is to back
+// off and retry that one call, not to fail the whole operation.
+function withRetry(fn, retries) {
+  retries = retries === undefined ? 3 : retries;
+  return fn().catch(function(e){
+    if (retries > 0 && isRateLimitError(e)) {
+      var delay = (4 - retries) * 800 + 400; // 400ms, 1200ms, 2000ms
+      return new Promise(function(resolve){ setTimeout(resolve, delay); }).then(function(){
+        return withRetry(fn, retries - 1);
+      });
+    }
+    throw e;
+  });
 }
 
 // Shared PIN check for manager-only actions (Delete, Upload Machine/Ranking
@@ -4170,19 +4194,26 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var results = await Promise.all(territories.map(function(t){
-    return Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Visits!A:K'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Territory Updates!A:H'})
-    ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[],
-                                  mdRows:r[3].result.values||[], vRows:r[4].result.values||[], tuRows:r[5].result.values||[]}; })
-      .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true;
-        return {territory:t, accRows:[], clRows:[], rkRows:[], mdRows:[], vRows:[], tuRows:[], failed:true}; });
-  }));
+  var results = [];
+  var BATCH_SIZE = 3; // 3 territories × 6 tabs = 18 calls in flight at once, not 60
+
+  for (var bi=0; bi<territories.length; bi+=BATCH_SIZE) {
+    var batch = territories.slice(bi, bi+BATCH_SIZE);
+    var batchResults = await Promise.all(batch.map(function(t){
+      return Promise.all([
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Accounts!A:FW'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Change Log!A:H'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Rankings!A:J'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Machine Data!A:Z'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Visits!A:K'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: TERRITORY_SHEET_IDS[t], range: 'Territory Updates!A:H'}); })
+      ]).then(function(r){ return {territory:t, accRows:r[0].result.values||[], clRows:r[1].result.values||[], rkRows:r[2].result.values||[],
+                                    mdRows:r[3].result.values||[], vRows:r[4].result.values||[], tuRows:r[5].result.values||[]}; })
+        .catch(function(e){ console.error('Could not load '+t, e); if (isAuthError(e)) sawAuthError = true;
+          return {territory:t, accRows:[], clRows:[], rkRows:[], mdRows:[], vRows:[], tuRows:[], failed:true}; });
+    }));
+    results = results.concat(batchResults);
+  }
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
   var accounts = [], changes = [], rankings = [], machines = [], visits = [], territoryUpdates = [];
@@ -4206,55 +4237,55 @@ async function refreshCompanyMasterData() {
   var pulled = await pullAllTerritoriesForMaster();
 
   try {
-    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A2:FW'});
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A2:FW'}); });
     if (pulled.accounts.length) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Accounts!A2',
         valueInputOption:'RAW', resource:{values: pulled.accounts}
-      });
+      }); });
     }
-    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A2:H'});
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A2:H'}); });
     if (pulled.changes.length) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Change Log!A2',
         valueInputOption:'RAW', resource:{values: pulled.changes}
-      });
+      }); });
     }
-    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A2:K'});
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A2:K'}); });
     if (pulled.rankings.length) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A2',
         valueInputOption:'RAW', resource:{values: pulled.rankings}
-      });
+      }); });
     }
-    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2:Z'});
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2:Z'}); });
     if (pulled.machines.length) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A2',
         valueInputOption:'RAW', resource:{values: pulled.machines}
-      });
+      }); });
     }
-    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Visits!A2:J'});
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Visits!A2:J'}); });
     if (pulled.visits.length) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Visits!A2',
         valueInputOption:'RAW', resource:{values: pulled.visits}
-      });
+      }); });
     }
-    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Territory Updates!A2:H'});
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Territory Updates!A2:H'}); });
     if (pulled.territoryUpdates.length) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Territory Updates!A2',
         valueInputOption:'RAW', resource:{values: pulled.territoryUpdates}
-      });
+      }); });
     }
 
     var now = new Date().toISOString();
-    await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:B'});
-    await gapi.client.sheets.spreadsheets.values.update({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:B'}); });
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2',
       valueInputOption:'RAW', resource:{values: [[now, '']]}
-    });
+    }); });
 
     var msg = 'Company data refreshed — '+pulled.accounts.length+' accounts, '+pulled.rankings.length+' rankings, '+pulled.machines.length+' machine records';
     if (pulled.failedTerritories.length) msg += '. Could not load: '+pulled.failedTerritories.join(', ');
@@ -4266,9 +4297,14 @@ async function refreshCompanyMasterData() {
     hideCornerSpinner();
     console.error(e);
     var detail = (e && e.result && e.result.error && e.result.error.message) || (e && e.message) || '';
-    var msg = isAuthError(e)
-      ? 'Your session may have expired — try refreshing the page and signing in again.'
-      : 'Error writing to the master sheet'+(detail?': '+detail:' — has it been set up with the right tabs yet?');
+    var msg;
+    if (isAuthError(e)) {
+      msg = 'Your session may have expired — try refreshing the page and signing in again.';
+    } else if (isRateLimitError(e)) {
+      msg = 'Google rate-limited this refresh after 3 retries — wait a minute and try again. Some data may have already been saved, so check before re-running.';
+    } else {
+      msg = 'Error writing to the master sheet'+(detail?': '+detail:' — has it been set up with the right tabs yet?');
+    }
     showToast(msg,'error');
   }
 }
