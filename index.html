@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v8.4 - built 2026-07-09 -->
+<!-- Drayton CRM v8.5 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1452,16 +1452,34 @@ function isRateLimitError(e) {
   return code === 429 || (code === 403 && e && e.result && e.result.error && /rate|quota/i.test(e.result.error.message||''));
 }
 
+// A stuck request that never resolves OR rejects is invisible to any error
+// handling — nothing can catch what never throws. This is almost certainly
+// what caused the spinner to hang indefinitely: one call in a big batch got
+// stuck (dropped connection, browser throttling a backgrounded tab, etc.)
+// and every await behind it waited forever with no way out. Racing every
+// call against a hard timeout guarantees this can never happen again — the
+// call either finishes or gets treated as failed within 20 seconds, no
+// exceptions.
+function withTimeout(promiseFn, ms) {
+  ms = ms || 20000;
+  return new Promise(function(resolve, reject){
+    var timer = setTimeout(function(){ reject({timedOut:true, message:'Request timed out after '+(ms/1000)+'s'}); }, ms);
+    promiseFn().then(function(v){ clearTimeout(timer); resolve(v); },
+                      function(e){ clearTimeout(timer); reject(e); });
+  });
+}
+
+function isRetryableError(e) {
+  return isRateLimitError(e) || (e && e.timedOut);
+}
+
 // Retries a Sheets API call (or any promise-returning function) on rate-limit
-// errors specifically, with a short growing delay between attempts. The
-// master refresh fires 40+ calls in a tight burst (10 territories × 4 tabs
-// at once) — that's exactly the kind of pattern that trips a rate limit
-// occasionally even when nothing is actually wrong, and the fix is to back
-// off and retry that one call, not to fail the whole operation.
+// or timeout errors, with a short growing delay between attempts, and a hard
+// per-call timeout so a stuck request can never hang the whole operation.
 function withRetry(fn, retries) {
   retries = retries === undefined ? 3 : retries;
-  return fn().catch(function(e){
-    if (retries > 0 && isRateLimitError(e)) {
+  return withTimeout(fn).catch(function(e){
+    if (retries > 0 && isRetryableError(e)) {
       var delay = (4 - retries) * 800 + 400; // 400ms, 1200ms, 2000ms
       return new Promise(function(resolve){ setTimeout(resolve, delay); }).then(function(){
         return withRetry(fn, retries - 1);
@@ -4233,6 +4251,25 @@ async function pullAllTerritoriesForMaster() {
 
 async function refreshCompanyMasterData() {
   showCornerSpinner('Refreshing company data...');
+  try {
+    await withTimeout(function(){ return refreshCompanyMasterDataInner(); }, 180000); // hard 3-minute ceiling, no matter what
+  } catch(e) {
+    hideCornerSpinner();
+    console.error(e);
+    if (e && e.timedOut) {
+      showToast('Refresh timed out after 3 minutes — some data may have already saved. Try again, or check your connection.', 'error');
+    } else {
+      var detail = (e && e.result && e.result.error && e.result.error.message) || (e && e.message) || '';
+      var msg;
+      if (isAuthError(e)) msg = 'Your session may have expired — try refreshing the page and signing in again.';
+      else if (isRateLimitError(e)) msg = 'Google rate-limited this refresh after 3 retries — wait a minute and try again. Some data may have already been saved, so check before re-running.';
+      else msg = 'Error writing to the master sheet'+(detail?': '+detail:' — has it been set up with the right tabs yet?');
+      showToast(msg,'error');
+    }
+  }
+}
+
+async function refreshCompanyMasterDataInner() {
   await ensureFreshToken();
   var pulled = await pullAllTerritoriesForMaster();
 
@@ -4294,18 +4331,7 @@ async function refreshCompanyMasterData() {
 
     if (document.getElementById('screenCompanyView').classList.contains('active')) await openCompanyView();
   } catch(e) {
-    hideCornerSpinner();
-    console.error(e);
-    var detail = (e && e.result && e.result.error && e.result.error.message) || (e && e.message) || '';
-    var msg;
-    if (isAuthError(e)) {
-      msg = 'Your session may have expired — try refreshing the page and signing in again.';
-    } else if (isRateLimitError(e)) {
-      msg = 'Google rate-limited this refresh after 3 retries — wait a minute and try again. Some data may have already been saved, so check before re-running.';
-    } else {
-      msg = 'Error writing to the master sheet'+(detail?': '+detail:' — has it been set up with the right tabs yet?');
-    }
-    showToast(msg,'error');
+    throw e; // handled by the outer refreshCompanyMasterData wrapper
   }
 }
 
