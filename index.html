@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v9.0 - built 2026-07-09 -->
+<!-- Drayton CRM v9.1 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1472,6 +1472,16 @@ function isRateLimitError(e) {
   return code === 429 || (code === 403 && e && e.result && e.result.error && /rate|quota/i.test(e.result.error.message||''));
 }
 
+// One shared place for the "what actually went wrong" message, used by every
+// save/load action — keeps the wording consistent and avoids repeating the
+// same if/else chain (and risking a typo or missed case) at each call site.
+function describeApiError(e, fallbackMsg) {
+  if (isAuthError(e)) return 'Your session may have expired — try refreshing the page and signing in again.';
+  if (isRateLimitError(e)) return 'Google rate-limited this request — wait a moment and try again.';
+  if (e && e.timedOut) return 'Request timed out — check your connection and try again.';
+  return fallbackMsg || 'Something went wrong — please try again.';
+}
+
 // A stuck request that never resolves OR rejects is invisible to any error
 // handling — nothing can catch what never throws. This is almost certainly
 // what caused the spinner to hang indefinitely: one call in a big batch got
@@ -1764,10 +1774,10 @@ async function logFieldChange(account, fieldKey, oldVal, newVal, timestamp) {
     account.territory||currentTerritory, fieldKey, label, oldVal||'', newVal||''
   ];
   try {
-    await gapi.client.sheets.spreadsheets.values.append({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId: territorySheetId(currentTerritory), range: 'Change Log!A:H',
       valueInputOption: 'RAW', resource: {values:[row]}
-    });
+    }); });
     allChangeLog.push({
       timestamp: row[0], account_id: row[1], account_name: row[2], territory: row[3],
       field_key: row[4], field_label: row[5], old_value: row[6], new_value: row[7]
@@ -2654,9 +2664,9 @@ async function saveProductDetails(pkey) {
       return { range: 'Accounts!'+colLetter(COL[f])+rowNum, values: [[a[f]||'']] };
     });
     try {
-      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: territorySheetId(currentTerritory), resource: { valueInputOption: 'RAW', data: data }
-      });
+      }); });
       await logFieldChange(a, pkey+'_profile_pricing', before.pricing,   pricing);
       await logFieldChange(a, pkey+'_training',        before.training,  training);
       await logFieldChange(a, pkey+'_part_number',     before.partNum,   partNum);
@@ -2666,7 +2676,7 @@ async function saveProductDetails(pkey) {
       if (carryingBefore !== carryingAfter) await logFieldChange(a, pkey+'_carrying', carryingBefore, carryingAfter);
       if (window._productStatusSnapshot) delete window._productStatusSnapshot[pkey];
       showToast('Product info saved ✓');
-    } catch(e) { showToast('Error saving','error'); console.error(e); }
+    } catch(e) { showToast(describeApiError(e, 'Error saving'),'error'); console.error(e); }
   }
   renderDetail();
   var row = document.querySelector('.product-row[data-pkey="'+pkey+'"]');
@@ -2702,11 +2712,11 @@ async function toggleVisitHighlight(vid) {
   var rowNum = visitRowMap[vid];
   if (rowNum) {
     try {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: territorySheetId(currentTerritory), range: 'Visits!J'+rowNum,
         valueInputOption: 'RAW', resource: {values: [[newVal]]}
-      });
-    } catch(e) { showToast('Error updating highlight','error'); console.error(e); }
+      }); });
+    } catch(e) { showToast(describeApiError(e, 'Error updating highlight'),'error'); console.error(e); }
   }
   renderDetail();
 }
@@ -2748,18 +2758,18 @@ async function saveActivityLog() {
   var row = [aid, currentAccount.account_id, currentAccount.business_name,
              currentTerritory, _activityLogFieldKey, _activityLogFieldLabel, date, notes];
   try {
-    await gapi.client.sheets.spreadsheets.values.append({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H',
       valueInputOption:'RAW', resource:{values:[row]}
-    });
+    }); });
     // Update the cache field on the Accounts sheet with the new date
     var rowNum = sheetRowMap[currentAccount.account_id];
     if (rowNum && COL[_activityLogFieldKey] !== undefined) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId:territorySheetId(currentTerritory),
         range:'Accounts!'+colLetter(COL[_activityLogFieldKey])+rowNum,
         valueInputOption:'RAW', resource:{values:[[date]]}
-      });
+      }); });
       currentAccount[_activityLogFieldKey] = date;
     }
     allActivityLog.push({activity_id:aid, account_id:currentAccount.account_id,
@@ -2773,7 +2783,7 @@ async function saveActivityLog() {
     showToast('Activity logged ✓');
     closeModal('modalActivityLog');
     renderDetail();
-  } catch(e) { showToast('Error saving activity','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error saving activity'),'error'); console.error(e); }
 }
 
 // ── Personnel ─────────────────────────────────────────────────────────────────
@@ -2801,15 +2811,15 @@ async function savePersonnel() {
              currentTerritory, role, name, phone, email];
   try {
     if (_editingPersonnelId) {
-      var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+      var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
-      })).result.values || [];
+      }); })).result.values || [];
       for (var i=1; i<allRows.length; i++) {
         if (allRows[i][0]===_editingPersonnelId) {
-          await gapi.client.sheets.spreadsheets.values.update({
+          await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A'+(i+1)+':H'+(i+1),
             valueInputOption:'RAW', resource:{values:[row]}
-          });
+          }); });
           var p = allPersonnel.find(function(x){ return x.personnel_id===_editingPersonnelId; });
           var oldName = p ? (p.name+(p.role?' ('+p.role+')':'')) : '';
           if (p) { p.role=role; p.name=name; p.phone=phone; p.email=email; }
@@ -2819,10 +2829,10 @@ async function savePersonnel() {
         }
       }
     } else {
-      await gapi.client.sheets.spreadsheets.values.append({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H',
         valueInputOption:'RAW', resource:{values:[row]}
-      });
+      }); });
       allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
         account_name:currentAccount.business_name, territory:currentTerritory,
         role:role, name:name, phone:phone, email:email});
@@ -2832,33 +2842,33 @@ async function savePersonnel() {
     showToast('Contact saved ✓');
     closeModal('modalPersonnel');
     renderDetail();
-  } catch(e) { showToast('Error saving contact','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error saving contact'),'error'); console.error(e); }
 }
 
 async function deletePersonnel(personnelId) {
   if (!confirm('Remove this contact?')) return;
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
+    var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
     var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
-    var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+    var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
-    })).result.values || [];
+    }); })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===personnelId) {
-        await gapi.client.sheets.spreadsheets.batchUpdate({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
           spreadsheetId:territorySheetId(currentTerritory),
           resource:{requests:[{deleteDimension:{range:{
             sheetId:perSheet.properties.sheetId,
             dimension:'ROWS', startIndex:i, endIndex:i+1
           }}}]}
-        });
+        }); });
         break;
       }
     }
     allPersonnel = allPersonnel.filter(function(p){ return p.personnel_id!==personnelId; });
     showToast('Contact removed ✓');
     renderDetail();
-  } catch(e) { showToast('Error removing contact','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error removing contact'),'error'); console.error(e); }
 }
 
 // ── Territory Updates ─────────────────────────────────────────────────────────
@@ -2875,9 +2885,9 @@ function catClass(cat) {
 
 async function fetchTerritoryUpdates() {
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!A:H'
-    });
+    }); });
     var rows = res.result.values || [];
     allTerritoryUpdates = rows.slice(1).map(function(r){
       return {update_id:r[0]||'',territory:r[1]||'',category:r[2]||'',notes:r[3]||'',
@@ -2948,37 +2958,37 @@ async function saveTerritoryUpdate() {
     if (!u) return;
     u.category = category; u.notes = notes; u.is_highlight = hl; u.edited_at = now;
     try {
-      var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+      var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!A:H'
-      })).result.values || [];
+      }); })).result.values || [];
       for (var i=1; i<allRows.length; i++) {
         if (allRows[i][0]===_editingTuId) {
-          await gapi.client.sheets.spreadsheets.values.update({
+          await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!C'+(i+1)+':E'+(i+1),
             valueInputOption:'RAW', resource:{values:[[category,notes,hl]]}
-          });
-          await gapi.client.sheets.spreadsheets.values.update({
+          }); });
+          await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!H'+(i+1),
             valueInputOption:'RAW', resource:{values:[[now]]}
-          });
+          }); });
           break;
         }
       }
       showToast('Update saved ✓');
-    } catch(e) { showToast('Error saving','error'); console.error(e); return; }
+    } catch(e) { showToast(describeApiError(e, 'Error saving'),'error'); console.error(e); return; }
   } else {
     // New entry
     var uid = 'TU'+Date.now();
     var row = [uid, currentTerritory, category, notes, hl, '', now, ''];
     try {
-      await gapi.client.sheets.spreadsheets.values.append({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId:territorySheetId(currentTerritory), range:'Territory Updates!A:H',
         valueInputOption:'RAW', resource:{values:[row]}
-      });
+      }); });
       allTerritoryUpdates.push({update_id:uid,territory:currentTerritory,category:category,
         notes:notes,is_highlight:hl,author:'',timestamp:now,edited_at:''});
       showToast('Update posted ✓');
-    } catch(e) { showToast('Error saving','error'); console.error(e); return; }
+    } catch(e) { showToast(describeApiError(e, 'Error saving'),'error'); console.error(e); return; }
   }
   closeModal('modalTuEdit');
   renderTerritoryUpdates();
@@ -3020,12 +3030,12 @@ async function saveVisitEdit() {
   var rowNum = visitRowMap[v.visit_id];
   if (rowNum) {
     try {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId:territorySheetId(currentTerritory), range:'Visits!E'+rowNum+':K'+rowNum,
         valueInputOption:'RAW', resource:{values:[[date,attend,notes,fu,fuN,hl,fuPrep]]}
-      });
+      }); });
       showToast('Visit updated ✓');
-    } catch(e) { showToast('Error saving visit','error'); console.error(e); return; }
+    } catch(e) { showToast(describeApiError(e, 'Error saving visit'),'error'); console.error(e); return; }
   }
   // Also update last_visit and next_followup on account if these changed
   var accRowNum = sheetRowMap[currentAccount.account_id];
@@ -3065,7 +3075,7 @@ async function openPTOCalendar(fromCompany) {
   previousScreen = fromCompany ? 'screenCompanyView' : 'screenDashboard';
   document.getElementById('ptoContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading PTO calendar...</div>';
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F'});
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F'}); });
     var rows = res.result.values || [];
     ptoRowMap = {};
     rows.forEach(function(r,i){ if (r[0]) ptoRowMap[r[0]] = i+1; });
@@ -3074,8 +3084,7 @@ async function openPTOCalendar(fromCompany) {
     }).filter(function(p){ return p.name && p.start_date; });
   } catch(e) {
     console.error(e);
-    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load PTO calendar — has it been set up yet?';
-    document.getElementById('ptoContent').innerHTML = '<div class="empty-state">'+msg+'</div>';
+    document.getElementById('ptoContent').innerHTML = '<div class="empty-state">'+describeApiError(e, 'Could not load PTO calendar — has it been set up yet?')+'</div>';
     return;
   }
   renderPTOList();
@@ -3221,17 +3230,17 @@ async function deletePTOEntry() {
   var rowNum = ptoRowMap[_editingPTOId];
   try {
     if (rowNum) {
-      await gapi.client.sheets.spreadsheets.batchUpdate({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: PTO_SHEET_ID,
         resource: { requests: [{ deleteDimension: { range: { sheetId: 0, dimension: 'ROWS', startIndex: rowNum-1, endIndex: rowNum } } }] }
-      });
+      }); });
     }
     allPTOEntries = allPTOEntries.filter(function(x){ return x.pto_id!==_editingPTOId; });
     showToast('PTO entry deleted ✓');
     closeModal('modalPTOAdd');
     await openPTOCalendar();
   } catch(e) {
-    showToast('Error deleting PTO entry','error'); console.error(e);
+    showToast(describeApiError(e, 'Error deleting PTO entry'),'error'); console.error(e);
   }
 }
 
@@ -3249,27 +3258,27 @@ async function savePTOEntry() {
       var existing = allPTOEntries.find(function(x){ return x.pto_id===_editingPTOId; });
       var addedAt = existing ? existing.added_at : new Date().toISOString();
       if (rowNum) {
-        await gapi.client.sheets.spreadsheets.values.update({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId: PTO_SHEET_ID, range: 'PTO!A'+rowNum+':F'+rowNum,
           valueInputOption:'RAW', resource:{values:[[_editingPTOId,name,start,end,notes,addedAt]]}
-        });
+        }); });
       }
       if (existing) { existing.name=name; existing.start_date=start; existing.end_date=end; existing.notes=notes; }
       showToast('PTO entry updated ✓');
     } else {
       var pid = 'PTO'+Date.now();
       var now = new Date().toISOString();
-      await gapi.client.sheets.spreadsheets.values.append({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId: PTO_SHEET_ID, range: 'PTO!A:F',
         valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[pid,name,start,end,notes,now]]}
-      });
+      }); });
       allPTOEntries.push({pto_id:pid,name:name,start_date:start,end_date:end,notes:notes,added_at:now});
       showToast('PTO entry saved ✓');
     }
     closeModal('modalPTOAdd');
     if (_editingPTOId) { await openPTOCalendar(); } else { renderPTOList(); }
   } catch(e) {
-    showToast('Error saving PTO entry — has the sheet been set up yet?','error'); console.error(e);
+    showToast(describeApiError(e, 'Error saving PTO entry — has the sheet been set up yet?'),'error'); console.error(e);
   }
 }
 
@@ -3456,9 +3465,9 @@ async function getTerritoryAccountsForMatching(territory) {
   var sid = TERRITORY_SHEET_IDS[territory];
   if (!sid) { _territoryAccountsCache[territory] = []; return []; }
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: sid, range: 'Accounts!A:E'  // account_id, territory, status, business_name — plenty for matching
-    });
+    }); });
     var rows = res.result.values || [];
     var accts = rows.slice(1).map(function(r){ return { account_id: r[0]||'', business_name: r[3]||'' }; })
                     .filter(function(a){ return a.account_id && a.business_name; });
@@ -3514,9 +3523,9 @@ var currentSalesGoal = null;
 async function fetchSalesGoal() {
   var year = String(new Date().getFullYear());
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A:D'
-    });
+    }); });
     var rows = res.result.values || [];
     var match = rows.slice(1).find(function(r){ return r[0]===currentTerritory && r[1]===year; });
     currentSalesGoal = { territory: currentTerritory, year: year, goal_amount: match ? (parseFloat(match[2])||0) : 0 };
@@ -3529,9 +3538,9 @@ async function fetchSalesGoal() {
 async function saveSalesGoal(newGoal) {
   var year = String(new Date().getFullYear());
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A:D'
-    });
+    }); });
     var rows = res.result.values || [];
     var rowIdx = -1;
     for (var i=1; i<rows.length; i++) {
@@ -3539,20 +3548,20 @@ async function saveSalesGoal(newGoal) {
     }
     var now = new Date().toISOString();
     if (rowIdx > 0) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A'+rowIdx+':D'+rowIdx,
         valueInputOption: 'RAW', resource: {values: [[currentTerritory, year, newGoal, now]]}
-      });
+      }); });
     } else {
-      await gapi.client.sheets.spreadsheets.values.append({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId: territorySheetId(currentTerritory), range: 'Sales Goals!A:D',
         valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: [[currentTerritory, year, newGoal, now]]}
-      });
+      }); });
     }
     currentSalesGoal = { territory: currentTerritory, year: year, goal_amount: newGoal };
     showToast('Sales goal saved ✓');
   } catch(e) {
-    showToast('Error saving goal — has the Sales Goals tab been created?','error'); console.error(e);
+    showToast(describeApiError(e, 'Error saving goal — has the Sales Goals tab been created?'),'error'); console.error(e);
   }
 }
 
@@ -3942,9 +3951,9 @@ async function confirmRankingsUpload() {
     var item = _pendingRankingsUpload[i];
     try {
       // Clear existing rankings for this territory
-      await gapi.client.sheets.spreadsheets.values.clear({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({
         spreadsheetId: item.sheetId, range: 'Rankings!A2:J'
-      });
+      }); });
       // Write new data
       var rows = item.parsed.rows.map(function(r){
         return [r.account_id, r.account_name, r.customer_number,
@@ -3952,10 +3961,10 @@ async function confirmRankingsUpload() {
                 r.pct_change, r.report_month, now];
       });
       if (rows.length) {
-        await gapi.client.sheets.spreadsheets.values.update({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId: item.sheetId, range: 'Rankings!A2',
           valueInputOption: 'RAW', resource: {values: rows}
-        });
+        }); });
       }
       // Stage the same snapshot for the shared history log (territory prepended
       // since History covers every territory in one tab)
@@ -3969,7 +3978,7 @@ async function confirmRankingsUpload() {
           return Object.assign({}, r, {uploaded_at: now});
         });
       }
-    } catch(e) { showToast('Error uploading '+item.territory,'error'); console.error(e); }
+    } catch(e) { showToast(describeApiError(e, 'Error uploading '+item.territory),'error'); console.error(e); }
   }
 
   // Archive each territory's ranking snapshot to its own spreadsheet's history tab
@@ -3997,9 +4006,9 @@ async function archiveHistorySnapshot(tabName, newRows, territoryCol, monthCol, 
   if (!newRows.length) return;
   var sid = explicitSheetId || territorySheetId(currentTerritory);
   try {
-    var existing = (await gapi.client.sheets.spreadsheets.values.get({
+    var existing = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: sid, range: tabName+'!A2:Z'
-    })).result.values || [];
+    }); })).result.values || [];
 
     // Which (territory, report_month) pairs is this upload replacing?
     var replacing = new Set();
@@ -4010,16 +4019,16 @@ async function archiveHistorySnapshot(tabName, newRows, territoryCol, monthCol, 
     });
 
     var combined = kept.concat(newRows);
-    await gapi.client.sheets.spreadsheets.values.clear({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({
       spreadsheetId: sid, range: tabName+'!A2:Z'
-    });
-    await gapi.client.sheets.spreadsheets.values.update({
+    }); });
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId: sid, range: tabName+'!A2',
       valueInputOption: 'RAW', resource: {values: combined}
-    });
+    }); });
   } catch(e) {
     console.error('Could not archive to '+tabName+' — has that tab been created yet?', e);
-    showToast('Uploaded, but could not save to '+tabName+' (tab missing?)','error');
+    showToast(describeApiError(e, 'Uploaded, but could not save to '+tabName+' (tab missing?)'),'error');
   }
 }
 
@@ -4036,9 +4045,9 @@ var _pendingAliasWrites = [];
 
 async function fetchMachines() {
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: territorySheetId(currentTerritory), range: 'Machine Data!A:Z'
-    });
+    }); });
     var rows = res.result.values || [];
     allMachines = rows.slice(1).map(function(r){
       return {
@@ -4200,9 +4209,9 @@ async function getTerritoryAliasesForMatching(territory) {
   var sid = TERRITORY_SHEET_IDS[territory];
   if (!sid) { _territoryAliasesCache[territory] = []; return []; }
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: sid, range: 'Account Aliases!A:H'
-    });
+    }); });
     var rows = res.result.values || [];
     var aliases = rows.slice(1).map(function(r){
       return { alias_id:r[0]||'', raw_name:r[1]||'', account_id:r[2]||'',
@@ -4634,17 +4643,17 @@ var companyRankingsGoalTotal = 0;
 
 async function saveCompanyGoal(newGoal) {
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:C2'});
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:C2'}); });
     var row = (res.result.values && res.result.values[0]) || ['', '', ''];
     row[2] = newGoal;
-    await gapi.client.sheets.spreadsheets.values.update({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A2:C2',
       valueInputOption:'RAW', resource:{values: [row]}
-    });
+    }); });
     companyRankingsGoalTotal = newGoal;
     showToast('Company goal saved ✓');
   } catch(e) {
-    showToast('Error saving goal','error'); console.error(e);
+    showToast(describeApiError(e, 'Error saving goal'),'error'); console.error(e);
   }
 }
 
@@ -4660,7 +4669,7 @@ async function openCompanyRankings() {
 
   allCompanyRankings = [];
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A:K'});
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Rankings!A:K'}); });
     var rows = res.result.values||[];
     rows.slice(1).forEach(function(row){
       if (!row[1]) return;
@@ -4673,8 +4682,7 @@ async function openCompanyRankings() {
     });
   } catch(e) {
     console.error(e);
-    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load company rankings — has the master sheet been set up yet?';
-    showToast(msg,'error');
+    showToast(describeApiError(e, 'Could not load company rankings — has the master sheet been set up yet?'),'error');
   }
 
   // Fresh company-wide rank, sorted by YTD sales — separate from each
@@ -4689,7 +4697,7 @@ async function openCompanyRankings() {
   // the SAME file already being hit, not a new per-territory pattern.
   companyRankingsGoalTotal = 0;
   try {
-    var metaRes = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A:C'});
+    var metaRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Meta!A:C'}); });
     var metaRows = metaRes.result.values||[];
     if (metaRows[1] && metaRows[1][2]) companyRankingsGoalTotal = parseFloat(metaRows[1][2])||0;
   } catch(e) { /* Meta tab not set up with a goal yet — skip */ }
@@ -4804,7 +4812,7 @@ async function openCompanyMachines() {
 
   allCompanyMachines = [];
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A:Z'});
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'Machine Data!A:Z'}); });
     var rows = res.result.values||[];
     rows.slice(1).forEach(function(row){
       if (!row[4]) return;
@@ -4821,8 +4829,7 @@ async function openCompanyMachines() {
     });
   } catch(e) {
     console.error(e);
-    var msg = isAuthError(e) ? 'Your session may have expired — try refreshing the page and signing in again.' : 'Could not load company machine data — has the master sheet been set up yet?';
-    showToast(msg,'error');
+    showToast(describeApiError(e, 'Could not load company machine data — has the master sheet been set up yet?'),'error');
   }
 
   var types = [...new Set(allCompanyMachines.map(function(m){ return m.report_code; }))].sort();
@@ -5191,14 +5198,14 @@ async function confirmMachinesUpload() {
       });
       allRowsForHistory = allRowsForHistory.concat(rows);
       try {
-        await gapi.client.sheets.spreadsheets.values.clear({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({
           spreadsheetId: sid, range: 'Machine Data!A2:Z'
-        });
+        }); });
         if (rows.length) {
-          await gapi.client.sheets.spreadsheets.values.update({
+          await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId: sid, range: 'Machine Data!A2',
             valueInputOption: 'RAW', resource: {values: rows}
-          });
+          }); });
         }
         await archiveHistorySnapshot('Machine History', rows, /*territoryCol=*/5, /*monthCol=*/22, sid);
       } catch(terrErr) {
@@ -5220,10 +5227,10 @@ async function confirmMachinesUpload() {
                   al.account_name, al.territory, al.status, al.confidence, now];
         });
         try {
-          await gapi.client.sheets.spreadsheets.values.append({
+          await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: asid, range: 'Account Aliases!A:H',
             valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: aliasRows}
-          });
+          }); });
         } catch(aliasErr) {
           console.error('Could not write to Account Aliases tab for '+aterr+' — has it been created yet?', aliasErr);
         }
@@ -5251,19 +5258,19 @@ const LLICOL = {list_id:0,account_id:1,account_name:2,territory:3,display_order:
 
 async function fetchLists() {
   try {
-    var results = await Promise.all([
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Lead Lists!A:E'}),
-      gapi.client.sheets.spreadsheets.values.get({spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'}),
-    ]);
-    var llRows  = results[0].result.values || [];
-    var lliRows = results[1].result.values || [];
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
+      spreadsheetId: territorySheetId(currentTerritory), ranges: ['Lead Lists!A:E','Lead List Items!A:F']
+    }); });
+    var vr = res.result.valueRanges || [];
+    var llRows  = (vr[0] && vr[0].values) || [];
+    var lliRows = (vr[1] && vr[1].values) || [];
     allLists = llRows.slice(1).map(function(r){
       return {list_id:r[0]||'',list_name:r[1]||'',territory:r[2]||'',created_by:r[3]||'',created_date:r[4]||''};
     }).filter(function(l){ return l.territory===currentTerritory; });
     allListItems = lliRows.slice(1).map(function(r){
       return {list_id:r[0]||'',account_id:r[1]||'',account_name:r[2]||'',territory:r[3]||'',display_order:parseInt(r[4])||0,stop_notes:r[5]||''};
     });
-  } catch(e) { showToast('Error loading lists','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error loading lists'),'error'); console.error(e); }
 }
 
 async function renderListsScreen() {
@@ -5417,9 +5424,9 @@ async function reorderStop(idx, dir) {
 async function saveAllStopOrders(items) {
   // Batch update all display_order values for the current list
   try {
-    var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+    var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
-    })).result.values || [];
+    }); })).result.values || [];
     var data = [];
     items.forEach(function(item){
       for (var i=1; i<allRows.length; i++) {
@@ -5429,10 +5436,10 @@ async function saveAllStopOrders(items) {
         }
       }
     });
-    if (data.length) await gapi.client.sheets.spreadsheets.values.batchUpdate({
+    if (data.length) await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchUpdate({
       spreadsheetId:territorySheetId(currentTerritory), resource:{valueInputOption:'RAW', data:data}
-    });
-  } catch(e) { showToast('Error saving order','error'); console.error(e); }
+    }); });
+  } catch(e) { showToast(describeApiError(e, 'Error saving order'),'error'); console.error(e); }
 }
 
 async function saveStopNotes(accountId, notes) {
@@ -5440,15 +5447,15 @@ async function saveStopNotes(accountId, notes) {
   var item = allListItems.find(function(i){ return i.list_id===currentList.list_id && i.account_id===accountId; });
   if (item) item.stop_notes = notes;
   try {
-    var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+    var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
-    })).result.values || [];
+    }); })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===currentList.list_id && allRows[i][1]===accountId) {
-        await gapi.client.sheets.spreadsheets.values.update({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!F'+(i+1),
           valueInputOption:'RAW', resource:{values:[[notes]]}
-        });
+        }); });
         break;
       }
     }
@@ -5463,23 +5470,23 @@ async function removeStop(accountId) {
   });
   // Delete the row from the sheet — need to find the row number
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
+    var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
     var listItemsSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Lead List Items'; });
     var sheetId = listItemsSheet ? listItemsSheet.properties.sheetId : null;
-    var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+    var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
-    })).result.values || [];
+    }); })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===currentList.list_id && allRows[i][1]===accountId && sheetId!==null) {
-        await gapi.client.sheets.spreadsheets.batchUpdate({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
           spreadsheetId:territorySheetId(currentTerritory),
           resource:{requests:[{deleteDimension:{range:{sheetId:sheetId,dimension:'ROWS',startIndex:i,endIndex:i+1}}}]}
-        });
+        }); });
         break;
       }
     }
     showToast('Stop removed ✓');
-  } catch(e) { showToast('Error removing stop','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error removing stop'),'error'); console.error(e); }
   // Re-number remaining items
   var remaining = getListItems(currentList.list_id);
   remaining.forEach(function(item,i){ item.display_order = i+1; });
@@ -5502,10 +5509,10 @@ async function saveNewList() {
   console.log('[saveNewList] Target sheet:', territorySheetId(currentTerritory));
   console.log('[saveNewList] Token present:', !!gapi.client.getToken());
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.append({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead Lists!A:E',
       valueInputOption:'RAW', resource:{values:[row]}
-    });
+    }); });
     console.log('[saveNewList] Sheet write succeeded:', res);
     allLists.push({list_id:lid,list_name:name,territory:currentTerritory,created_by:'',created_date:created});
     closeModal('modalNewList');
@@ -5513,23 +5520,23 @@ async function saveNewList() {
     openListDetail(lid);
   } catch(e) {
     console.error('[saveNewList] Sheet write FAILED:', e);
-    showToast('Error creating list','error');
+    showToast(describeApiError(e, 'Error creating list'),'error');
   }
 }
 
 async function deleteCurrentList() {
   if (!currentList || !confirm('Delete "'+currentList.list_name+'"? This cannot be undone.')) return;
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
+    var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
     // Delete the list row
     var llSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Lead Lists'; });
     var lliSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Lead List Items'; });
-    var llRows = (await gapi.client.sheets.spreadsheets.values.get({
+    var llRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead Lists!A:E'
-    })).result.values || [];
-    var lliRows = (await gapi.client.sheets.spreadsheets.values.get({
+    }); })).result.values || [];
+    var lliRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F'
-    })).result.values || [];
+    }); })).result.values || [];
     var requests = [];
     // Delete list items rows first (delete from bottom up to preserve indices)
     var itemRowsToDelete = [];
@@ -5546,16 +5553,16 @@ async function deleteCurrentList() {
         break;
       }
     }
-    if (requests.length) await gapi.client.sheets.spreadsheets.batchUpdate({
+    if (requests.length) await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
       spreadsheetId:territorySheetId(currentTerritory), resource:{requests:requests}
-    });
+    }); });
     allLists = allLists.filter(function(l){ return l.list_id!==currentList.list_id; });
     allListItems = allListItems.filter(function(i){ return i.list_id!==currentList.list_id; });
     currentList = null;
     showToast('List deleted');
     renderListsScreen();
     showScreen('screenLists');
-  } catch(e) { showToast('Error deleting list','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error deleting list'),'error'); console.error(e); }
 }
 
 function openAddToList(account) {
@@ -5654,14 +5661,14 @@ async function bulkAddSelectedToList() {
   if (!rows.length) { showToast('All selected accounts are already in this list','error'); return; }
 
   try {
-    await gapi.client.sheets.spreadsheets.values.append({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F',
       valueInputOption:'RAW', resource:{values:rows}
-    });
+    }); });
     added.forEach(function(item){ allListItems.push(item); });
     showToast(added.length+' stop'+(added.length!==1?'s':'')+' added to "'+list.list_name+'" ✓');
     exitSelectMode();
-  } catch(e) { showToast('Error adding stops','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error adding stops'),'error'); console.error(e); }
 }
 
 async function addAccountToList(account, listId) {
@@ -5671,14 +5678,14 @@ async function addAccountToList(account, listId) {
   var newOrder = existing.length + 1;
   var row = [listId, account.account_id, account.business_name, currentTerritory, newOrder, ''];
   try {
-    await gapi.client.sheets.spreadsheets.values.append({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:territorySheetId(currentTerritory), range:'Lead List Items!A:F',
       valueInputOption:'RAW', resource:{values:[row]}
-    });
+    }); });
     allListItems.push({list_id:listId,account_id:account.account_id,account_name:account.business_name,territory:currentTerritory,display_order:newOrder,stop_notes:''});
     closeModal('modalAddToList');
     showToast(account.business_name+' added to "'+list.list_name+'" ✓');
-  } catch(e) { showToast('Error adding to list','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error adding to list'),'error'); console.error(e); }
 }
 
 function openListInMaps() {
@@ -6131,12 +6138,12 @@ async function updateStatus(newStatus) {
   var rowNum = sheetRowMap[currentAccount.account_id];
   if (!rowNum) { showToast('Row not found','error'); return; }
   try {
-    await gapi.client.sheets.spreadsheets.values.update({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!C'+rowNum,
       valueInputOption:'RAW', resource:{values:[[newStatus]]}
-    });
+    }); });
     currentAccount.status = newStatus;
-  } catch(e) { showToast('Error updating status','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error updating status'),'error'); console.error(e); }
 }
 
 async function softDelete() {
@@ -6213,10 +6220,10 @@ async function convertToActive() {
       return { range: 'Accounts!'+colLetter(COL[f])+rowNum, values: [[a[f]||'']] };
     });
     try {
-      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: territorySheetId(currentTerritory),
         resource: { valueInputOption: 'RAW', data: data }
-      });
+      }); });
     } catch(e) { console.error('Error saving former-prospect fields', e); }
   }
 
@@ -6411,17 +6418,17 @@ async function deletePersonnelFromModal(pid) {
   openEditModal('personnel');
   // Delete from sheet in background
   try {
-    var sheetMeta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)});
+    var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
     var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
-    var allRows = (await gapi.client.sheets.spreadsheets.values.get({
+    var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
-    })).result.values || [];
+    }); })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===pid) {
-        await gapi.client.sheets.spreadsheets.batchUpdate({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
           spreadsheetId:territorySheetId(currentTerritory),
           resource:{requests:[{deleteDimension:{range:{sheetId:perSheet.properties.sheetId,dimension:'ROWS',startIndex:i,endIndex:i+1}}}]}
-        });
+        }); });
         break;
       }
     }
@@ -6459,10 +6466,10 @@ async function saveAccount() {
   }
 
   try {
-    await gapi.client.sheets.spreadsheets.values.update({
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A'+rowNum,
       valueInputOption:'RAW', resource:{values:[vals]}
-    });
+    }); });
     await logChangedFields(before, currentAccount);
 
     // Write activity log entries
@@ -6513,7 +6520,7 @@ async function saveAccount() {
     }
 
     showToast('Saved ✓'); closeModal('modalEdit'); selectedRating=null; renderDetail();
-  } catch(e) { showToast('Error saving','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error saving'),'error'); console.error(e); }
 }
 
 async function saveNewAccount() {
@@ -6522,10 +6529,10 @@ async function saveNewAccount() {
   collectEditFields();
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
-    var res = await gapi.client.sheets.spreadsheets.values.append({
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW',
       valueInputOption:'RAW', resource:{values:[vals]}
-    });
+    }); });
     allAccounts.push(currentAccount);
     var newRange = res.result.updates.updatedRange;
     var rowNum = parseInt(newRange.match(/\d+/)[0]);
@@ -6536,7 +6543,7 @@ async function saveNewAccount() {
     await logFieldChange(currentAccount, 'status', '', currentAccount.status);
     showToast('Account added ✓'); closeModal('modalEdit'); selectedRating=null;
     updateStats(); renderList();
-  } catch(e) { showToast('Error adding account','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error adding account'),'error'); console.error(e); }
 }
 
 function openVisitModal() {
@@ -6562,10 +6569,10 @@ async function saveVisit() {
   if (!date)  { showToast('Please select a visit date','error'); return; }
   var vid = 'VIS'+Date.now();
   try {
-    var appendRes = await gapi.client.sheets.spreadsheets.values.append({
+    var appendRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:K',
       valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN,hl,fuPrep]]}
-    });
+    }); });
     var newRange = appendRes.result.updates.updatedRange;
     var visitRowNum = parseInt(newRange.match(/\d+/)[0]);
     visitRowMap[vid] = visitRowNum;
@@ -6577,7 +6584,7 @@ async function saveVisit() {
     }
     allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl,followup_prep_date:fuPrep});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
-  } catch(e) { showToast('Error logging visit','error'); console.error(e); }
+  } catch(e) { showToast(describeApiError(e, 'Error logging visit'),'error'); console.error(e); }
 }
 </script>
 <div id="printArea" class="print-only"></div>
