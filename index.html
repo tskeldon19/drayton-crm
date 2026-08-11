@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v9.1 - built 2026-07-09 -->
+<!-- Drayton CRM v9.2 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -621,6 +621,9 @@
         <option value="ALL">All Dealer Groups</option>
         <option value="UNASSIGNED">Unassigned</option>
       </select>
+      <select id="companyTerritoryFilter" class="sort-select" style="min-width:150px">
+        <option value="ALL">All Territories</option>
+      </select>
     </div>
     <div id="companyAccountList" class="account-list">
       <div class="loading"><div class="spinner"></div>Loading company-wide accounts...</div>
@@ -1172,7 +1175,8 @@ const COL = {
   bg_injection_spiff:168,bg_gdi_spiff:169,bg_brake_spiff:170,bg_ac_spiff:171,
   bg_moa_efl_spiff:172,bg_epr_spiff:173,bg_battery_spiff:174,bg_fuel_spiff:175,
   bg_diesel_spiff:176,bg_misc_spiff:177,
-  dealer_group:178
+  dealer_group:178,
+  pm_name:179,pm_phone:180,pm_email:181
 };
 
 function colLetter(idx) {
@@ -1204,6 +1208,7 @@ const TRACKED_FIELDS = {
   owner_name:'Owner Name', owner_phone:'Owner Phone', owner_email:'Owner Email',
   gm_name:'General Manager Name',
   gm_phone:'General Manager Phone', gm_email:'General Manager Email',
+  pm_name:'Parts Manager Name', pm_phone:'Parts Manager Phone', pm_email:'Parts Manager Email',
   // Store Information (includes Smoke and Burns + LPP Training)
   mpi:'MPI', mpi_notes:'MPI Notes',
   menus_paper:'Menus (Paper)', menus_paper_notes:'Menus (Paper) Notes',
@@ -1296,6 +1301,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('companySearchInput').addEventListener('input', renderCompanyList);
   document.getElementById('companySortSelect').addEventListener('change', function(){ companySort = this.value; renderCompanyList(); });
   document.getElementById('companyGroupFilter').addEventListener('change', renderCompanyList);
+  document.getElementById('companyTerritoryFilter').addEventListener('change', renderCompanyList);
   document.getElementById('companyRankingsBtn').addEventListener('click', openCompanyRankings);
   document.getElementById('companyMachinesBtn').addEventListener('click', openCompanyMachines);
   document.getElementById('companyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(true); });
@@ -1709,7 +1715,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:FW','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H']
+      spreadsheetId: sid, ranges: ['Accounts!A:FZ','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -2319,15 +2325,18 @@ function renderDetail() {
       '<span>👤 Key Personnel</span>'+
       '<button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="personnel" style="font-size:11px;padding:4px 10px">✏️ Edit</button>'+
     '</div><div class="card-body">'+
-    '<div class="field-row"><span class="field-label">SM Name</span>'+fv(a.sm_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">SM Phone</span>'+fv(a.sm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">SM Email</span>'+fv(a.sm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Phone</span>'+fv(a.owner_phone)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Email</span>'+fv(a.owner_email)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Name</span>'+fv(a.gm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Phone</span>'+fv(a.gm_phone)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Email</span>'+fv(a.gm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Name</span>'+fv(a.sm_name)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Phone</span>'+fv(a.sm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fv(a.sm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Name</span>'+fv(a.pm_name)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Phone</span>'+fv(a.pm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fv(a.pm_email)+'</div>'+
     (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+'</div></div>':'')+
     function(){
       var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
@@ -4283,7 +4292,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:FW','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:FZ','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -4347,7 +4356,7 @@ async function refreshCompanyMasterDataInner() {
   var now = new Date().toISOString();
 
   try {
-    var clearRanges = ['Accounts!A2:FW','Change Log!A2:H','Rankings!A2:K','Machine Data!A2:Z','Visits!A2:J','Territory Updates!A2:H','Meta!A2:B'];
+    var clearRanges = ['Accounts!A2:FZ','Change Log!A2:H','Rankings!A2:K','Machine Data!A2:Z','Visits!A2:J','Territory Updates!A2:H','Meta!A2:B'];
     await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchClear({
       spreadsheetId: COMPANY_MASTER_SHEET_ID, resource: { ranges: clearRanges }
     }); });
@@ -4394,7 +4403,7 @@ async function openCompanyView() {
 
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:FW','Change Log!A:H','Rankings!A:K','Meta!A:B']
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:FZ','Change Log!A:H','Rankings!A:K','Meta!A:B']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -4430,6 +4439,8 @@ async function openCompanyView() {
   document.getElementById('companyGroupFilter').innerHTML = '<option value="ALL">All Dealer Groups</option>'+
     '<option value="UNASSIGNED">Unassigned</option>'+
     groups.map(function(g){ return '<option value="'+esc(g)+'">'+esc(g)+'</option>'; }).join('');
+  document.getElementById('companyTerritoryFilter').innerHTML = '<option value="ALL">All Territories</option>'+
+    Object.keys(TERRITORY_SHEET_IDS).map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
 
   document.getElementById('companyMeta').textContent = allManagerAccounts.length+' total accounts (from last refresh)';
   updateCompanyStats();
@@ -4482,12 +4493,14 @@ function updateCompanyStats() {
 function renderCompanyList() {
   var q = (document.getElementById('companySearchInput').value||'').toLowerCase();
   var groupFilter = document.getElementById('companyGroupFilter').value;
+  var territoryFilter = document.getElementById('companyTerritoryFilter').value;
 
   var filtered = allManagerAccounts.filter(function(a){
     if (a.status!==companyTab) return false;
     if (companySubfilter!=='all' && a.account_type!==companySubfilter) return false;
     if (groupFilter==='UNASSIGNED' && a.dealer_group) return false;
     if (groupFilter!=='ALL' && groupFilter!=='UNASSIGNED' && a.dealer_group!==groupFilter) return false;
+    if (territoryFilter!=='ALL' && a.territory!==territoryFilter) return false;
     if (!q) return true;
     return a.business_name.toLowerCase().includes(q) || (a.town||'').toLowerCase().includes(q) ||
            (a.owner_name||'').toLowerCase().includes(q) || (a.sm_name||'').toLowerCase().includes(q);
@@ -5837,7 +5850,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:FW','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:FZ','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -5853,7 +5866,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FW'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FZ'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
@@ -6332,15 +6345,18 @@ function openEditModal(section) {
     '<div class="form-row"><label>Competitor Name</label><input type="text" id="e_competitor_name" value="'+esc(a.competitor_name)+'"></div></div>'+
     '<div class="form-section" id="edit-section-store"><div class="form-section-title">Store Information</div>'+storeInfoHtml+'</div>'+
     '<div class="form-section" id="edit-section-personnel"><div class="form-section-title">Key Personnel</div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>SM Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
-    '<div class="form-row"><label>SM Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
-    '<div class="form-row"><label>SM Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Owner Name</label><input type="text" id="e_owner_name" value="'+esc(a.owner_name)+'"></div>'+
     '<div class="form-row"><label>Owner Phone</label><input type="text" id="e_owner_phone" value="'+esc(a.owner_phone)+'"></div></div>'+
     '<div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="'+esc(a.owner_email)+'"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>GM Name</label><input type="text" id="e_gm_name" value="'+esc(a.gm_name)+'"></div>'+
     '<div class="form-row"><label>GM Phone</label><input type="text" id="e_gm_phone" value="'+esc(a.gm_phone)+'"></div></div>'+
     '<div class="form-row"><label>GM Email</label><input type="text" id="e_gm_email" value="'+esc(a.gm_email)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Service Manager Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
+    '<div class="form-row"><label>Service Manager Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
+    '<div class="form-row"><label>Service Manager Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Parts Manager Name</label><input type="text" id="e_pm_name" value="'+esc(a.pm_name)+'"></div>'+
+    '<div class="form-row"><label>Parts Manager Phone</label><input type="text" id="e_pm_phone" value="'+esc(a.pm_phone)+'"></div></div>'+
+    '<div class="form-row"><label>Parts Manager Email</label><input type="text" id="e_pm_email" value="'+esc(a.pm_email)+'"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Other Contact Name</label><input type="text" id="e_other2_name" value="'+esc(a.other2_name)+'"></div>'+
     '<div class="form-row"><label>Other Contact Role</label><input type="text" id="e_other2_role" value="'+esc(a.other2_role)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Other Contact Phone</label><input type="text" id="e_other2_phone" value="'+esc(a.other2_phone)+'"></div>'+
@@ -6399,6 +6415,7 @@ function collectEditFields() {
     'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
     'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
     'gm_name','gm_phone','gm_email',
+    'pm_name','pm_phone','pm_email',
     'other2_name','other2_role','other2_phone','other2_email',
     'general_notes'];
   fields.forEach(function(f){ var el=document.getElementById('e_'+f); if(el) a[f]=el.value; });
@@ -6530,7 +6547,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FW',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FZ',
       valueInputOption:'RAW', resource:{values:[vals]}
     }); });
     allAccounts.push(currentAccount);
