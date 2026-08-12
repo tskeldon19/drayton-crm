@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v9.5 - built 2026-07-09 -->
+<!-- Drayton CRM v9.6 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4455,15 +4455,31 @@ async function pullAllTerritoriesForMaster() {
 
   var failedTerritories = results.filter(function(r){ return r.failed; }).map(function(r){ return r.territory; });
   var accounts = [], changes = [], rankings = [], machines = [], visits = [], territoryUpdates = [];
+
+  // Pads a row to an exact width with empty strings. Sending ragged rows
+  // (naturally different lengths, since most cells at the tail are blank
+  // for most accounts) to a single batchUpdate call risks the API treating
+  // the whole block as rectangular and silently capping every row to
+  // whatever width the majority of rows happen to share — which is exactly
+  // what was quietly dropping dealer_group/PM/FOD/EFL for accounts that
+  // actually had that data filled in. Padding every row to the same full
+  // width up front removes any ambiguity for the API to get wrong.
+  function padRow(row, width) {
+    var out = row.slice(0, width);
+    while (out.length < width) out.push('');
+    return out;
+  }
+  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 187 — matches Accounts!A:GE
+
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
-      if (row[0] && row[2]!=='deleted' && row[2]!=='disqualified') accounts.push(row);
+      if (row[0] && row[2]!=='deleted' && row[2]!=='disqualified') accounts.push(padRow(row, ACCOUNTS_WIDTH));
     });
-    r.clRows.slice(1).forEach(function(row){ if (row[1]) changes.push(row); });
-    r.rkRows.slice(1).forEach(function(row){ if (row[1]) rankings.push(row.slice(0,10).concat([r.territory])); });
-    r.mdRows.slice(1).forEach(function(row){ if (row[4]) machines.push(row); });
-    r.vRows.slice(1).forEach(function(row){ if (row[1]) visits.push(row); });
-    r.tuRows.slice(1).forEach(function(row){ if (row[0]) territoryUpdates.push(row); });
+    r.clRows.slice(1).forEach(function(row){ if (row[1]) changes.push(padRow(row, 8)); });
+    r.rkRows.slice(1).forEach(function(row){ if (row[1]) rankings.push(padRow(row.slice(0,10).concat([r.territory]), 11)); });
+    r.mdRows.slice(1).forEach(function(row){ if (row[4]) machines.push(padRow(row, 26)); });
+    r.vRows.slice(1).forEach(function(row){ if (row[1]) visits.push(padRow(row, 11)); });
+    r.tuRows.slice(1).forEach(function(row){ if (row[0]) territoryUpdates.push(padRow(row, 8)); });
   });
   return {accounts:accounts, changes:changes, rankings:rankings, machines:machines, visits:visits, territoryUpdates:territoryUpdates,
           failedTerritories:failedTerritories, sawAuthError:sawAuthError, territories:territories};
