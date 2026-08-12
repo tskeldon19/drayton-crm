@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v9.2 - built 2026-07-09 -->
+<!-- Drayton CRM v9.4 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1137,6 +1137,7 @@ const STORE_FIELDS = [
   {key:'role_play',       label:'Role-Play',              type:'yn'},
   {key:'claims',          label:'Claims',                 type:'num'},
   {key:'hyperbi',         label:'HyperBI',                type:'yn'},
+  {key:'efl',             label:'EFL',                    type:'yn'},
 ];
 const COL = {
   account_id:0,territory:1,status:2,business_name:3,address:4,town:5,state:6,website:7,account_type:8,
@@ -1176,7 +1177,9 @@ const COL = {
   bg_moa_efl_spiff:172,bg_epr_spiff:173,bg_battery_spiff:174,bg_fuel_spiff:175,
   bg_diesel_spiff:176,bg_misc_spiff:177,
   dealer_group:178,
-  pm_name:179,pm_phone:180,pm_email:181
+  pm_name:179,pm_phone:180,pm_email:181,
+  fod_name:182,fod_phone:183,fod_email:184,
+  efl:185,efl_notes:186
 };
 
 function colLetter(idx) {
@@ -1209,6 +1212,8 @@ const TRACKED_FIELDS = {
   gm_name:'General Manager Name',
   gm_phone:'General Manager Phone', gm_email:'General Manager Email',
   pm_name:'Parts Manager Name', pm_phone:'Parts Manager Phone', pm_email:'Parts Manager Email',
+  fod_name:'FOD Name', fod_phone:'FOD Phone', fod_email:'FOD Email',
+  efl:'EFL', efl_notes:'EFL Notes',
   // Store Information (includes Smoke and Burns + LPP Training)
   mpi:'MPI', mpi_notes:'MPI Notes',
   menus_paper:'Menus (Paper)', menus_paper_notes:'Menus (Paper) Notes',
@@ -1265,7 +1270,7 @@ const ACTIVITY_FIELDS = [
 ];
 
 let gapiReady=false, gisReady=false, tokenClient;
-let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={}, allAliases=[];
+let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={}, allAliases=[], allProductParts=[], partRowMap={};
 let allActivityLog=[], allPersonnel=[];
 let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
@@ -1715,7 +1720,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:FZ','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H']
+      spreadsheetId: sid, ranges: ['Accounts!A:GE','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -1723,6 +1728,14 @@ async function fetchData() {
     var clRows  = (vr[2] && vr[2].values) || [];
     var alRows  = (vr[3] && vr[3].values) || [];
     var perRows = (vr[4] && vr[4].values) || [];
+    var ppRows  = (vr[5] && vr[5].values) || [];
+
+    partRowMap = {};
+    ppRows.forEach(function(r,i){ if(r[0]) partRowMap[r[0]] = i+1; });
+    allProductParts = ppRows.slice(1).map(function(r){
+      return { part_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+               product_key:r[4]||'', part_number:r[5]||'', spiff_amount:r[6]||'', notes:r[7]||'', added_at:r[8]||'' };
+    });
 
     sheetRowMap = {};
     accRows.forEach(function(r,i){ if(r[0]) sheetRowMap[r[0]] = i+1; });
@@ -2331,6 +2344,9 @@ function renderDetail() {
     '<div class="field-row"><span class="field-label">GM Name</span>'+fv(a.gm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Phone</span>'+fv(a.gm_phone)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Email</span>'+fv(a.gm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Name</span>'+fv(a.fod_name)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Phone</span>'+fv(a.fod_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Email</span>'+fv(a.fod_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Name</span>'+fv(a.sm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Phone</span>'+fv(a.sm_phone)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fv(a.sm_email)+'</div>'+
@@ -2461,6 +2477,30 @@ function renderDetail() {
               '<div class="product-detail-field"><label>Part Number</label><input type="text" id="pf_'+p.key+'_part_number" value="'+esc(a[p.key+'_part_number'])+'"></div>'+
               '<div class="product-detail-field"><label>Spiff ($)</label><input type="number" step="0.01" min="0" id="pf_'+p.key+'_spiff" value="'+esc(a[p.key+'_spiff'])+'" placeholder="0"></div>'+
             '</div>'+
+            function(){
+              var extraParts = allProductParts.filter(function(pp){ return pp.account_id===a.account_id && pp.product_key===p.key; });
+              var html = '';
+              if (extraParts.length) {
+                html += '<div class="product-extra-parts" style="margin-bottom:8px">';
+                extraParts.forEach(function(pp){
+                  html += '<div class="field-row" style="padding:4px 0">'+
+                    '<span style="flex:1">'+esc(pp.part_number)+(pp.spiff_amount?' — $'+esc(pp.spiff_amount):'')+(pp.notes?' <span style="color:var(--gray-3);font-size:11px">('+esc(pp.notes)+')</span>':'')+'</span>'+
+                    '<button type="button" class="btn btn-secondary btn-sm remove-part-btn" data-part-id="'+esc(pp.part_id)+'" style="padding:2px 8px;font-size:10px">✕</button>'+
+                  '</div>';
+                });
+                html += '</div>';
+              }
+              html += '<button type="button" class="btn btn-secondary btn-sm add-part-btn" data-pkey="'+p.key+'" style="font-size:11px;margin-bottom:10px">+ Add Part Number</button>'+
+                '<div class="add-part-form" id="addPartForm_'+p.key+'" style="display:none;margin-bottom:10px">'+
+                  '<div class="product-detail-grid">'+
+                    '<div class="product-detail-field"><label>Part Number</label><input type="text" id="newPartNum_'+p.key+'"></div>'+
+                    '<div class="product-detail-field"><label>Spiff ($)</label><input type="number" step="0.01" min="0" id="newPartSpiff_'+p.key+'" placeholder="0"></div>'+
+                  '</div>'+
+                  '<input type="text" id="newPartNotes_'+p.key+'" placeholder="Notes (optional)" style="width:100%;margin:6px 0">'+
+                  '<button type="button" class="btn btn-gold btn-sm save-part-btn" data-pkey="'+p.key+'">Save Part Number</button>'+
+                '</div>';
+              return html;
+            }()+
             '<div class="product-detail-field" style="margin-bottom:10px">'+
               '<label>'+(status==='red'?'What was the objection? <span style="color:#d47070">*</span>':'Notes')+'</label>'+
               '<input type="text" id="pf_'+p.key+'_part_notes" value="'+esc(a[p.key+'_part_notes'])+'" placeholder="'+(status==='red'?'Required — helps management focus training and guidance':'Notes for this part...')+'">'+
@@ -2605,6 +2645,25 @@ function renderDetail() {
       saveProductDetails(btn.dataset.pkey);
     });
   });
+  document.querySelectorAll('.add-part-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var form = document.getElementById('addPartForm_'+btn.dataset.pkey);
+      if (form) form.style.display = form.style.display==='none' ? 'block' : 'none';
+    });
+  });
+  document.querySelectorAll('.save-part-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      addProductPart(btn.dataset.pkey);
+    });
+  });
+  document.querySelectorAll('.remove-part-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      removeProductPart(btn.dataset.partId);
+    });
+  });
   // Explicit close button — discards any unsaved status change and collapses the panel
   document.querySelectorAll('[data-action="close-product"]').forEach(function(btn){
     btn.addEventListener('click', function(e){
@@ -2634,6 +2693,44 @@ function setProductStatusPending(pkey, status) {
   renderDetail();
   var row = document.querySelector('.product-row[data-pkey="'+pkey+'"]');
   if (row) row.classList.add('expanded');
+}
+
+async function addProductPart(pkey) {
+  var partNum = document.getElementById('newPartNum_'+pkey).value.trim();
+  var spiff   = document.getElementById('newPartSpiff_'+pkey).value.trim();
+  var notes   = document.getElementById('newPartNotes_'+pkey).value.trim();
+  if (!partNum) { showToast('Enter a part number first','error'); return; }
+  var a = currentAccount;
+  var pid = 'PART'+Date.now();
+  var now = new Date().toISOString();
+  try {
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId: territorySheetId(currentTerritory), range: 'Product Part Numbers!A:I',
+      valueInputOption:'RAW', resource:{values:[[pid,a.account_id,a.business_name,currentTerritory,pkey,partNum,spiff,notes,now]]}
+    }); });
+    allProductParts.push({part_id:pid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,
+      product_key:pkey,part_number:partNum,spiff_amount:spiff,notes:notes,added_at:now});
+    showToast('Part number added ✓');
+    renderDetail();
+  } catch(e) { showToast(describeApiError(e, 'Error adding part number'),'error'); console.error(e); }
+}
+
+async function removeProductPart(partId) {
+  if (!confirm('Remove this part number?')) return;
+  var rowNum = partRowMap[partId];
+  try {
+    if (rowNum) {
+      var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
+      var ppSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Product Part Numbers'; });
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: territorySheetId(currentTerritory),
+        resource:{requests:[{deleteDimension:{range:{sheetId:ppSheet.properties.sheetId,dimension:'ROWS',startIndex:rowNum-1,endIndex:rowNum}}}]}
+      }); });
+    }
+    allProductParts = allProductParts.filter(function(p){ return p.part_id!==partId; });
+    showToast('Part number removed ✓');
+    renderDetail();
+  } catch(e) { showToast(describeApiError(e, 'Error removing part number'),'error'); console.error(e); }
 }
 
 async function saveProductDetails(pkey) {
@@ -4292,7 +4389,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:FZ','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:GE','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -4356,7 +4453,7 @@ async function refreshCompanyMasterDataInner() {
   var now = new Date().toISOString();
 
   try {
-    var clearRanges = ['Accounts!A2:FZ','Change Log!A2:H','Rankings!A2:K','Machine Data!A2:Z','Visits!A2:J','Territory Updates!A2:H','Meta!A2:B'];
+    var clearRanges = ['Accounts!A2:GE','Change Log!A2:H','Rankings!A2:K','Machine Data!A2:Z','Visits!A2:J','Territory Updates!A2:H','Meta!A2:B'];
     await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchClear({
       spreadsheetId: COMPANY_MASTER_SHEET_ID, resource: { ranges: clearRanges }
     }); });
@@ -4403,7 +4500,7 @@ async function openCompanyView() {
 
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:FZ','Change Log!A:H','Rankings!A:K','Meta!A:B']
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:GE','Change Log!A:H','Rankings!A:K','Meta!A:B']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -5850,7 +5947,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:FZ','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:GE','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -5866,7 +5963,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:FZ'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:GE'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
@@ -6351,6 +6448,9 @@ function openEditModal(section) {
     '<div class="form-grid-2"><div class="form-row"><label>GM Name</label><input type="text" id="e_gm_name" value="'+esc(a.gm_name)+'"></div>'+
     '<div class="form-row"><label>GM Phone</label><input type="text" id="e_gm_phone" value="'+esc(a.gm_phone)+'"></div></div>'+
     '<div class="form-row"><label>GM Email</label><input type="text" id="e_gm_email" value="'+esc(a.gm_email)+'"></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>FOD Name</label><input type="text" id="e_fod_name" value="'+esc(a.fod_name)+'"></div>'+
+    '<div class="form-row"><label>FOD Phone</label><input type="text" id="e_fod_phone" value="'+esc(a.fod_phone)+'"></div></div>'+
+    '<div class="form-row"><label>FOD Email</label><input type="text" id="e_fod_email" value="'+esc(a.fod_email)+'"></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Service Manager Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
     '<div class="form-row"><label>Service Manager Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
     '<div class="form-row"><label>Service Manager Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div>'+
@@ -6415,6 +6515,7 @@ function collectEditFields() {
     'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
     'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
     'gm_name','gm_phone','gm_email',
+    'fod_name','fod_phone','fod_email',
     'pm_name','pm_phone','pm_email',
     'other2_name','other2_role','other2_phone','other2_email',
     'general_notes'];
@@ -6547,7 +6648,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:FZ',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:GE',
       valueInputOption:'RAW', resource:{values:[vals]}
     }); });
     allAccounts.push(currentAccount);
