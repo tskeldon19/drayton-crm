@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v9.6 - built 2026-07-09 -->
+<!-- Drayton CRM v9.7 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -59,6 +59,21 @@
   .screen.active { display: block; }
 
   .landing { max-width: 440px; margin: 80px auto; text-align: center; padding: 0 24px; }
+  .sign-on-layout { display:flex; gap:20px; max-width:1120px; margin:50px auto; padding:0 24px; align-items:flex-start; }
+  .sign-on-panel { flex:1; min-width:0; background:var(--black-soft); border:1px solid var(--gray-2); border-radius:10px; padding:16px; max-height:520px; display:flex; flex-direction:column; }
+  .sign-on-panel-title { font-weight:700; color:var(--gold); font-size:14px; margin-bottom:10px; flex-shrink:0; }
+  #messageBoardContent, #importantDatesContent { overflow-y:auto; flex:1; }
+  .sign-on-layout .landing { flex:0 0 400px; margin:0; }
+  .msg-post { border-bottom:1px solid var(--gray-2); padding:10px 0; }
+  .msg-post:last-child { border-bottom:none; }
+  .msg-post-title { font-weight:700; color:var(--white); font-size:13px; margin-bottom:3px; }
+  .msg-post-body { font-size:12px; color:var(--gray-3); line-height:1.4; }
+  .msg-post-meta { font-size:10px; color:var(--gray-2); margin-top:4px; }
+  .date-item { display:flex; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--gray-2); }
+  .date-item:last-child { border-bottom:none; }
+  .date-item-badge { background:var(--gold); color:var(--black); font-weight:700; font-size:10px; padding:4px 6px; border-radius:4px; text-align:center; min-width:44px; flex-shrink:0; }
+  .date-item-title { font-size:12px; color:var(--white); font-weight:600; }
+  .date-item-notes { font-size:11px; color:var(--gray-3); }
   .landing-icon { font-size: 48px; margin-bottom: 16px; }
   .landing h2 { font-size: 26px; color: var(--gold); margin-bottom: 8px; }
   .landing p  { color: var(--gray-3); font-size: 14px; margin-bottom: 32px; }
@@ -98,6 +113,16 @@
   .territory-bar .sub { color: var(--gray-3); font-size: 12px; margin-top: 2px; }
 
   .metric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .agenda-btn-row { display: flex; gap: 8px; margin: 14px 0; }
+  .agenda-slim-btn { flex: 1; background: var(--black-soft); border: 1px solid var(--gray-2); border-radius: 8px; padding: 10px 12px; color: var(--white); font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: border-color 0.15s; }
+  .agenda-slim-btn:hover { border-color: var(--gold); }
+  .agenda-slim-btn.alert { border-color: var(--red); }
+  .agenda-slim-num { font-weight: 800; font-size: 16px; color: var(--gold); }
+  .agenda-slim-btn.alert .agenda-slim-num { color: var(--red); }
+  .agenda-cal-items { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; min-height:30px; }
+  .agenda-cal-daycell { padding:1px 2px; overflow:hidden; }
+  .agenda-cal-item { background:var(--gold); color:var(--black); font-size:8px; font-weight:700; border-radius:3px; padding:1px 3px; margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .agenda-cal-more { font-size:8px; color:var(--gray-3); padding:0 3px; }
   .big-box-row { display: flex; gap: 16px; margin-bottom: 20px; }
   .big-box {
     flex: 1; background: var(--black); border: 1px solid var(--gold-dim); border-left: 4px solid var(--gold);
@@ -116,6 +141,13 @@
        full-width column instead of one crowded unwrapping row */
     .territory-bar { flex-direction: column; align-items: stretch; gap: 8px; }
     .territory-bar .btn { width: 100%; }
+
+    /* Sign-on screen: stack the three panels, territory select first since
+       that's the actionable part — message board and dates are useful
+       context but shouldn't push the actual sign-on action down the page */
+    .sign-on-layout { flex-direction: column; margin: 24px auto; gap: 16px; }
+    .sign-on-layout .landing { order: -1; flex: none; max-width: 100%; margin: 0 auto; }
+    .sign-on-panel { max-height: 280px; }
 
     /* Tabs and filter chips: allow wrapping to a second line instead of
        overflowing/crushing together */
@@ -452,28 +484,55 @@
 </div>
 
 <div class="screen" id="screenTerritory">
-  <div class="landing">
-    <div class="landing-icon">📍</div>
-    <h2>Select Territory</h2>
-    <p>Choose your route to load your accounts.</p>
-    <div class="field-wrap">
-      <label>Territory</label>
-      <select id="territorySelect">
-        <option value="">-- Select a route --</option>
-        <option value="Route 101">Route 101</option>
-        <option value="Route 102">Route 102</option>
-        <option value="Route 105">Route 105</option>
-        <option value="Route 111">Route 111</option>
-        <option value="Route 112">Route 112</option>
-        <option value="Route 135">Route 135</option>
-        <option value="Route 137">Route 137</option>
-        <option value="Route 141">Route 141</option>
-        <option value="Route 143">Route 143</option>
-        <option value="Route 147">Route 147</option>
-      </select>
+  <div class="sign-on-layout">
+    <div class="sign-on-panel" id="messageBoardPanel">
+      <div class="sign-on-panel-title">📋 Message Board</div>
+      <div id="messageBoardContent"><div class="empty-state" style="padding:16px 0">Loading...</div></div>
     </div>
-    <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
-    <button class="btn btn-secondary btn-full" id="openCompanyViewBtn" style="margin-top:10px">Company Dashboard — All Accounts, All Territories</button>
+    <div class="landing" style="margin:0">
+      <div class="landing-icon">📍</div>
+      <h2>Select Territory</h2>
+      <p>Choose your route to load your accounts.</p>
+      <div class="field-wrap">
+        <label>Territory</label>
+        <select id="territorySelect">
+          <option value="">-- Select a route --</option>
+          <option value="Route 101">Route 101</option>
+          <option value="Route 102">Route 102</option>
+          <option value="Route 105">Route 105</option>
+          <option value="Route 111">Route 111</option>
+          <option value="Route 112">Route 112</option>
+          <option value="Route 135">Route 135</option>
+          <option value="Route 137">Route 137</option>
+          <option value="Route 141">Route 141</option>
+          <option value="Route 143">Route 143</option>
+          <option value="Route 147">Route 147</option>
+        </select>
+      </div>
+      <button class="btn btn-gold btn-full" id="loadTerritoryBtn">Load Territory</button>
+      <button class="btn btn-secondary btn-full" id="openCompanyViewBtn" style="margin-top:10px">Company Dashboard — All Accounts, All Territories</button>
+    </div>
+    <div class="sign-on-panel" id="importantDatesPanel">
+      <div class="sign-on-panel-title">🗓 Upcoming Dates</div>
+      <div id="importantDatesContent"><div class="empty-state" style="padding:16px 0">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screenAgenda">
+  <div class="account-detail">
+    <button class="back-btn" id="agendaBackBtn">← Back</button>
+    <div class="detail-header">
+      <div><h2>🗓 Agenda</h2><div class="meta">Follow-ups from your accounts and visits</div></div>
+    </div>
+    <div class="tab-row" id="agendaFilterRow">
+      <button type="button" class="tab" data-bucket="all">All</button>
+      <button type="button" class="tab" data-bucket="overdue">Overdue</button>
+      <button type="button" class="tab" data-bucket="thisweek">This Week</button>
+      <button type="button" class="tab" data-bucket="nextweek">Next Week</button>
+    </div>
+    <div id="agendaCalendarContent"></div>
+    <div id="agendaListContent" style="margin-top:16px;max-height:420px;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -485,6 +544,41 @@
       <button class="btn btn-gold btn-sm" id="ptoAddBtn" title="Manager PIN required">+ Add PTO Entry</button>
     </div>
     <div id="ptoContent"><div class="loading"><div class="spinner"></div>Loading PTO calendar...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalPostMessage">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Post to Message Board</h3>
+      <button class="modal-close" id="postMessageModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Title</label><input type="text" id="msgTitle" placeholder="e.g. New spiff program starting Monday"></div>
+      <div class="form-row"><label>Body</label><textarea id="msgBody" style="min-height:100px" placeholder="Details for the whole company..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="postMessageCancelBtn">Cancel</button>
+      <button class="btn btn-gold" id="postMessageSaveBtn">Post</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalAddDate">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Important Date</h3>
+      <button class="modal-close" id="addDateModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Title</label><input type="text" id="dateTitle" placeholder="e.g. Q3 All-Hands Meeting"></div>
+      <div class="form-row"><label>Date</label><input type="date" id="dateValue"></div>
+      <div class="form-row"><label>Notes (optional)</label><input type="text" id="dateNotes" placeholder="e.g. Location, time, who needs to attend"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="addDateCancelBtn">Cancel</button>
+      <button class="btn btn-gold" id="addDateSaveBtn">Save</button>
+    </div>
   </div>
 </div>
 
@@ -562,6 +656,10 @@
         <button class="btn btn-secondary btn-sm" id="companyRepLibraryBtn" style="flex:1" title="Templates and reference docs">📁 File Library</button>
         <button class="btn btn-secondary btn-sm" id="companyPtoCalendarBtn" style="flex:1" title="See who's out">🗓 PTO Calendar</button>
         <button class="btn btn-secondary btn-sm" id="companyBackBtn" style="flex:1">← Back</button>
+      </div>
+      <div class="company-btn-row" style="display:flex;gap:8px;width:100%">
+        <button class="btn btn-gold btn-sm" id="postMessageBtn" style="flex:1" title="Manager PIN required">📋 Post Message</button>
+        <button class="btn btn-gold btn-sm" id="addImportantDateBtn" style="flex:1" title="Manager PIN required">🗓 Add Important Date</button>
       </div>
       <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
       <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
@@ -644,6 +742,17 @@
       <button class="btn btn-secondary btn-sm" id="repLibraryBtn" title="Templates and reference docs">📁 File Library</button>
       <button class="btn btn-secondary btn-sm" id="ptoCalendarBtn" title="See who's out">🗓 PTO Calendar</button>
     </div>
+    <div class="agenda-btn-row">
+      <button type="button" class="agenda-slim-btn" id="agendaOverdueBtn" data-bucket="overdue">
+        <span class="agenda-slim-num">—</span> Overdue
+      </button>
+      <button type="button" class="agenda-slim-btn" id="agendaThisWeekBtn" data-bucket="thisweek">
+        <span class="agenda-slim-num">—</span> Due This Week
+      </button>
+      <button type="button" class="agenda-slim-btn" id="agendaNextWeekBtn" data-bucket="nextweek">
+        <span class="agenda-slim-num">—</span> Due Next Week
+      </button>
+    </div>
     <div class="big-box-row">
       <button type="button" class="big-box" id="metricActive" data-metric="active_accounts">
         <div class="big-box-num">—</div><div class="big-box-lbl">Active</div>
@@ -658,9 +767,6 @@
     <div class="metric-row" id="metricRow">
       <button type="button" class="metric-card" id="metricYtdConversions" data-metric="ytd_conversions">
         <div class="metric-num">—</div><div class="metric-lbl">Converted YTD</div>
-      </button>
-      <button type="button" class="metric-card" id="metricOverdueFollowups" data-metric="overdue_followups">
-        <div class="metric-num">—</div><div class="metric-lbl">Overdue Follow-Ups</div>
       </button>
       <button type="button" class="metric-card" id="metricNewProspects" data-metric="new_prospects">
         <div class="metric-num">—</div><div class="metric-lbl">New Prospects This Month</div>
@@ -1291,6 +1397,17 @@ document.addEventListener('DOMContentLoaded', function() {
     window.open(REP_LIBRARY_DRIVE_URL, '_blank');
   });
   document.getElementById('ptoCalendarBtn').addEventListener('click', function(){ openPTOCalendar(false); });
+  document.getElementById('agendaOverdueBtn').addEventListener('click', function(){ openAgendaScreen('overdue'); });
+  document.getElementById('agendaThisWeekBtn').addEventListener('click', function(){ openAgendaScreen('thisweek'); });
+  document.getElementById('agendaNextWeekBtn').addEventListener('click', function(){ openAgendaScreen('nextweek'); });
+  document.getElementById('agendaBackBtn').addEventListener('click', goBack);
+  document.querySelectorAll('#agendaFilterRow .tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      _agendaFilter = t.dataset.bucket;
+      document.querySelectorAll('#agendaFilterRow .tab').forEach(function(x){ x.classList.toggle('active', x===t); });
+      renderAgendaScreen();
+    });
+  });
   document.getElementById('ptoBackBtn').addEventListener('click', goBack);
   document.getElementById('ptoAddBtn').addEventListener('click', function(){
     if (!checkManagerPin('add a PTO entry')) return;
@@ -1300,7 +1417,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('ptoAddCancelBtn').addEventListener('click', function(){ closeModal('modalPTOAdd'); });
   document.getElementById('ptoAddSaveBtn').addEventListener('click', savePTOEntry);
   document.getElementById('ptoDeleteBtn').addEventListener('click', deletePTOEntry);
-  document.getElementById('companyBackBtn').addEventListener('click', function(){ showScreen('screenTerritory'); });
+  document.getElementById('companyBackBtn').addEventListener('click', function(){ goToTerritorySelect(); });
   document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
   document.getElementById('companyTabActive').addEventListener('click', function(){ switchCompanyTab('active'); });
   document.getElementById('companySearchInput').addEventListener('input', renderCompanyList);
@@ -1315,6 +1432,20 @@ document.addEventListener('DOMContentLoaded', function() {
     window.open(REP_LIBRARY_DRIVE_URL, '_blank');
   });
   document.getElementById('companyPtoCalendarBtn').addEventListener('click', function(){ openPTOCalendar(true); });
+  document.getElementById('postMessageBtn').addEventListener('click', function(){
+    if (!checkManagerPin('post a message')) return;
+    document.getElementById('modalPostMessage').classList.add('open');
+  });
+  document.getElementById('postMessageModalClose').addEventListener('click', function(){ closeModal('modalPostMessage'); });
+  document.getElementById('postMessageCancelBtn').addEventListener('click', function(){ closeModal('modalPostMessage'); });
+  document.getElementById('postMessageSaveBtn').addEventListener('click', postMessage);
+  document.getElementById('addImportantDateBtn').addEventListener('click', function(){
+    if (!checkManagerPin('add an important date')) return;
+    document.getElementById('modalAddDate').classList.add('open');
+  });
+  document.getElementById('addDateModalClose').addEventListener('click', function(){ closeModal('modalAddDate'); });
+  document.getElementById('addDateCancelBtn').addEventListener('click', function(){ closeModal('modalAddDate'); });
+  document.getElementById('addDateSaveBtn').addEventListener('click', addImportantDate);
   document.getElementById('companyRankingsBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyMachinesBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyRankingsScope').addEventListener('change', renderCompanyRankingsView);
@@ -1554,7 +1685,7 @@ function gisLoaded() {
     client_id: CLIENT_ID, scope: SCOPES,
     callback: function(resp) {
       if (resp.error) { showToast('Sign-in failed','error'); return; }
-      showScreen('screenTerritory');
+      goToTerritorySelect();
       document.getElementById('authArea').innerHTML =
         '<div class="user-info">'+
           '<button class="sign-out" id="changeTerritoryBtn" style="margin-right:14px">Change Territory</button>'+
@@ -1562,7 +1693,7 @@ function gisLoaded() {
         '</div>';
       document.getElementById('signOutBtn').addEventListener('click', doSignOut);
       document.getElementById('changeTerritoryBtn').addEventListener('click', function(){
-        showScreen('screenTerritory');
+        goToTerritorySelect();
         var sel = document.getElementById('territorySelect');
         if (currentTerritory) sel.value = currentTerritory;
       });
@@ -1589,7 +1720,7 @@ function startBackgroundTokenRefresh() {
 }
 
 function maybeReady() {
-  if (gapiReady && gisReady && gapi.client.getToken()) { showScreen('screenTerritory'); startBackgroundTokenRefresh(); }
+  if (gapiReady && gisReady && gapi.client.getToken()) { goToTerritorySelect(); startBackgroundTokenRefresh(); }
 }
 
 function doSignOut() {
@@ -1854,6 +1985,147 @@ function thisMonthKey() {
 }
 function thisYear() { return new Date().getFullYear(); }
 
+// Combines account-level next_followup and per-visit follow-up prep dates
+// into one list, since both represent something the rep needs to act on by
+// a date — bucketed into overdue / this week / next week (Sun-Sat weeks,
+// matching the PTO calendar's convention).
+function buildAgendaItems() {
+  var items = [];
+  allAccounts.forEach(function(a){
+    if (a.next_followup) {
+      items.push({ date: a.next_followup, title: a.business_name, subtitle: 'Next Follow-Up',
+                   account_id: a.account_id, source: 'account' });
+    }
+  });
+  allVisits.forEach(function(v){
+    if (v.followup_prep_date) {
+      items.push({ date: v.followup_prep_date, title: v.account_name, subtitle: 'Follow-Up Prep',
+                   account_id: v.account_id, source: 'visit', visit_id: v.visit_id });
+    }
+  });
+  items.sort(function(a,b){ return a.date.localeCompare(b.date); });
+  return items;
+}
+
+function computeAgendaBuckets() {
+  var items = buildAgendaItems();
+  var now = new Date();
+  var today = now.toISOString().split('T')[0];
+  var dow = now.getDay(); // 0=Sun
+  var startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow);
+  var endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow+6);
+  var startOfNextWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow+7);
+  var endOfNextWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow+13);
+  function toKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  var eowKey = toKey(endOfWeek), sonwKey = toKey(startOfNextWeek), eonwKey = toKey(endOfNextWeek);
+
+  return {
+    overdue:  items.filter(function(i){ return i.date < today; }),
+    thisWeek: items.filter(function(i){ return i.date >= today && i.date <= eowKey; }),
+    nextWeek: items.filter(function(i){ return i.date >= sonwKey && i.date <= eonwKey; }),
+    all: items
+  };
+}
+
+var _agendaFilter = 'all';
+var _agendaCalMonth = new Date();
+
+function openAgendaScreen(bucket) {
+  _agendaFilter = bucket || 'all';
+  previousScreen = 'screenDashboard';
+  showScreen('screenAgenda');
+  document.querySelectorAll('#agendaFilterRow .tab').forEach(function(t){
+    t.classList.toggle('active', t.dataset.bucket===_agendaFilter);
+  });
+  renderAgendaScreen();
+}
+
+function renderAgendaCalendarGrid() {
+  var buckets = computeAgendaBuckets();
+  var items = buckets.all;
+  var year = _agendaCalMonth.getFullYear();
+  var month = _agendaCalMonth.getMonth();
+  var firstOfMonth = new Date(year, month, 1);
+  var startOffset = firstOfMonth.getDay();
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+  var monthLabel = firstOfMonth.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  var todayKey = new Date().toISOString().split('T')[0];
+
+  var itemsByDate = {};
+  items.forEach(function(i){ (itemsByDate[i.date] = itemsByDate[i.date]||[]).push(i); });
+
+  var cells = [];
+  for (var i=0; i<startOffset; i++) cells.push(null);
+  for (var d=1; d<=daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  var weeks = [];
+  for (var w=0; w<cells.length; w+=7) weeks.push(cells.slice(w, w+7));
+
+  function toKey(d){ return d ? (d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')) : null; }
+  var dayHeaders = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var html = '<div class="pto-cal">'+
+    '<div class="pto-cal-nav">'+
+      '<button type="button" class="btn btn-secondary btn-sm" id="agendaCalPrev">‹ Prev</button>'+
+      '<div class="pto-cal-month">'+monthLabel+'</div>'+
+      '<button type="button" class="btn btn-secondary btn-sm" id="agendaCalNext">Next ›</button>'+
+    '</div>'+
+    '<div class="pto-cal-headerrow">'+dayHeaders.map(function(h){ return '<div class="pto-cal-headercell">'+h+'</div>'; }).join('')+'</div>';
+
+  weeks.forEach(function(week){
+    html += '<div class="pto-cal-week">'+
+      '<div class="pto-cal-daynums">'+week.map(function(d){ return '<div class="pto-cal-daynum'+(d && toKey(d)===todayKey?' today':'')+'">'+(d?d.getDate():'')+'</div>'; }).join('')+'</div>'+
+      '<div class="agenda-cal-items">'+week.map(function(d){
+        if (!d) return '<div class="agenda-cal-daycell"></div>';
+        var dayItems = itemsByDate[toKey(d)] || [];
+        var shown = dayItems.slice(0,2);
+        return '<div class="agenda-cal-daycell">'+
+          shown.map(function(it){ return '<div class="agenda-cal-item" title="'+esc(it.title)+' — '+esc(it.subtitle)+'">'+esc(it.title)+'</div>'; }).join('')+
+          (dayItems.length>2 ? '<div class="agenda-cal-more">+'+(dayItems.length-2)+' more</div>' : '')+
+        '</div>';
+      }).join('')+'</div>'+
+    '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderAgendaScreen() {
+  document.getElementById('agendaCalendarContent').innerHTML = renderAgendaCalendarGrid();
+  document.getElementById('agendaCalPrev').addEventListener('click', function(){
+    _agendaCalMonth = new Date(_agendaCalMonth.getFullYear(), _agendaCalMonth.getMonth()-1, 1);
+    renderAgendaScreen();
+  });
+  document.getElementById('agendaCalNext').addEventListener('click', function(){
+    _agendaCalMonth = new Date(_agendaCalMonth.getFullYear(), _agendaCalMonth.getMonth()+1, 1);
+    renderAgendaScreen();
+  });
+
+  var buckets = computeAgendaBuckets();
+  var list = _agendaFilter==='overdue' ? buckets.overdue :
+             _agendaFilter==='thisweek' ? buckets.thisWeek :
+             _agendaFilter==='nextweek' ? buckets.nextWeek : buckets.all;
+
+  var listEl = document.getElementById('agendaListContent');
+  if (!list.length) { listEl.innerHTML = '<div class="empty-state">Nothing here.</div>'; return; }
+  listEl.innerHTML = list.map(function(it){
+    var today = new Date().toISOString().split('T')[0];
+    var isPast = it.date < today;
+    return '<div class="card agenda-list-item" data-account-id="'+esc(it.account_id)+'" style="margin-bottom:8px;cursor:pointer'+(isPast?';border-color:var(--red)':'')+'"><div class="card-body">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-weight:600;color:var(--white)">'+esc(it.title)+'</div>'+
+        '<div style="font-size:12px;color:'+(isPast?'var(--red)':'var(--gold)')+';font-weight:700">'+fmtDateDisplay(it.date)+'</div>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(it.subtitle)+'</div>'+
+    '</div></div>';
+  }).join('');
+  document.querySelectorAll('.agenda-list-item').forEach(function(el){
+    el.addEventListener('click', function(){
+      var acc = allAccounts.find(function(a){ return a.account_id===el.dataset.accountId; });
+      if (acc) { currentAccount = acc; previousScreen = 'screenAgenda'; renderDetail(); showScreen('screenDetail'); }
+    });
+  });
+}
+
 function computeMetrics(accountsList, changesList) {
   var accounts = accountsList || allAccounts;
   var todayKey = thisMonthKey();
@@ -1939,8 +2211,11 @@ function updateStats() {
   window._dashboardMetrics = m;   // cached for openMetricFilter
 
   document.getElementById('metricYtdConversions').querySelector('.metric-num').textContent = m.conversionCount;
-  document.getElementById('metricOverdueFollowups').querySelector('.metric-num').textContent = m.overdue.length;
-  document.getElementById('metricOverdueFollowups').classList.toggle('alert', m.overdue.length > 0);
+  var agendaBuckets = computeAgendaBuckets();
+  document.getElementById('agendaOverdueBtn').querySelector('.agenda-slim-num').textContent = agendaBuckets.overdue.length;
+  document.getElementById('agendaOverdueBtn').classList.toggle('alert', agendaBuckets.overdue.length > 0);
+  document.getElementById('agendaThisWeekBtn').querySelector('.agenda-slim-num').textContent = agendaBuckets.thisWeek.length;
+  document.getElementById('agendaNextWeekBtn').querySelector('.agenda-slim-num').textContent = agendaBuckets.nextWeek.length;
   document.getElementById('metricNewProspects').querySelector('.metric-num').textContent = m.newProspectCount;
   document.getElementById('metricNewActive').querySelector('.metric-num').textContent = m.newActiveCount;
   document.getElementById('metricUnconfirmed').querySelector('.metric-num').textContent = m.unconfirmedAccounts.length;
@@ -3214,6 +3489,110 @@ async function saveVisitEdit() {
 // file, since this needs to be visible to everyone while the master file
 // has sensitive data reps shouldn't see. Schema: pto_id | name | start_date
 // | end_date | notes | added_at.
+// ── Message Board & Important Dates ──────────────────────────────────────
+// Live on the same PTO_SHEET_ID spreadsheet — already shared correctly with
+// everyone (Viewer for reps, Editor for management), no reason to set up a
+// third separate sheet for the same access pattern.
+var allMessages = [];
+var allImportantDates = [];
+
+async function fetchSignOnPanels() {
+  document.getElementById('messageBoardContent').innerHTML = '<div class="empty-state" style="padding:16px 0">Loading...</div>';
+  document.getElementById('importantDatesContent').innerHTML = '<div class="empty-state" style="padding:16px 0">Loading...</div>';
+  try {
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
+      spreadsheetId: PTO_SHEET_ID, ranges: ['Message Board!A:E','Important Dates!A:F']
+    }); });
+    var vr = res.result.valueRanges || [];
+    var mbRows = (vr[0] && vr[0].values) || [];
+    var idRows = (vr[1] && vr[1].values) || [];
+    allMessages = mbRows.slice(1).map(function(r){
+      return { message_id:r[0]||'', title:r[1]||'', body:r[2]||'', posted_by:r[3]||'', posted_at:r[4]||'' };
+    }).filter(function(m){ return m.title; }).sort(function(a,b){ return b.posted_at.localeCompare(a.posted_at); });
+    allImportantDates = idRows.slice(1).map(function(r){
+      return { date_id:r[0]||'', title:r[1]||'', date:r[2]||'', notes:r[3]||'', added_by:r[4]||'', added_at:r[5]||'' };
+    }).filter(function(d){ return d.title && d.date; }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+  } catch(e) {
+    console.error(e);
+    document.getElementById('messageBoardContent').innerHTML = '<div class="empty-state" style="padding:16px 0">Could not load — has the Message Board tab been set up yet?</div>';
+    document.getElementById('importantDatesContent').innerHTML = '<div class="empty-state" style="padding:16px 0">Could not load — has the Important Dates tab been set up yet?</div>';
+    return;
+  }
+  renderMessageBoard();
+  renderImportantDates();
+}
+
+function renderMessageBoard() {
+  var el = document.getElementById('messageBoardContent');
+  if (!allMessages.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0">No posts yet.</div>'; return; }
+  el.innerHTML = allMessages.map(function(m){
+    return '<div class="msg-post">'+
+      '<div class="msg-post-title">'+esc(m.title)+'</div>'+
+      '<div class="msg-post-body">'+esc(m.body).replace(/\n/g,'<br>')+'</div>'+
+      '<div class="msg-post-meta">'+fmtDateDisplay((m.posted_at||'').split('T')[0])+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+function renderImportantDates() {
+  var el = document.getElementById('importantDatesContent');
+  var today = new Date().toISOString().split('T')[0];
+  var upcoming = allImportantDates.filter(function(d){ return d.date >= today; });
+  if (!upcoming.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0">Nothing scheduled.</div>'; return; }
+  el.innerHTML = upcoming.slice(0,5).map(function(d){
+    var dt = new Date(d.date+'T00:00:00');
+    var badge = dt.toLocaleDateString('en-US',{month:'short'})+' '+dt.getDate();
+    return '<div class="date-item">'+
+      '<div class="date-item-badge">'+badge+'</div>'+
+      '<div><div class="date-item-title">'+esc(d.title)+'</div>'+
+      (d.notes?'<div class="date-item-notes">'+esc(d.notes)+'</div>':'')+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+async function postMessage() {
+  var title = document.getElementById('msgTitle').value.trim();
+  var body = document.getElementById('msgBody').value.trim();
+  if (!title || !body) { showToast('Title and body are both required','error'); return; }
+  var mid = 'MSG'+Date.now();
+  var now = new Date().toISOString();
+  try {
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId: PTO_SHEET_ID, range: 'Message Board!A:E',
+      valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[mid,title,body,'',now]]}
+    }); });
+    allMessages.unshift({message_id:mid,title:title,body:body,posted_by:'',posted_at:now});
+    showToast('Posted ✓');
+    closeModal('modalPostMessage');
+    document.getElementById('msgTitle').value=''; document.getElementById('msgBody').value='';
+  } catch(e) { showToast(describeApiError(e, 'Error posting — has the Message Board tab been set up yet?'),'error'); console.error(e); }
+}
+
+async function addImportantDate() {
+  var title = document.getElementById('dateTitle').value.trim();
+  var date = document.getElementById('dateValue').value;
+  var notes = document.getElementById('dateNotes').value.trim();
+  if (!title || !date) { showToast('Title and date are both required','error'); return; }
+  var did = 'DATE'+Date.now();
+  var now = new Date().toISOString();
+  try {
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId: PTO_SHEET_ID, range: 'Important Dates!A:F',
+      valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[did,title,date,notes,'',now]]}
+    }); });
+    allImportantDates.push({date_id:did,title:title,date:date,notes:notes,added_by:'',added_at:now});
+    allImportantDates.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    showToast('Date added ✓');
+    closeModal('modalAddDate');
+    document.getElementById('dateTitle').value=''; document.getElementById('dateValue').value=''; document.getElementById('dateNotes').value='';
+  } catch(e) { showToast(describeApiError(e, 'Error saving — has the Important Dates tab been set up yet?'),'error'); console.error(e); }
+}
+
+async function goToTerritorySelect() {
+  showScreen('screenTerritory');
+  await fetchSignOnPanels();
+}
+
 var allPTOEntries = [];
 var ptoRowMap = {}; // pto_id -> sheet row number
 var _editingPTOId = null;
