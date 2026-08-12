@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v9.7 - built 2026-07-09 -->
+<!-- Drayton CRM v9.8 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -59,7 +59,7 @@
   .screen.active { display: block; }
 
   .landing { max-width: 440px; margin: 80px auto; text-align: center; padding: 0 24px; }
-  .sign-on-layout { display:flex; gap:20px; max-width:1120px; margin:50px auto; padding:0 24px; align-items:flex-start; }
+  .sign-on-layout { display:flex; gap:20px; max-width:1120px; margin:50px auto; padding:0 24px; align-items:center; }
   .sign-on-panel { flex:1; min-width:0; background:var(--black-soft); border:1px solid var(--gray-2); border-radius:10px; padding:16px; max-height:520px; display:flex; flex-direction:column; }
   .sign-on-panel-title { font-weight:700; color:var(--gold); font-size:14px; margin-bottom:10px; flex-shrink:0; }
   #messageBoardContent, #importantDatesContent { overflow-y:auto; flex:1; }
@@ -554,6 +554,7 @@
       <button class="modal-close" id="postMessageModalClose">✕</button>
     </div>
     <div class="modal-body">
+      <div class="form-row"><label>Your Name</label><input type="text" id="msgPostedBy" placeholder="e.g. Tye Skeldon"></div>
       <div class="form-row"><label>Title</label><input type="text" id="msgTitle" placeholder="e.g. New spiff program starting Monday"></div>
       <div class="form-row"><label>Body</label><textarea id="msgBody" style="min-height:100px" placeholder="Details for the whole company..."></textarea></div>
     </div>
@@ -1993,13 +1994,19 @@ function buildAgendaItems() {
   var items = [];
   allAccounts.forEach(function(a){
     if (a.next_followup) {
+      // The account's next_followup gets set FROM a visit's followup_date —
+      // find that visit so we can surface the notes the rep actually left,
+      // not just the bare date.
+      var matchingVisit = allVisits.find(function(v){ return v.account_id===a.account_id && v.followup_date===a.next_followup; });
       items.push({ date: a.next_followup, title: a.business_name, subtitle: 'Next Follow-Up',
+                   notes: matchingVisit ? matchingVisit.followup_notes : '',
                    account_id: a.account_id, source: 'account' });
     }
   });
   allVisits.forEach(function(v){
     if (v.followup_prep_date) {
       items.push({ date: v.followup_prep_date, title: v.account_name, subtitle: 'Follow-Up Prep',
+                   notes: v.followup_notes||'',
                    account_id: v.account_id, source: 'visit', visit_id: v.visit_id });
     }
   });
@@ -2028,6 +2035,7 @@ function computeAgendaBuckets() {
 }
 
 var _agendaFilter = 'all';
+var _agendaSortDir = 'asc';
 var _agendaCalMonth = new Date();
 
 function openAgendaScreen(bucket) {
@@ -2079,7 +2087,7 @@ function renderAgendaCalendarGrid() {
         var dayItems = itemsByDate[toKey(d)] || [];
         var shown = dayItems.slice(0,2);
         return '<div class="agenda-cal-daycell">'+
-          shown.map(function(it){ return '<div class="agenda-cal-item" title="'+esc(it.title)+' — '+esc(it.subtitle)+'">'+esc(it.title)+'</div>'; }).join('')+
+          shown.map(function(it){ return '<div class="agenda-cal-item" data-account-id="'+esc(it.account_id)+'" style="cursor:pointer" title="'+esc(it.title)+' — '+esc(it.subtitle)+(it.notes?': '+esc(it.notes):'')+'">'+esc(it.title)+'</div>'; }).join('')+
           (dayItems.length>2 ? '<div class="agenda-cal-more">+'+(dayItems.length-2)+' more</div>' : '')+
         '</div>';
       }).join('')+'</div>'+
@@ -2099,25 +2107,44 @@ function renderAgendaScreen() {
     _agendaCalMonth = new Date(_agendaCalMonth.getFullYear(), _agendaCalMonth.getMonth()+1, 1);
     renderAgendaScreen();
   });
+  document.querySelectorAll('.agenda-cal-item').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      var acc = allAccounts.find(function(a){ return a.account_id===el.dataset.accountId; });
+      if (acc) { currentAccount = acc; previousScreen = 'screenAgenda'; renderDetail(); showScreen('screenDetail'); }
+    });
+  });
 
   var buckets = computeAgendaBuckets();
-  var list = _agendaFilter==='overdue' ? buckets.overdue :
-             _agendaFilter==='thisweek' ? buckets.thisWeek :
-             _agendaFilter==='nextweek' ? buckets.nextWeek : buckets.all;
+  var list = (_agendaFilter==='overdue' ? buckets.overdue :
+              _agendaFilter==='thisweek' ? buckets.thisWeek :
+              _agendaFilter==='nextweek' ? buckets.nextWeek : buckets.all).slice();
+  list.sort(function(a,b){ return _agendaSortDir==='asc' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date); });
 
   var listEl = document.getElementById('agendaListContent');
-  if (!list.length) { listEl.innerHTML = '<div class="empty-state">Nothing here.</div>'; return; }
-  listEl.innerHTML = list.map(function(it){
-    var today = new Date().toISOString().split('T')[0];
-    var isPast = it.date < today;
-    return '<div class="card agenda-list-item" data-account-id="'+esc(it.account_id)+'" style="margin-bottom:8px;cursor:pointer'+(isPast?';border-color:var(--red)':'')+'"><div class="card-body">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<div style="font-weight:600;color:var(--white)">'+esc(it.title)+'</div>'+
-        '<div style="font-size:12px;color:'+(isPast?'var(--red)':'var(--gold)')+';font-weight:700">'+fmtDateDisplay(it.date)+'</div>'+
-      '</div>'+
-      '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(it.subtitle)+'</div>'+
-    '</div></div>';
-  }).join('');
+  var sortBtnHtml = '<div style="display:flex;justify-content:flex-end;margin-bottom:8px">'+
+    '<button type="button" class="btn btn-secondary btn-sm" id="agendaSortBtn">'+
+      (_agendaSortDir==='asc' ? '↑ Oldest First' : '↓ Newest First')+
+    '</button></div>';
+  if (!list.length) { listEl.innerHTML = sortBtnHtml+'<div class="empty-state">Nothing here.</div>'; }
+  else {
+    listEl.innerHTML = sortBtnHtml + list.map(function(it){
+      var today = new Date().toISOString().split('T')[0];
+      var isPast = it.date < today;
+      return '<div class="card agenda-list-item" data-account-id="'+esc(it.account_id)+'" style="margin-bottom:8px;cursor:pointer'+(isPast?';border-color:var(--red)':'')+'"><div class="card-body">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div style="font-weight:600;color:var(--white)">'+esc(it.title)+'</div>'+
+          '<div style="font-size:12px;color:'+(isPast?'var(--red)':'var(--gold)')+';font-weight:700">'+fmtDateDisplay(it.date)+'</div>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(it.subtitle)+'</div>'+
+        (it.notes ? '<div style="font-size:12px;color:var(--white);margin-top:6px;padding-top:6px;border-top:1px solid var(--gray-2)">'+esc(it.notes)+'</div>' : '')+
+      '</div></div>';
+    }).join('');
+  }
+  document.getElementById('agendaSortBtn').addEventListener('click', function(){
+    _agendaSortDir = _agendaSortDir==='asc' ? 'desc' : 'asc';
+    renderAgendaScreen();
+  });
   document.querySelectorAll('.agenda-list-item').forEach(function(el){
     el.addEventListener('click', function(){
       var acc = allAccounts.find(function(a){ return a.account_id===el.dataset.accountId; });
@@ -3529,7 +3556,7 @@ function renderMessageBoard() {
     return '<div class="msg-post">'+
       '<div class="msg-post-title">'+esc(m.title)+'</div>'+
       '<div class="msg-post-body">'+esc(m.body).replace(/\n/g,'<br>')+'</div>'+
-      '<div class="msg-post-meta">'+fmtDateDisplay((m.posted_at||'').split('T')[0])+'</div>'+
+      '<div class="msg-post-meta">'+(m.posted_by?esc(m.posted_by)+' · ':'')+fmtDateDisplay((m.posted_at||'').split('T')[0])+'</div>'+
     '</div>';
   }).join('');
 }
@@ -3551,20 +3578,21 @@ function renderImportantDates() {
 }
 
 async function postMessage() {
+  var postedBy = document.getElementById('msgPostedBy').value.trim();
   var title = document.getElementById('msgTitle').value.trim();
   var body = document.getElementById('msgBody').value.trim();
-  if (!title || !body) { showToast('Title and body are both required','error'); return; }
+  if (!postedBy || !title || !body) { showToast('Name, title, and body are all required','error'); return; }
   var mid = 'MSG'+Date.now();
   var now = new Date().toISOString();
   try {
     await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId: PTO_SHEET_ID, range: 'Message Board!A:E',
-      valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[mid,title,body,'',now]]}
+      valueInputOption:'RAW', insertDataOption:'INSERT_ROWS', resource:{values:[[mid,title,body,postedBy,now]]}
     }); });
-    allMessages.unshift({message_id:mid,title:title,body:body,posted_by:'',posted_at:now});
+    allMessages.unshift({message_id:mid,title:title,body:body,posted_by:postedBy,posted_at:now});
     showToast('Posted ✓');
     closeModal('modalPostMessage');
-    document.getElementById('msgTitle').value=''; document.getElementById('msgBody').value='';
+    document.getElementById('msgPostedBy').value=''; document.getElementById('msgTitle').value=''; document.getElementById('msgBody').value='';
   } catch(e) { showToast(describeApiError(e, 'Error posting — has the Message Board tab been set up yet?'),'error'); console.error(e); }
 }
 
