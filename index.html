@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v9.8 - built 2026-07-09 -->
+<!-- Drayton CRM v10.0 - built 2026-07-09 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1151,7 +1151,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const CLIENT_ID = '237629763930-6q7ue607d2u1ka1ortgmlg9on0jhikss.apps.googleusercontent.com';
+const CLIENT_ID = '924244663332-thkq7g17smrm1j2jpbhrsutnb4dt6tbk.apps.googleusercontent.com';
 const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
 
 // Territory → Sheet ID map (add entries as territories are onboarded)
@@ -2017,13 +2017,13 @@ function buildAgendaItems() {
 function computeAgendaBuckets() {
   var items = buildAgendaItems();
   var now = new Date();
-  var today = now.toISOString().split('T')[0];
+  function toKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  var today = toKey(now); // local date, not toISOString() (which is UTC and can be a day off depending on timezone/time of day)
   var dow = now.getDay(); // 0=Sun
   var startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow);
   var endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow+6);
   var startOfNextWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow+7);
   var endOfNextWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow+13);
-  function toKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   var eowKey = toKey(endOfWeek), sonwKey = toKey(startOfNextWeek), eonwKey = toKey(endOfNextWeek);
 
   return {
@@ -2057,7 +2057,7 @@ function renderAgendaCalendarGrid() {
   var startOffset = firstOfMonth.getDay();
   var daysInMonth = new Date(year, month+1, 0).getDate();
   var monthLabel = firstOfMonth.toLocaleDateString('en-US', {month:'long', year:'numeric'});
-  var todayKey = new Date().toISOString().split('T')[0];
+  var todayKey = localTodayKey();
 
   var itemsByDate = {};
   items.forEach(function(i){ (itemsByDate[i.date] = itemsByDate[i.date]||[]).push(i); });
@@ -2129,7 +2129,7 @@ function renderAgendaScreen() {
   if (!list.length) { listEl.innerHTML = sortBtnHtml+'<div class="empty-state">Nothing here.</div>'; }
   else {
     listEl.innerHTML = sortBtnHtml + list.map(function(it){
-      var today = new Date().toISOString().split('T')[0];
+      var today = localTodayKey();
       var isPast = it.date < today;
       return '<div class="card agenda-list-item" data-account-id="'+esc(it.account_id)+'" style="margin-bottom:8px;cursor:pointer'+(isPast?';border-color:var(--red)':'')+'"><div class="card-body">'+
         '<div style="display:flex;justify-content:space-between;align-items:center">'+
@@ -2513,6 +2513,15 @@ function toISODate(input) {
   return s;
 }
 // Displays an ISO date (or legacy M/D/YYYY string from older uploads) as "Mon D, YYYY"
+// Local calendar day as YYYY-MM-DD. Never use toISOString() for "today" —
+// that converts to UTC, which can silently be a day ahead or behind the
+// person's actual local date depending on timezone and time of day (this
+// caused the agenda's "due this/next week" buckets to misfire).
+function localTodayKey() {
+  var d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 function fmtDateDisplay(v) {
   if (!v) return '';
   var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -3563,7 +3572,7 @@ function renderMessageBoard() {
 
 function renderImportantDates() {
   var el = document.getElementById('importantDatesContent');
-  var today = new Date().toISOString().split('T')[0];
+  var today = localTodayKey();
   var upcoming = allImportantDates.filter(function(d){ return d.date >= today; });
   if (!upcoming.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0">Nothing scheduled.</div>'; return; }
   el.innerHTML = upcoming.slice(0,5).map(function(d){
@@ -3715,7 +3724,7 @@ function renderPTOCalendarGrid() {
 }
 
 function renderPTOList() {
-  var today = new Date().toISOString().split('T')[0];
+  var today = localTodayKey();
   var sorted = allPTOEntries.slice().sort(function(a,b){ return a.start_date.localeCompare(b.start_date); });
   var current = sorted.filter(function(p){ return p.start_date<=today && p.end_date>=today; });
   var upcoming = sorted.filter(function(p){ return p.start_date>today; });
