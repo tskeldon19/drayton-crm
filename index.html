@@ -756,6 +756,9 @@
       <button type="button" class="agenda-slim-btn" id="agendaNextWeekBtn" data-bucket="nextweek">
         <span class="agenda-slim-num">—</span> Due Next Week
       </button>
+      <button type="button" class="agenda-slim-btn" id="agendaViewCalBtn" title="View all follow-ups on a calendar">
+        📅 View Calendar
+      </button>
     </div>
     <div class="big-box-row">
       <button type="button" class="big-box" id="metricActive" data-metric="active_accounts">
@@ -1404,6 +1407,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('agendaOverdueBtn').addEventListener('click', function(){ openAgendaScreen('overdue'); });
   document.getElementById('agendaThisWeekBtn').addEventListener('click', function(){ openAgendaScreen('thisweek'); });
   document.getElementById('agendaNextWeekBtn').addEventListener('click', function(){ openAgendaScreen('nextweek'); });
+  document.getElementById('agendaViewCalBtn').addEventListener('click', function(){ openAgendaScreen('all'); });
   document.getElementById('agendaBackBtn').addEventListener('click', goBack);
   document.querySelectorAll('#agendaFilterRow .tab').forEach(function(t){
     t.addEventListener('click', function(){
@@ -2162,12 +2166,21 @@ function renderAgendaScreen() {
         '</div>'+
         '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(it.subtitle)+'</div>'+
         (it.notes ? '<div style="font-size:12px;color:var(--white);margin-top:6px;padding-top:6px;border-top:1px solid var(--gray-2)">'+esc(it.notes)+'</div>' : '')+
+        (it.visit_id ? '<div style="margin-top:8px;text-align:right">'+
+          '<button type="button" class="btn btn-secondary btn-sm agenda-list-complete-btn" data-vid="'+esc(it.visit_id)+'" style="padding:4px 8px;font-size:11px;color:var(--gold)" title="Mark this follow-up as done">✓ Complete</button>'+
+        '</div>' : '')+
       '</div></div>';
     }).join('');
   }
   document.getElementById('agendaSortBtn').addEventListener('click', function(){
     _agendaSortDir = _agendaSortDir==='asc' ? 'desc' : 'asc';
     renderAgendaScreen();
+  });
+  document.querySelectorAll('.agenda-list-complete-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      setFollowupComplete(btn.dataset.vid, true).then(function(){ renderAgendaScreen(); });
+    });
   });
   document.querySelectorAll('.agenda-list-item').forEach(function(el){
     el.addEventListener('click', function(){
@@ -3241,7 +3254,11 @@ async function setFollowupComplete(vid, done) {
     } catch(e) { showToast(describeApiError(e, 'Error updating follow-up'),'error'); console.error(e); return; }
   }
   updateStats();
-  renderDetail();
+  // Re-render whichever screen is currently showing this data — currentAccount
+  // is only set when the account detail screen has been opened, so calling
+  // renderDetail() unconditionally would throw if this was triggered from
+  // the Agenda list/calendar without ever visiting an account detail page.
+  if (currentAccount) renderDetail();
 }
 
 
