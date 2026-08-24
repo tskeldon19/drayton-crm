@@ -380,6 +380,7 @@
   .visit-date { font-weight: 700; color: var(--gold); margin-bottom: 4px; font-size: 12px; }
   .visit-notes { color: var(--gray-4); line-height: 1.5; }
   .visit-followup { margin-top: 6px; font-size: 12px; color: var(--gray-3); }
+  .visit-followup-done { text-decoration: line-through; opacity: 0.6; }
 
   .pto-cal { margin-bottom: 24px; background: var(--black-soft); border: 1px solid var(--gray-2); border-radius: 10px; padding: 16px; }
   .pto-cal-nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
@@ -1866,7 +1867,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:GE','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
+      spreadsheetId: sid, ranges: ['Accounts!A:GE','Visits!A:L','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -1892,7 +1893,7 @@ async function fetchData() {
     allVisits = visRows.slice(1).filter(function(r){ return r[VCOL.territory]===currentTerritory; }).map(function(r){
       return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
                visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
-               followup_notes:r[8]||'', is_highlight:r[9]||'', followup_prep_date:r[10]||'' };
+               followup_notes:r[8]||'', is_highlight:r[9]||'', followup_prep_date:r[10]||'', followup_complete:r[11]||'' };
     });
 
     allChangeLog = clRows.slice(1).map(function(r){
@@ -2006,19 +2007,19 @@ function thisYear() { return new Date().getFullYear(); }
 // matching the PTO calendar's convention).
 function buildAgendaItems() {
   var items = [];
-  allAccounts.forEach(function(a){
-    if (a.next_followup) {
-      // The account's next_followup gets set FROM a visit's followup_date —
-      // find that visit so we can surface the notes the rep actually left,
-      // not just the bare date.
-      var matchingVisit = allVisits.find(function(v){ return v.account_id===a.account_id && v.followup_date===a.next_followup; });
-      items.push({ date: a.next_followup, title: a.business_name, subtitle: 'Next Follow-Up',
-                   notes: matchingVisit ? matchingVisit.followup_notes : '',
-                   account_id: a.account_id, source: 'account' });
-    }
-  });
+  // Pull from EVERY visit's followup_date, not just the account's single
+  // next_followup slot — this is what allows an account to show multiple
+  // pending follow-ups at once instead of only the most recently logged
+  // one. Visits marked followup_complete are excluded so handled ones drop
+  // off the trackers instead of piling up as permanently "overdue".
   allVisits.forEach(function(v){
-    if (v.followup_prep_date) {
+    var isComplete = (v.followup_complete||'').toLowerCase() === 'yes';
+    if (v.followup_date && !isComplete) {
+      items.push({ date: v.followup_date, title: v.account_name, subtitle: 'Follow-Up',
+                   notes: v.followup_notes||'',
+                   account_id: v.account_id, source: 'visit', visit_id: v.visit_id });
+    }
+    if (v.followup_prep_date && !isComplete) {
       items.push({ date: v.followup_prep_date, title: v.account_name, subtitle: 'Follow-Up Prep',
                    notes: v.followup_notes||'',
                    account_id: v.account_id, source: 'visit', visit_id: v.visit_id });
@@ -2937,6 +2938,18 @@ function renderDetail() {
       downloadFollowupIcs(btn.dataset.vid);
     });
   });
+  document.querySelectorAll('.visit-complete-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      setFollowupComplete(btn.dataset.vid, true);
+    });
+  });
+  document.querySelectorAll('.visit-uncomplete-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      setFollowupComplete(btn.dataset.vid, false);
+    });
+  });
   document.querySelectorAll('.visit-email-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
@@ -3168,6 +3181,7 @@ async function saveProductDetails(pkey) {
 function renderVisitEntry(v) {
   var isStar = (v.is_highlight||'').toLowerCase() === 'yes';
   var hasFollowup = v.followup_date || v.followup_notes || v.followup_prep_date;
+  var isComplete = (v.followup_complete||'').toLowerCase() === 'yes';
   return '<div class="visit-entry'+(isStar?' highlighted':'')+'">'+
     '<div class="visit-entry-top">'+
       '<div class="visit-date">'+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+'</div>'+
@@ -3175,14 +3189,16 @@ function renderVisitEntry(v) {
         (v.followup_date?'<button type="button" class="btn btn-secondary btn-sm visit-cal-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up to Outlook">📅 Follow-Up</button>':'')+
         (v.followup_prep_date?'<button type="button" class="btn btn-secondary btn-sm visit-cal-prep-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Add follow-up prep to Outlook">📅 Prep</button>':'')+
         (hasFollowup?'<button type="button" class="btn btn-secondary btn-sm visit-ics-btn" data-vid="'+v.visit_id+'" style="padding:4px 6px;font-size:10px" title="Download .ics file instead">⬇</button>':'')+
+        (hasFollowup && !isComplete?'<button type="button" class="btn btn-secondary btn-sm visit-complete-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px;color:var(--gold)" title="Mark this follow-up as done — removes it from the Overdue/This Week/Next Week trackers">✓ Complete</button>':'')+
+        (hasFollowup && isComplete?'<button type="button" class="btn btn-secondary btn-sm visit-uncomplete-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Follow-up marked complete — click to undo">✓ Done</button>':'')+
         '<button type="button" class="btn btn-secondary btn-sm visit-email-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px" title="Email this visit">✉️</button>'+
         '<button type="button" class="btn btn-secondary btn-sm visit-edit-btn" data-vid="'+v.visit_id+'" style="padding:4px 8px;font-size:11px">✏️</button>'+
         '<button type="button" class="visit-star-btn'+(isStar?' starred':'')+'" data-vid="'+v.visit_id+'" title="'+(isStar?'Remove highlight':'Mark as key event')+'">'+(isStar?'⭐':'☆')+'</button>'+
       '</div>'+
     '</div>'+
     '<div class="visit-notes">'+esc(v.notes||'—')+'</div>'+
-    (hasFollowup?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
-    (v.followup_prep_date?'<div class="visit-followup">🗓 Follow up prep: '+esc(v.followup_prep_date)+'</div>':'')+
+    (hasFollowup?'<div class="visit-followup'+(isComplete?' visit-followup-done':'')+'">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+(isComplete?' <span style="opacity:0.7">(completed)</span>':'')+'</div>':'')+
+    (v.followup_prep_date?'<div class="visit-followup'+(isComplete?' visit-followup-done':'')+'">🗓 Follow up prep: '+esc(v.followup_prep_date)+'</div>':'')+
   '</div>';
 }
 
@@ -3202,6 +3218,32 @@ async function toggleVisitHighlight(vid) {
   }
   renderDetail();
 }
+
+// Marks (or un-marks) a visit's follow-up as done. This is what lets the
+// Overdue/This Week/Next Week trackers show MULTIPLE pending follow-ups per
+// account (buildAgendaItems now pulls from every visit's followup_date
+// rather than one single next_followup slot on the account) without old,
+// already-handled follow-ups piling up in Overdue forever — completing one
+// here removes it from every agenda bucket immediately.
+async function setFollowupComplete(vid, done) {
+  var v = allVisits.find(function(x){ return x.visit_id===vid; });
+  if (!v) return;
+  var newVal = done ? 'Yes' : '';
+  v.followup_complete = newVal;
+  var rowNum = visitRowMap[vid];
+  if (rowNum) {
+    try {
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: territorySheetId(currentTerritory), range: 'Visits!L'+rowNum,
+        valueInputOption: 'RAW', resource: {values: [[newVal]]}
+      }); });
+      showToast(done ? 'Follow-up marked complete ✓' : 'Follow-up reopened');
+    } catch(e) { showToast(describeApiError(e, 'Error updating follow-up'),'error'); console.error(e); return; }
+  }
+  updateStats();
+  renderDetail();
+}
+
 
 // ── Activity Log ──────────────────────────────────────────────────────────────
 var _activityLogFieldKey = null, _activityLogFieldLabel = null;
@@ -4871,7 +4913,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:GE','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:GE','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:L','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -6405,7 +6447,7 @@ function parseRecapRawRows(visRaw, clRaw, accRaw, tuRaw) {
   var visitRows = visRaw.map(function(r){
     return { visit_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
              visit_date:r[4]||'', attendees:r[5]||'', notes:r[6]||'', followup_date:r[7]||'',
-             followup_notes:r[8]||'', is_highlight:r[9]||'', followup_prep_date:r[10]||'' };
+             followup_notes:r[8]||'', is_highlight:r[9]||'', followup_prep_date:r[10]||'', followup_complete:r[11]||'' };
   });
   var changeRows = clRaw.map(function(r){
     return { timestamp:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
@@ -6444,7 +6486,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:GE','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:L','Change Log!A:H','Accounts!A:GE','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -6458,7 +6500,7 @@ async function runWeeklyRecap() {
       // A specific territory other than the one currently loaded
       var sid = territorySheetId(territory);
       var results = await Promise.all([
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:L'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:GE'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
@@ -7185,8 +7227,8 @@ async function saveVisit() {
   var vid = 'VIS'+Date.now();
   try {
     var appendRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:K',
-      valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN,hl,fuPrep]]}
+      spreadsheetId:territorySheetId(currentTerritory), range:'Visits!A:L',
+      valueInputOption:'RAW', resource:{values:[[vid,a.account_id,a.business_name,currentTerritory,date,attend,notes,fu,fuN,hl,fuPrep,'']]}
     }); });
     var newRange = appendRes.result.updates.updatedRange;
     var visitRowNum = parseInt(newRange.match(/\d+/)[0]);
@@ -7197,7 +7239,7 @@ async function saveVisit() {
       if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
       if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
     }
-    allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl,followup_prep_date:fuPrep});
+    allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl,followup_prep_date:fuPrep,followup_complete:''});
     showToast('Visit logged ✓'); closeModal('modalVisit'); updateStats(); renderDetail();
   } catch(e) { showToast(describeApiError(e, 'Error logging visit'),'error'); console.error(e); }
 }
