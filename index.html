@@ -2476,7 +2476,12 @@ function renderList() {
 }
 
 function openAccount(id) {
-  currentAccount = allAccounts.find(function(a){ return a.account_id===id; });
+  var matches = allAccounts.filter(function(a){ return a.account_id===id; });
+  if (matches.length > 1) {
+    console.warn('Duplicate account_id detected — multiple accounts share id '+id+':', matches.map(function(a){ return a.business_name; }));
+    showToast('Data issue: two accounts share the same ID ('+matches.map(function(a){return a.business_name;}).join(' / ')+'). Please flag this for cleanup.', 'error');
+  }
+  currentAccount = matches[0];
   if (!currentAccount) return;
   window._productStatusSnapshot = {};
   // Track where we came from so the back button returns correctly
@@ -2612,7 +2617,8 @@ function renderDetail() {
   var isHidden = isDeleted || isDisqualified;   // both states are hidden from normal lists
 
   var html = '';
-  if (isDeleted) html += '<div class="deleted-banner">⚠️ This account is deleted and hidden from the dashboard. Use Edit Info to restore it.</div>';
+  if (isDeleted) html += '<div class="deleted-banner">⚠️ This account is deleted and hidden from the dashboard. Use Edit Info to restore it.'+
+    ' <button class="btn btn-danger btn-sm" id="permanentDeleteBtn" style="margin-left:10px">🗑 Permanently Delete</button></div>';
   if (isDisqualified) html += '<div class="deleted-banner">🚫 This lead has been disqualified and is hidden from active lists and recap counts. Use Restore to reopen it.</div>';
 
   html += '<div class="detail-header"><div><h2>'+esc(a.business_name)+'</h2><div class="meta">'+esc([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div></div>'+
@@ -2936,6 +2942,7 @@ function renderDetail() {
   var lb = document.getElementById('logVisitBtn'); if(lb) lb.addEventListener('click', openVisitModal);
   var db = document.getElementById('deleteBtn'); if(db) db.addEventListener('click', function(){ if (checkManagerPin('delete this account')) softDelete(); });
   var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreAccount);
+  var pdb = document.getElementById('permanentDeleteBtn'); if(pdb) pdb.addEventListener('click', function(){ if (checkManagerPin('permanently delete this account')) permanentlyDeleteAccount(); });
   var rvb = document.getElementById('revertBtn'); if(rvb) rvb.addEventListener('click', revertToProspect);
   var atlb = document.getElementById('addToListDetailBtn'); if(atlb) atlb.addEventListener('click', function(){ openAddToList(currentAccount); });
   var dqb = document.getElementById('disqualifyBtn'); if(dqb) dqb.addEventListener('click', disqualifyLead);
@@ -6719,7 +6726,7 @@ function toggleVisits() {
 }
 
 async function updateStatus(newStatus) {
-  var rowNum = sheetRowMap[currentAccount.account_id];
+  var rowNum = await resolveAccountRow(currentAccount.account_id);
   if (!rowNum) { showToast('Row not found','error'); return; }
   try {
     await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
@@ -6737,6 +6744,43 @@ async function softDelete() {
   await logFieldChange(currentAccount, 'status', before, 'deleted');
   showToast('Account deleted — recoverable from the account page');
   updateStats(); goBack();
+}
+
+// Fully removes an already-soft-deleted account's row from the sheet. Unlike
+// softDelete (which just flags status='deleted' and keeps showing the
+// warning banner every time anyone opens it), this erases the row entirely
+// so there's nothing left to show a banner for — meant for cleaning up
+// confirmed duplicates or truly bogus entries, not routine account closures.
+// Gated behind manager PIN + a typed confirmation since it can't be undone.
+async function permanentlyDeleteAccount() {
+  if (currentAccount.status !== 'deleted') {
+    showToast('Delete the account first, then Permanently Delete becomes available','error');
+    return;
+  }
+  var typed = prompt('This cannot be undone. Type the exact business name to permanently delete "'+currentAccount.business_name+'":');
+  if (typed !== currentAccount.business_name) {
+    if (typed !== null) showToast('Name did not match — nothing was deleted','error');
+    return;
+  }
+  var rowNum = await resolveAccountRow(currentAccount.account_id);
+  if (!rowNum) { showToast('Could not find this account\'s row — please refresh and try again','error'); return; }
+  try {
+    var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
+    var accSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Accounts'; });
+    await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId:territorySheetId(currentTerritory),
+      resource:{requests:[{deleteDimension:{range:{sheetId:accSheet.properties.sheetId,dimension:'ROWS',startIndex:rowNum-1,endIndex:rowNum}}}]}
+    }); });
+    // Row is gone — every row below it shifted up one, so the cached row
+    // numbers for the rest of this territory are now stale. Clear them all
+    // and let resolveAccountRow's fresh-lookup re-populate on next use.
+    var deletedId = currentAccount.account_id;
+    delete sheetRowMap[deletedId];
+    Object.keys(sheetRowMap).forEach(function(id){ if (sheetRowMap[id] > rowNum) sheetRowMap[id]--; });
+    allAccounts = allAccounts.filter(function(a){ return a.account_id !== deletedId; });
+    showToast('Account permanently deleted');
+    updateStats(); goBack();
+  } catch(e) { showToast(describeApiError(e, 'Error permanently deleting account'),'error'); console.error(e); }
 }
 
 async function disqualifyLead() {
