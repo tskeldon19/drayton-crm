@@ -697,8 +697,8 @@
       </button>
     </div>
     <div class="tab-row">
-      <button class="tab active" id="companyTabProspect">Prospective</button>
-      <button class="tab" id="companyTabActive">Active Clients</button>
+      <button class="tab" id="companyTabProspect">Prospective</button>
+      <button class="tab active" id="companyTabActive">Active Clients</button>
     </div>
     <div class="subfilter-row">
       <button class="subfilter-btn active" data-type="all">All</button>
@@ -783,8 +783,8 @@
       </button>
     </div>
     <div class="tab-row">
-      <button class="tab active" id="tabProspect">🔍 Prospective</button>
-      <button class="tab" id="tabActive">✅ Active Clients</button>
+      <button class="tab" id="tabProspect">🔍 Prospective</button>
+      <button class="tab active" id="tabActive">✅ Active Clients</button>
       <button class="tab" id="tabTerritoryUpdates">📌 Territory Updates</button>
       <button class="tab" id="tabMyLists" style="margin-left:auto">📋 My Lists</button>
     </div>
@@ -1160,11 +1160,11 @@ const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
 // full official list comes in from management.
 const DEALER_GROUPS = [
   'Albrecht','Autofair','Balise','Berlin City','Bernardi','Bertera','Best','Bill Dodge','Bill Dube',
-  'Central','Colonial','Copeland','Darling','Empire','Falmouth','Firestone','First','Flood','Goodwin',
-  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kelly','Key','Langway',
+  'Central','Colonial','Copeland','Darling','DSR Motor Group','Empire','Falmouth','Firestone','First','Flood','Goodwin',
+  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kaplan Auto Group','Kelly','Key','Langway',
   'Lia','Liberty','Long','Lundgren','Marty','Mastria','Mcfarland','Mcgee','Mcgovern','Meineke','Midas',
   'NE Tire','Nucar','Ocean','Patrick','Paul Masse','Pep Boys','Premier','Pride','Quirk','Ron Bouchard',
-  'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Tulley'
+  'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Thompson Auto Group','Tulley'
 ];
 
 // Company Dashboard reads from this ONE spreadsheet instead of hitting all
@@ -1227,7 +1227,7 @@ const BG_PRODUCTS = [
   {key:'bg_brake',label:'Brake'},{key:'bg_ac',label:'AC'},
   {key:'bg_moa_efl',label:'MOA / EFL'},{key:'bg_epr',label:'EPR'},
   {key:'bg_battery',label:'Battery'},{key:'bg_fuel',label:'Fuel Pour-in'},
-  {key:'bg_diesel',label:'Diesel'},{key:'bg_misc',label:'Misc'},
+  {key:'bg_diesel',label:'Diesel'},{key:'bg_power_steering',label:'Power Steering'},{key:'bg_misc',label:'Misc'},
 ];
 const STORE_FIELDS = [
   {key:'mpi',             label:'MPI',                    type:'yn'},
@@ -1286,7 +1286,11 @@ const COL = {
   dealer_group:178,
   pm_name:179,pm_phone:180,pm_email:181,
   fod_name:182,fod_phone:183,fod_email:184,
-  efl:185,efl_notes:186
+  efl:185,efl_notes:186,
+  bg_power_steering:187,
+  bg_power_steering_status:188,bg_power_steering_carrying:189,bg_power_steering_profile_pricing:190,
+  bg_power_steering_training:191,bg_power_steering_part_number:192,bg_power_steering_part_notes:193,
+  bg_power_steering_spiff:194
 };
 
 function colLetter(idx) {
@@ -1365,7 +1369,7 @@ const RECAP_FIELDS = new Set([
   'bg_transmission_carrying','bg_coolant_carrying','bg_diff_carrying',
   'bg_induction_carrying','bg_injection_carrying','bg_gdi_carrying',
   'bg_brake_carrying','bg_ac_carrying','bg_moa_efl_carrying','bg_epr_carrying',
-  'bg_battery_carrying','bg_fuel_carrying','bg_diesel_carrying','bg_misc_carrying',
+  'bg_battery_carrying','bg_fuel_carrying','bg_diesel_carrying','bg_power_steering_carrying','bg_misc_carrying',
 ]);
 
 // Activity Log fields — stored in Activity Log tab, not as Yes/No on Accounts
@@ -1379,7 +1383,7 @@ const ACTIVITY_FIELDS = [
 let gapiReady=false, gisReady=false, tokenClient;
 let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={}, allAliases=[], allProductParts=[], partRowMap={};
 let allActivityLog=[], allPersonnel=[];
-let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
+let currentTerritory='', currentTab='active', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
 let allRankings=[], allMachines=[];
 
@@ -1852,7 +1856,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:GE','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
+      spreadsheetId: sid, ranges: ['Accounts!A:GM','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -2229,7 +2233,7 @@ function computeMetrics(accountsList, changesList) {
 function updateStats() {
   var active   = allAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allAccounts.filter(function(a){ return a.status==='prospect'; }).length;
-  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; }).length;
+  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; }).length;
   document.getElementById('metricActive').querySelector('.big-box-num').textContent   = active;
   document.getElementById('metricProspect').querySelector('.big-box-num').textContent = prospect;
   document.getElementById('metricHot').querySelector('.big-box-num').textContent      = hot;
@@ -2277,9 +2281,9 @@ function openMetricFilter(metricKey) {
     subtitle = prospectAccts.length + ' prospect'+(prospectAccts.length!==1?'s':'');
     accounts = prospectAccts;
   } else if (metricKey === 'hot_accounts') {
-    var hotAccts = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; });
-    title = 'Hot Accounts (4–5★)';
-    subtitle = hotAccts.length + ' account'+(hotAccts.length!==1?'s':'')+' rated 4 or 5 stars';
+    var hotAccts = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; });
+    title = 'Hot Leads (4–5★ Prospects)';
+    subtitle = hotAccts.length + ' prospect'+(hotAccts.length!==1?'s':'')+' rated 4 or 5 stars';
     accounts = hotAccts;
   } else if (metricKey === 'ytd_conversions') {
     title = 'Converted to Active — Year to Date';
@@ -2492,6 +2496,10 @@ function openAccount(id) {
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fv(v) { return v ? '<span class="field-value">'+esc(v)+'</span>' : '<span class="field-value empty">—</span>'; }
+// Same as fv() but renders a clickable mailto: link when there's a value, so
+// tapping the email opens the rep's mail client (Outlook, if that's what's
+// set as default) with the address already filled in.
+function fvEmail(v) { return v ? '<a class="field-value" href="mailto:'+esc(v)+'" style="text-decoration:underline">'+esc(v)+'</a>' : '<span class="field-value empty">—</span>'; }
 function fmtNum(v) {
   var n = parseFloat(v);
   if (isNaN(n)) return esc(v);
@@ -2657,19 +2665,19 @@ function renderDetail() {
     '</div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Phone</span>'+fv(a.owner_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Owner Email</span>'+fv(a.owner_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Email</span>'+fvEmail(a.owner_email)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Name</span>'+fv(a.gm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Phone</span>'+fv(a.gm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">GM Email</span>'+fv(a.gm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Email</span>'+fvEmail(a.gm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">FOD Name</span>'+fv(a.fod_name)+'</div>'+
     '<div class="field-row"><span class="field-label">FOD Phone</span>'+fv(a.fod_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">FOD Email</span>'+fv(a.fod_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Email</span>'+fvEmail(a.fod_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Name</span>'+fv(a.sm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Phone</span>'+fv(a.sm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fv(a.sm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fvEmail(a.sm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Parts Manager Name</span>'+fv(a.pm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Parts Manager Phone</span>'+fv(a.pm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fv(a.pm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fvEmail(a.pm_email)+'</div>'+
     (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+'</div></div>':'')+
     function(){
       var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
@@ -2678,7 +2686,7 @@ function renderDetail() {
         return '<div class="field-row"><span class="field-label">'+(p.role||'Other')+'</span>'+
           '<div style="flex:1;display:flex;align-items:center;justify-content:space-between">'+
           '<div>'+fv(p.name)+(p.phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.phone)+'</span>':'')+
-          (p.email?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.email)+'</span>':'')+'</div>'+
+          (p.email?' <a href="mailto:'+esc(p.email)+'" style="color:var(--gray-3);font-size:12px;text-decoration:underline">'+esc(p.email)+'</a>':'')+'</div>'+
           '<button type="button" class="btn btn-danger btn-sm personnel-delete-btn" data-pid="'+p.personnel_id+'" style="padding:3px 8px;font-size:11px">✕</button>'+
           '</div></div>';
       }).join('');
@@ -4832,7 +4840,7 @@ async function openAccountFromManagerView(accountId, territory, returnTo) {
 // territory at once, rather than the browsing/comparison focus Manager View
 // has. Editing still happens by opening an account, which flips into that
 // one territory's context — there's no bulk cross-territory editing here.
-var companyTab = 'prospect', companySubfilter = 'all', companySort = 'alpha';
+var companyTab = 'active', companySubfilter = 'all', companySort = 'alpha';
 var companyRankLookup = {};
 var allCompanyChanges = [];
 
@@ -4854,7 +4862,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:GE','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:GM','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -4892,7 +4900,7 @@ async function pullAllTerritoriesForMaster() {
     while (out.length < width) out.push('');
     return out;
   }
-  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 187 — matches Accounts!A:GE
+  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 187 — matches Accounts!A:GM
 
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
@@ -4981,7 +4989,7 @@ async function openCompanyView() {
 
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:GE','Change Log!A:H','Rankings!A:K','Meta!A:B']
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:GM','Change Log!A:H','Rankings!A:K','Meta!A:B']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -5048,7 +5056,7 @@ function updateCompanySortOptions() {
 function updateCompanyStats() {
   var active   = allManagerAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allManagerAccounts.filter(function(a){ return a.status==='prospect'; }).length;
-  var hot      = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; }).length;
+  var hot      = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; }).length;
   document.getElementById('companyMetricActive').querySelector('.big-box-num').textContent   = active;
   document.getElementById('companyMetricProspect').querySelector('.big-box-num').textContent = prospect;
   document.getElementById('companyMetricHot').querySelector('.big-box-num').textContent      = hot;
@@ -5160,9 +5168,9 @@ function openCompanyMetricFilter(metricKey) {
     title = 'Prospective Accounts (Company-Wide)';
     subtitle = accounts.length + ' prospect'+(accounts.length!==1?'s':'');
   } else if (metricKey === 'hot_accounts') {
-    accounts = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; });
-    title = 'Hot Accounts (4–5★, Company-Wide)';
-    subtitle = accounts.length + ' account'+(accounts.length!==1?'s':'')+' rated 4 or 5 stars';
+    accounts = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; });
+    title = 'Hot Leads (4–5★ Prospects, Company-Wide)';
+    subtitle = accounts.length + ' prospect'+(accounts.length!==1?'s':'')+' rated 4 or 5 stars';
   } else if (metricKey === 'ytd_conversions') {
     title = 'Converted to Active — Year to Date (Company-Wide)';
     subtitle = m.conversionCount + ' account'+(m.conversionCount!==1?'s':'')+' converted in '+thisYear();
@@ -6428,7 +6436,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:GE','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:GM','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -6444,7 +6452,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:GE'}),
+        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:GM'}),
         gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
@@ -7239,7 +7247,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:GE',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:GM',
       valueInputOption:'RAW', resource:{values:[vals]}
     }); });
     allAccounts.push(currentAccount);
