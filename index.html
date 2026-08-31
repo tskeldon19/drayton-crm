@@ -1649,13 +1649,24 @@ function isRetryableError(e) {
 // Retries a Sheets API call (or any promise-returning function) on rate-limit
 // or timeout errors, with a short growing delay between attempts, and a hard
 // per-call timeout so a stuck request can never hang the whole operation.
-function withRetry(fn, retries) {
+function withRetry(fn, retries, authRetried) {
   retries = retries === undefined ? 3 : retries;
+  authRetried = authRetried === undefined ? false : authRetried;
   return withTimeout(fn).catch(function(e){
     if (retries > 0 && isRetryableError(e)) {
       var delay = (4 - retries) * 800 + 400; // 400ms, 1200ms, 2000ms
       return new Promise(function(resolve){ setTimeout(resolve, delay); }).then(function(){
-        return withRetry(fn, retries - 1);
+        return withRetry(fn, retries - 1, authRetried);
+      });
+    }
+    // A 401/expired-credential error means the token went stale mid-session
+    // despite the proactive refresh (e.g. Safari ITP silently blocked the
+    // cookies Google's silent refresh needs — a known iPad-specific failure
+    // mode, see ensureFreshToken above). Force one real refresh and retry the
+    // same call once before surfacing "session expired" and losing the save.
+    if (isAuthError(e) && !authRetried) {
+      return ensureFreshToken().then(function(){
+        return withRetry(fn, retries, true);
       });
     }
     throw e;
@@ -1791,6 +1802,10 @@ async function guardedSave(fn) {
   if (_saveInFlight) return;
   _saveInFlight = true;
   try {
+    // Access tokens expire ~hourly. Every save button routes through here, so
+    // refreshing first covers the common "sat idle, then hit Log Visit" case
+    // before the write itself ever gets a chance to fail with a stale token.
+    await ensureFreshToken();
     await fn();
   } finally {
     _saveInFlight = false;
