@@ -697,8 +697,8 @@
       </button>
     </div>
     <div class="tab-row">
-      <button class="tab" id="companyTabProspect">Prospective</button>
-      <button class="tab active" id="companyTabActive">Active Clients</button>
+      <button class="tab active" id="companyTabProspect">Prospective</button>
+      <button class="tab" id="companyTabActive">Active Clients</button>
     </div>
     <div class="subfilter-row">
       <button class="subfilter-btn active" data-type="all">All</button>
@@ -783,8 +783,8 @@
       </button>
     </div>
     <div class="tab-row">
-      <button class="tab" id="tabProspect">🔍 Prospective</button>
-      <button class="tab active" id="tabActive">✅ Active Clients</button>
+      <button class="tab active" id="tabProspect">🔍 Prospective</button>
+      <button class="tab" id="tabActive">✅ Active Clients</button>
       <button class="tab" id="tabTerritoryUpdates">📌 Territory Updates</button>
       <button class="tab" id="tabMyLists" style="margin-left:auto">📋 My Lists</button>
     </div>
@@ -1160,11 +1160,11 @@ const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
 // full official list comes in from management.
 const DEALER_GROUPS = [
   'Albrecht','Autofair','Balise','Berlin City','Bernardi','Bertera','Best','Bill Dodge','Bill Dube',
-  'Central','Colonial','Copeland','Darling','DSR Motor Group','Empire','Falmouth','Firestone','First','Flood','Goodwin',
-  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kaplan Auto Group','Kelly','Key','Langway',
+  'Central','Colonial','Copeland','Darling','Empire','Falmouth','Firestone','First','Flood','Goodwin',
+  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kelly','Key','Langway',
   'Lia','Liberty','Long','Lundgren','Marty','Mastria','Mcfarland','Mcgee','Mcgovern','Meineke','Midas',
   'NE Tire','Nucar','Ocean','Patrick','Paul Masse','Pep Boys','Premier','Pride','Quirk','Ron Bouchard',
-  'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Thompson Auto Group','Tulley'
+  'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Tulley'
 ];
 
 // Company Dashboard reads from this ONE spreadsheet instead of hitting all
@@ -1227,7 +1227,7 @@ const BG_PRODUCTS = [
   {key:'bg_brake',label:'Brake'},{key:'bg_ac',label:'AC'},
   {key:'bg_moa_efl',label:'MOA / EFL'},{key:'bg_epr',label:'EPR'},
   {key:'bg_battery',label:'Battery'},{key:'bg_fuel',label:'Fuel Pour-in'},
-  {key:'bg_diesel',label:'Diesel'},{key:'bg_power_steering',label:'Power Steering'},{key:'bg_misc',label:'Misc'},
+  {key:'bg_diesel',label:'Diesel'},{key:'bg_misc',label:'Misc'},
 ];
 const STORE_FIELDS = [
   {key:'mpi',             label:'MPI',                    type:'yn'},
@@ -1286,11 +1286,7 @@ const COL = {
   dealer_group:178,
   pm_name:179,pm_phone:180,pm_email:181,
   fod_name:182,fod_phone:183,fod_email:184,
-  efl:185,efl_notes:186,
-  bg_power_steering:187,
-  bg_power_steering_status:188,bg_power_steering_carrying:189,bg_power_steering_profile_pricing:190,
-  bg_power_steering_training:191,bg_power_steering_part_number:192,bg_power_steering_part_notes:193,
-  bg_power_steering_spiff:194
+  efl:185,efl_notes:186
 };
 
 function colLetter(idx) {
@@ -1369,7 +1365,7 @@ const RECAP_FIELDS = new Set([
   'bg_transmission_carrying','bg_coolant_carrying','bg_diff_carrying',
   'bg_induction_carrying','bg_injection_carrying','bg_gdi_carrying',
   'bg_brake_carrying','bg_ac_carrying','bg_moa_efl_carrying','bg_epr_carrying',
-  'bg_battery_carrying','bg_fuel_carrying','bg_diesel_carrying','bg_power_steering_carrying','bg_misc_carrying',
+  'bg_battery_carrying','bg_fuel_carrying','bg_diesel_carrying','bg_misc_carrying',
 ]);
 
 // Activity Log fields — stored in Activity Log tab, not as Yes/No on Accounts
@@ -1383,7 +1379,7 @@ const ACTIVITY_FIELDS = [
 let gapiReady=false, gisReady=false, tokenClient;
 let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={}, allAliases=[], allProductParts=[], partRowMap={};
 let allActivityLog=[], allPersonnel=[];
-let currentTerritory='', currentTab='active', currentAccount=null, selectedRating=null;
+let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
 let allRankings=[], allMachines=[];
 
@@ -1792,6 +1788,7 @@ function showToast(msg, type) {
 // even from cache, since it's literally the same object in memory.
 var _territoryCache = {};
 var CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+var CACHE_MAX_TERRITORIES = 2; // bound memory growth — see cacheCurrentTerritoryData
 
 function cacheCurrentTerritoryData(territory) {
   _territoryCache[territory] = {
@@ -1799,6 +1796,21 @@ function cacheCurrentTerritoryData(territory) {
     allActivityLog: allActivityLog, allPersonnel: allPersonnel, allRankings: allRankings,
     allAliases: allAliases, sheetRowMap: sheetRowMap, visitRowMap: visitRowMap
   };
+  // Nothing used to evict old entries here, so a long session that touches
+  // several territories (Company Dashboard checks, covering another route,
+  // multi-territory recap) kept every one of them in memory for the rest of
+  // the session — full Accounts/Visits/Change Log/Activity Log/Personnel
+  // arrays each. On a memory-constrained device (iPad especially) that extra
+  // footprint makes Safari more likely to kill the tab's JS process outright
+  // under memory pressure rather than just backgrounding it — which looks
+  // like the whole app crashing, not just going idle. Keep only the most
+  // recently used territories so flipping between one or two routes still
+  // avoids a refetch, without letting a whole day's territories pile up.
+  var keys = Object.keys(_territoryCache);
+  if (keys.length > CACHE_MAX_TERRITORIES) {
+    keys.sort(function(a,b){ return _territoryCache[a].ts - _territoryCache[b].ts; });
+    delete _territoryCache[keys[0]];
+  }
 }
 function restoreTerritoryDataFromCache(territory) {
   var c = _territoryCache[territory];
@@ -1856,7 +1868,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:GM','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
+      spreadsheetId: sid, ranges: ['Accounts!A:GE','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -2233,7 +2245,7 @@ function computeMetrics(accountsList, changesList) {
 function updateStats() {
   var active   = allAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allAccounts.filter(function(a){ return a.status==='prospect'; }).length;
-  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; }).length;
+  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; }).length;
   document.getElementById('metricActive').querySelector('.big-box-num').textContent   = active;
   document.getElementById('metricProspect').querySelector('.big-box-num').textContent = prospect;
   document.getElementById('metricHot').querySelector('.big-box-num').textContent      = hot;
@@ -2281,9 +2293,9 @@ function openMetricFilter(metricKey) {
     subtitle = prospectAccts.length + ' prospect'+(prospectAccts.length!==1?'s':'');
     accounts = prospectAccts;
   } else if (metricKey === 'hot_accounts') {
-    var hotAccts = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; });
-    title = 'Hot Leads (4–5★ Prospects)';
-    subtitle = hotAccts.length + ' prospect'+(hotAccts.length!==1?'s':'')+' rated 4 or 5 stars';
+    var hotAccts = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; });
+    title = 'Hot Accounts (4–5★)';
+    subtitle = hotAccts.length + ' account'+(hotAccts.length!==1?'s':'')+' rated 4 or 5 stars';
     accounts = hotAccts;
   } else if (metricKey === 'ytd_conversions') {
     title = 'Converted to Active — Year to Date';
@@ -2480,12 +2492,7 @@ function renderList() {
 }
 
 function openAccount(id) {
-  var matches = allAccounts.filter(function(a){ return a.account_id===id; });
-  if (matches.length > 1) {
-    console.warn('Duplicate account_id detected — multiple accounts share id '+id+':', matches.map(function(a){ return a.business_name; }));
-    showToast('Data issue: two accounts share the same ID ('+matches.map(function(a){return a.business_name;}).join(' / ')+'). Please flag this for cleanup.', 'error');
-  }
-  currentAccount = matches[0];
+  currentAccount = allAccounts.find(function(a){ return a.account_id===id; });
   if (!currentAccount) return;
   window._productStatusSnapshot = {};
   // Track where we came from so the back button returns correctly
@@ -2496,10 +2503,6 @@ function openAccount(id) {
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fv(v) { return v ? '<span class="field-value">'+esc(v)+'</span>' : '<span class="field-value empty">—</span>'; }
-// Same as fv() but renders a clickable mailto: link when there's a value, so
-// tapping the email opens the rep's mail client (Outlook, if that's what's
-// set as default) with the address already filled in.
-function fvEmail(v) { return v ? '<a class="field-value" href="mailto:'+esc(v)+'" style="text-decoration:underline">'+esc(v)+'</a>' : '<span class="field-value empty">—</span>'; }
 function fmtNum(v) {
   var n = parseFloat(v);
   if (isNaN(n)) return esc(v);
@@ -2625,8 +2628,7 @@ function renderDetail() {
   var isHidden = isDeleted || isDisqualified;   // both states are hidden from normal lists
 
   var html = '';
-  if (isDeleted) html += '<div class="deleted-banner">⚠️ This account is deleted and hidden from the dashboard. Use Edit Info to restore it.'+
-    ' <button class="btn btn-danger btn-sm" id="permanentDeleteBtn" style="margin-left:10px">🗑 Permanently Delete</button></div>';
+  if (isDeleted) html += '<div class="deleted-banner">⚠️ This account is deleted and hidden from the dashboard. Use Edit Info to restore it.</div>';
   if (isDisqualified) html += '<div class="deleted-banner">🚫 This lead has been disqualified and is hidden from active lists and recap counts. Use Restore to reopen it.</div>';
 
   html += '<div class="detail-header"><div><h2>'+esc(a.business_name)+'</h2><div class="meta">'+esc([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div></div>'+
@@ -2665,19 +2667,19 @@ function renderDetail() {
     '</div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Phone</span>'+fv(a.owner_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Owner Email</span>'+fvEmail(a.owner_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Email</span>'+fv(a.owner_email)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Name</span>'+fv(a.gm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Phone</span>'+fv(a.gm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">GM Email</span>'+fvEmail(a.gm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Email</span>'+fv(a.gm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">FOD Name</span>'+fv(a.fod_name)+'</div>'+
     '<div class="field-row"><span class="field-label">FOD Phone</span>'+fv(a.fod_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">FOD Email</span>'+fvEmail(a.fod_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Email</span>'+fv(a.fod_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Name</span>'+fv(a.sm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Phone</span>'+fv(a.sm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fvEmail(a.sm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fv(a.sm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Parts Manager Name</span>'+fv(a.pm_name)+'</div>'+
     '<div class="field-row"><span class="field-label">Parts Manager Phone</span>'+fv(a.pm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fvEmail(a.pm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fv(a.pm_email)+'</div>'+
     (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+'</div></div>':'')+
     function(){
       var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
@@ -2686,7 +2688,7 @@ function renderDetail() {
         return '<div class="field-row"><span class="field-label">'+(p.role||'Other')+'</span>'+
           '<div style="flex:1;display:flex;align-items:center;justify-content:space-between">'+
           '<div>'+fv(p.name)+(p.phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.phone)+'</span>':'')+
-          (p.email?' <a href="mailto:'+esc(p.email)+'" style="color:var(--gray-3);font-size:12px;text-decoration:underline">'+esc(p.email)+'</a>':'')+'</div>'+
+          (p.email?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.email)+'</span>':'')+'</div>'+
           '<button type="button" class="btn btn-danger btn-sm personnel-delete-btn" data-pid="'+p.personnel_id+'" style="padding:3px 8px;font-size:11px">✕</button>'+
           '</div></div>';
       }).join('');
@@ -2950,7 +2952,6 @@ function renderDetail() {
   var lb = document.getElementById('logVisitBtn'); if(lb) lb.addEventListener('click', openVisitModal);
   var db = document.getElementById('deleteBtn'); if(db) db.addEventListener('click', function(){ if (checkManagerPin('delete this account')) softDelete(); });
   var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreAccount);
-  var pdb = document.getElementById('permanentDeleteBtn'); if(pdb) pdb.addEventListener('click', function(){ if (checkManagerPin('permanently delete this account')) permanentlyDeleteAccount(); });
   var rvb = document.getElementById('revertBtn'); if(rvb) rvb.addEventListener('click', revertToProspect);
   var atlb = document.getElementById('addToListDetailBtn'); if(atlb) atlb.addEventListener('click', function(){ openAddToList(currentAccount); });
   var dqb = document.getElementById('disqualifyBtn'); if(dqb) dqb.addEventListener('click', disqualifyLead);
@@ -3517,12 +3518,12 @@ async function saveVisitEdit() {
     if (date) { currentAccount.last_visit = date; }
     if (fu)   { currentAccount.next_followup = fu; }
     try {
-      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId:territorySheetId(currentTerritory), resource:{valueInputOption:'RAW', data:[
           {range:'Accounts!'+colLetter(COL.last_visit)+accRowNum,    values:[[currentAccount.last_visit||'']]},
           {range:'Accounts!'+colLetter(COL.next_followup)+accRowNum, values:[[currentAccount.next_followup||'']]}
         ]}
-      });
+      }); });
     } catch(e) { console.error('Error updating account dates',e); }
   }
   closeModal('modalVisitEdit');
@@ -4840,7 +4841,7 @@ async function openAccountFromManagerView(accountId, territory, returnTo) {
 // territory at once, rather than the browsing/comparison focus Manager View
 // has. Editing still happens by opening an account, which flips into that
 // one territory's context — there's no bulk cross-territory editing here.
-var companyTab = 'active', companySubfilter = 'all', companySort = 'alpha';
+var companyTab = 'prospect', companySubfilter = 'all', companySort = 'alpha';
 var companyRankLookup = {};
 var allCompanyChanges = [];
 
@@ -4862,7 +4863,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:GM','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:GE','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -4900,7 +4901,7 @@ async function pullAllTerritoriesForMaster() {
     while (out.length < width) out.push('');
     return out;
   }
-  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 187 — matches Accounts!A:GM
+  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 187 — matches Accounts!A:GE
 
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
@@ -4989,7 +4990,7 @@ async function openCompanyView() {
 
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:GM','Change Log!A:H','Rankings!A:K','Meta!A:B']
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:GE','Change Log!A:H','Rankings!A:K','Meta!A:B']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -5056,7 +5057,7 @@ function updateCompanySortOptions() {
 function updateCompanyStats() {
   var active   = allManagerAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allManagerAccounts.filter(function(a){ return a.status==='prospect'; }).length;
-  var hot      = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; }).length;
+  var hot      = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; }).length;
   document.getElementById('companyMetricActive').querySelector('.big-box-num').textContent   = active;
   document.getElementById('companyMetricProspect').querySelector('.big-box-num').textContent = prospect;
   document.getElementById('companyMetricHot').querySelector('.big-box-num').textContent      = hot;
@@ -5168,9 +5169,9 @@ function openCompanyMetricFilter(metricKey) {
     title = 'Prospective Accounts (Company-Wide)';
     subtitle = accounts.length + ' prospect'+(accounts.length!==1?'s':'');
   } else if (metricKey === 'hot_accounts') {
-    accounts = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; });
-    title = 'Hot Leads (4–5★ Prospects, Company-Wide)';
-    subtitle = accounts.length + ' prospect'+(accounts.length!==1?'s':'')+' rated 4 or 5 stars';
+    accounts = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; });
+    title = 'Hot Accounts (4–5★, Company-Wide)';
+    subtitle = accounts.length + ' account'+(accounts.length!==1?'s':'')+' rated 4 or 5 stars';
   } else if (metricKey === 'ytd_conversions') {
     title = 'Converted to Active — Year to Date (Company-Wide)';
     subtitle = m.conversionCount + ' account'+(m.conversionCount!==1?'s':'')+' converted in '+thisYear();
@@ -6436,7 +6437,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:GM','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:GE','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -6450,10 +6451,10 @@ async function runWeeklyRecap() {
       // A specific territory other than the one currently loaded
       var sid = territorySheetId(territory);
       var results = await Promise.all([
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:GM'}),
-        gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:GE'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}); }),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
       var clRaw  = (results[1].result.values||[]).slice(1);
@@ -6734,7 +6735,7 @@ function toggleVisits() {
 }
 
 async function updateStatus(newStatus) {
-  var rowNum = await resolveAccountRow(currentAccount.account_id);
+  var rowNum = sheetRowMap[currentAccount.account_id];
   if (!rowNum) { showToast('Row not found','error'); return; }
   try {
     await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
@@ -6752,43 +6753,6 @@ async function softDelete() {
   await logFieldChange(currentAccount, 'status', before, 'deleted');
   showToast('Account deleted — recoverable from the account page');
   updateStats(); goBack();
-}
-
-// Fully removes an already-soft-deleted account's row from the sheet. Unlike
-// softDelete (which just flags status='deleted' and keeps showing the
-// warning banner every time anyone opens it), this erases the row entirely
-// so there's nothing left to show a banner for — meant for cleaning up
-// confirmed duplicates or truly bogus entries, not routine account closures.
-// Gated behind manager PIN + a typed confirmation since it can't be undone.
-async function permanentlyDeleteAccount() {
-  if (currentAccount.status !== 'deleted') {
-    showToast('Delete the account first, then Permanently Delete becomes available','error');
-    return;
-  }
-  var typed = prompt('This cannot be undone. Type the exact business name to permanently delete "'+currentAccount.business_name+'":');
-  if (typed !== currentAccount.business_name) {
-    if (typed !== null) showToast('Name did not match — nothing was deleted','error');
-    return;
-  }
-  var rowNum = await resolveAccountRow(currentAccount.account_id);
-  if (!rowNum) { showToast('Could not find this account\'s row — please refresh and try again','error'); return; }
-  try {
-    var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
-    var accSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Accounts'; });
-    await withRetry(function(){ return gapi.client.sheets.spreadsheets.batchUpdate({
-      spreadsheetId:territorySheetId(currentTerritory),
-      resource:{requests:[{deleteDimension:{range:{sheetId:accSheet.properties.sheetId,dimension:'ROWS',startIndex:rowNum-1,endIndex:rowNum}}}]}
-    }); });
-    // Row is gone — every row below it shifted up one, so the cached row
-    // numbers for the rest of this territory are now stale. Clear them all
-    // and let resolveAccountRow's fresh-lookup re-populate on next use.
-    var deletedId = currentAccount.account_id;
-    delete sheetRowMap[deletedId];
-    Object.keys(sheetRowMap).forEach(function(id){ if (sheetRowMap[id] > rowNum) sheetRowMap[id]--; });
-    allAccounts = allAccounts.filter(function(a){ return a.account_id !== deletedId; });
-    showToast('Account permanently deleted');
-    updateStats(); goBack();
-  } catch(e) { showToast(describeApiError(e, 'Error permanently deleting account'),'error'); console.error(e); }
 }
 
 async function disqualifyLead() {
@@ -6883,7 +6847,6 @@ function selectRating(n) {
 
 function openEditModal(section) {
   var a = currentAccount;
-  var modalWasAlreadyOpen = document.getElementById('modalEdit').classList.contains('open');
   window._editSnapshot = Object.assign({}, a);
   document.getElementById('editModalTitle').textContent = a.business_name || 'New Account';
   selectedRating = a.rating ? parseInt(a.rating) : null;
@@ -7014,7 +6977,6 @@ function openEditModal(section) {
 
   document.getElementById('editSaveBtn').onclick = saveAccount;
   document.getElementById('modalEdit').classList.add('open');
-  if (!modalWasAlreadyOpen) checkForDraftRecovery();
 
   // Scroll to the requested section after modal renders
   if (section) {
@@ -7058,157 +7020,6 @@ function collectEditFields() {
   BG_PRODUCTS.forEach(function(p){ var el=document.getElementById('e_'+p.key); if(el) a[p.key]=el.checked?'Yes':''; });
 }
 
-// ============================================================
-// DRAFT AUTOSAVE — protects against the iPad data-loss bug.
-//
-// The problem: fields typed into the edit modal only ever land in
-// `currentAccount` when Save is clicked (via collectEditFields above).
-// Until then they exist ONLY in the DOM. iPad Safari can fully discard and
-// reload a backgrounded tab under memory pressure — a phone call, switching
-// apps, anything — which wipes the DOM (and every unsaved keystroke) with
-// no warning. A plain JS variable wouldn't survive that either, since the
-// whole page context is gone; localStorage does survive, because it's
-// disk-backed and outlives the page that wrote it.
-//
-// The fix: continuously mirror the form into localStorage while the modal
-// is open (debounced on typing, and flushed immediately the instant the
-// tab is backgrounded), keyed to the specific account being edited. If the
-// modal reopens for that account and a newer draft exists, offer to
-// restore it before the rep starts typing again.
-// ============================================================
-
-function draftKey(accountId) { return 'drayton_draft_' + currentTerritory + '_' + accountId; }
-
-// New (never-saved) accounts get a fresh account_id every time "Add New
-// Account" is opened, so keying a draft to that id would never survive a
-// tab reload — the id itself is gone too. Instead, all in-progress new
-// accounts in a territory share one stable recovery slot. Existing
-// accounts keep their real, stable account_id as the key.
-function currentDraftKey() {
-  if (!currentAccount || !currentAccount.account_id) return null;
-  var isNewAccountSession = !sheetRowMap[currentAccount.account_id];
-  return isNewAccountSession ? draftKey('NEW_ACCOUNT') : draftKey(currentAccount.account_id);
-}
-
-function buildDraftSnapshot() {
-  collectEditFields(); // syncs the main fields into currentAccount from the DOM
-  var draft = {
-    savedAt: Date.now(),
-    accountData: Object.assign({}, currentAccount),
-    selectedRating: selectedRating,
-    newPersonnel: {
-      role: (document.getElementById('new_per_role')||{}).value || '',
-      name: (document.getElementById('new_per_name')||{}).value || '',
-      phone: (document.getElementById('new_per_phone')||{}).value || '',
-      email: (document.getElementById('new_per_email')||{}).value || '',
-    },
-    activityFields: {}
-  };
-  ACTIVITY_FIELDS.forEach(function(f){
-    var dEl = document.getElementById('e_activity_'+f.key);
-    var nEl = document.getElementById('e_activity_'+f.key+'_notes');
-    if (dEl) draft.activityFields[f.key+'_date'] = dEl.value;
-    if (nEl) draft.activityFields[f.key+'_notes'] = nEl.value;
-  });
-  return draft;
-}
-
-var _draftSaveTimer = null;
-function scheduleDraftSave() {
-  if (!currentDraftKey()) return;
-  if (!document.getElementById('modalEdit').classList.contains('open')) return;
-  clearTimeout(_draftSaveTimer);
-  _draftSaveTimer = setTimeout(flushDraftSaveNow, 800);
-}
-
-function flushDraftSaveNow() {
-  var key = currentDraftKey();
-  if (!key) return;
-  if (!document.getElementById('modalEdit').classList.contains('open')) return;
-  try {
-    localStorage.setItem(key, JSON.stringify(buildDraftSnapshot()));
-  } catch (e) { console.error('Draft autosave failed', e); }
-}
-
-function loadDraft(key) {
-  try {
-    var raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) { return null; }
-}
-
-function clearDraft(key) {
-  try { localStorage.removeItem(key); } catch (e) {}
-}
-
-// Repopulates the just-rendered form from a saved draft. Called only after
-// the rep confirms they want the recovered data.
-function applyDraftToForm(draft) {
-  Object.keys(draft.accountData || {}).forEach(function(key){
-    var el = document.getElementById('e_'+key);
-    if (el) el.value = draft.accountData[key];
-  });
-  if (draft.selectedRating) selectRating(draft.selectedRating);
-  if (draft.newPersonnel) {
-    var np = draft.newPersonnel;
-    if (document.getElementById('new_per_role'))  document.getElementById('new_per_role').value  = np.role  || '';
-    if (document.getElementById('new_per_name'))  document.getElementById('new_per_name').value  = np.name  || '';
-    if (document.getElementById('new_per_phone')) document.getElementById('new_per_phone').value = np.phone || '';
-    if (document.getElementById('new_per_email')) document.getElementById('new_per_email').value = np.email || '';
-  }
-  if (draft.activityFields) {
-    Object.keys(draft.activityFields).forEach(function(k){
-      var isDate = k.endsWith('_date');
-      var baseKey = isDate ? k.slice(0, -5) : k.slice(0, -6);
-      var elId = isDate ? 'e_activity_'+baseKey : 'e_activity_'+baseKey+'_notes';
-      var el = document.getElementById(elId);
-      if (el) el.value = draft.activityFields[k];
-    });
-  }
-  currentAccount = Object.assign(currentAccount, draft.accountData);
-  BG_PRODUCTS.forEach(function(p){
-    var el = document.getElementById('e_'+p.key);
-    if (el && draft.accountData[p.key] === 'Yes') el.checked = true;
-  });
-}
-
-// Checks for a leftover draft right after the modal renders, and offers to
-// restore it. Kept separate from the render logic so it always runs last,
-// after every field already exists in the DOM.
-function checkForDraftRecovery() {
-  var key = currentDraftKey();
-  if (!key) return;
-  var draft = loadDraft(key);
-  if (!draft) return;
-  var ageMinutes = Math.round((Date.now() - draft.savedAt) / 60000);
-  var when = ageMinutes < 1 ? 'moments ago' : ageMinutes + ' minute' + (ageMinutes===1?'':'s') + ' ago';
-  var restore = confirm('We found unsaved changes from ' + when + ' — looks like this account editor got interrupted before saving.\n\nOK = Restore those changes\nCancel = Discard them and start fresh');
-  if (restore) {
-    applyDraftToForm(draft);
-    showToast('Draft restored — review and Save when ready');
-  } else {
-    clearDraft(key);
-  }
-}
-
-// Flush a draft the instant the tab is backgrounded (phone call, app
-// switch, etc.) rather than waiting for the debounce timer — this is the
-// exact moment iPad Safari might reclaim the page.
-document.addEventListener('visibilitychange', function(){
-  if (document.visibilityState === 'hidden') flushDraftSaveNow();
-});
-window.addEventListener('pagehide', flushDraftSaveNow);
-
-// Single delegated listener covers every field in the modal, including
-// ones added/removed dynamically (new personnel rows, etc.) without needing
-// to wire each input individually.
-document.addEventListener('input', function(e){
-  if (e.target.closest && e.target.closest('#editModalBody')) scheduleDraftSave();
-});
-document.addEventListener('change', function(e){
-  if (e.target.closest && e.target.closest('#editModalBody')) scheduleDraftSave();
-});
-
 async function deletePersonnelFromModal(pid) {
   allPersonnel = allPersonnel.filter(function(p){ return p.personnel_id!==pid; });
   // Rebuild the modal section without this person
@@ -7233,56 +7044,10 @@ async function deletePersonnelFromModal(pid) {
 }
 
 async function saveAccount() {
-  var btn = document.getElementById('editSaveBtn');
-  if (btn && btn.disabled) return;
-  if (btn) { btn.disabled = true; btn.dataset.origLabel = btn.textContent; btn.textContent = 'Saving…'; }
-  try {
-    await saveAccountInner();
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.origLabel || 'Save Changes'; }
-  }
-}
-
-// Confirms sheetRowMap[account_id] still points at the correct row before we
-// write to it. The map is built once when a territory loads and then trusted
-// for the rest of the session — if the underlying sheet's rows shift for any
-// reason (another device saving in the same territory, a manual edit in
-// Sheets, etc.) a stale row number either overwrites the wrong account or,
-// worse, lands past the end of the sheet and Sheets silently creates a brand
-// new row there — which is exactly how the Route 111 duplicate accounts
-// happened. This does one lightweight read to check column A before every
-// save, and re-locates the real row if the cache is wrong.
-async function resolveAccountRow(accountId) {
-  var cachedRow = sheetRowMap[accountId];
-  if (!cachedRow) return null;
-  try {
-    var check = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: territorySheetId(currentTerritory), range: 'Accounts!A'+cachedRow
-    }); });
-    var idAtRow = (check.result.values && check.result.values[0] && check.result.values[0][0]) || '';
-    if (idAtRow === accountId) return cachedRow;
-  } catch (e) { /* fall through to full search */ }
-
-  // Cache was wrong (or the row is now blank) — search column A for the
-  // real row instead of guessing.
-  var col = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
-    spreadsheetId: territorySheetId(currentTerritory), range: 'Accounts!A:A'
-  }); });
-  var colVals = col.result.values || [];
-  for (var i = 0; i < colVals.length; i++) {
-    if (colVals[i][0] === accountId) {
-      sheetRowMap[accountId] = i + 1;
-      return i + 1;
-    }
-  }
-  return null; // account genuinely isn't in the sheet anymore
-}
-
-async function saveAccountInner() {
   var before = window._editSnapshot || {};
   collectEditFields();
-  var rowNum = await resolveAccountRow(currentAccount.account_id);
-  if (!rowNum) { showToast('Could not find this account\'s row — please refresh and try again','error'); return; }
+  var rowNum = sheetRowMap[currentAccount.account_id];
+  if (!rowNum) { showToast('Row not found','error'); return; }
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
 
   // Collect activity log entries from modal date inputs
@@ -7321,17 +7086,23 @@ async function saveAccountInner() {
       var aid = 'AL'+Date.now()+i;
       var aRow = [aid, currentAccount.account_id, currentAccount.business_name,
                   currentTerritory, ae.field_key, ae.field_label, ae.date, ae.notes];
-      await gapi.client.sheets.spreadsheets.values.append({
+      // withRetry/withTimeout, matching every other Sheets call in the app —
+      // these three writes used to fire as bare gapi calls with no timeout, so
+      // one stalled request on a flaky connection (cellular, weak store wifi)
+      // could hang the whole saveAccount() promise chain forever with no error
+      // and no way out except force-closing the app. See the withTimeout comment
+      // above for why an unguarded call is worse than just "might fail."
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId:territorySheetId(currentTerritory), range:'Activity Log!A:H',
         valueInputOption:'RAW', resource:{values:[aRow]}
-      });
+      }); });
       // Update cache column on Accounts sheet
       if (COL[ae.field_key] !== undefined) {
-        await gapi.client.sheets.spreadsheets.values.update({
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
           spreadsheetId:territorySheetId(currentTerritory),
           range:'Accounts!'+colLetter(COL[ae.field_key])+rowNum,
           valueInputOption:'RAW', resource:{values:[[ae.date]]}
-        });
+        }); });
         currentAccount[ae.field_key] = ae.date;
       }
       allActivityLog.push({activity_id:aid, account_id:currentAccount.account_id,
@@ -7349,10 +7120,10 @@ async function saveAccountInner() {
       var pRow = [pid, currentAccount.account_id, currentAccount.business_name,
                   currentTerritory, newPersonnel.role, newPersonnel.name,
                   newPersonnel.phone, newPersonnel.email];
-      await gapi.client.sheets.spreadsheets.values.append({
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H',
         valueInputOption:'RAW', resource:{values:[pRow]}
-      });
+      }); });
       allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
         account_name:currentAccount.business_name, territory:currentTerritory,
         role:newPersonnel.role, name:newPersonnel.name,
@@ -7363,45 +7134,17 @@ async function saveAccountInner() {
     }
 
     showToast('Saved ✓'); closeModal('modalEdit'); selectedRating=null; renderDetail();
-    clearDraft(draftKey(currentAccount.account_id));
   } catch(e) { showToast(describeApiError(e, 'Error saving'),'error'); console.error(e); }
 }
 
 async function saveNewAccount() {
-  // Guard against double-submit: a second tap/click while the first append is
-  // still in flight (slow connection, iPad double-tap) used to fire this
-  // function twice and create two identical rows. This was the source of the
-  // Route 111 duplicate accounts.
-  var btn = document.getElementById('editSaveBtn');
-  if (btn && btn.disabled) return;
-  if (btn) { btn.disabled = true; btn.dataset.origLabel = btn.textContent; btn.textContent = 'Saving…'; }
-
   var statusEl = document.getElementById('e_status_new');
   if (statusEl) currentAccount.status = statusEl.value;
   collectEditFields();
-
-  // Duplicate check: same business name + town already exists in this
-  // territory. Doesn't block the save (rep may genuinely have two locations
-  // with the same name), but requires an explicit confirm so a stray double
-  // click or a mis-typed name doesn't silently create a twin record.
-  var nameKey = (currentAccount.business_name||'').trim().toLowerCase();
-  var townKey = (currentAccount.town||'').trim().toLowerCase();
-  if (nameKey) {
-    var possibleDup = allAccounts.some(function(a){
-      return a.territory===currentTerritory &&
-        (a.business_name||'').trim().toLowerCase()===nameKey &&
-        (a.town||'').trim().toLowerCase()===townKey;
-    });
-    if (possibleDup && !window.confirm('An account named "'+currentAccount.business_name+'" already exists in this territory. Add it anyway?')) {
-      if (btn) { btn.disabled = false; btn.textContent = btn.dataset.origLabel || 'Save Changes'; }
-      return;
-    }
-  }
-
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:GM',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:GE',
       valueInputOption:'RAW', resource:{values:[vals]}
     }); });
     allAccounts.push(currentAccount);
@@ -7413,13 +7156,8 @@ async function saveNewAccount() {
     // and older imported accounts don't have one at all.
     await logFieldChange(currentAccount, 'status', '', currentAccount.status);
     showToast('Account added ✓'); closeModal('modalEdit'); selectedRating=null;
-    clearDraft(draftKey('NEW_ACCOUNT'));
     updateStats(); renderList();
-  } catch(e) {
-    showToast(describeApiError(e, 'Error adding account'),'error'); console.error(e);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.origLabel || 'Save Changes'; }
-  }
+  } catch(e) { showToast(describeApiError(e, 'Error adding account'),'error'); console.error(e); }
 }
 
 function openVisitModal() {
@@ -7455,8 +7193,8 @@ async function saveVisit() {
 
     var rowNum = sheetRowMap[a.account_id];
     if (rowNum) {
-      if (date) { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); a.last_visit=date; }
-      if (fu)   { await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); a.next_followup=fu; }
+      if (date) { await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.last_visit)+rowNum,valueInputOption:'RAW',resource:{values:[[date]]}}); }); a.last_visit=date; }
+      if (fu)   { await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({spreadsheetId:territorySheetId(currentTerritory),range:'Accounts!'+colLetter(COL.next_followup)+rowNum,valueInputOption:'RAW',resource:{values:[[fu]]}}); }); a.next_followup=fu; }
     }
     allVisits.push({visit_id:vid,account_id:a.account_id,account_name:a.business_name,territory:currentTerritory,visit_date:date,attendees:attend,notes:notes,followup_date:fu,followup_notes:fuN,is_highlight:hl,followup_prep_date:fuPrep});
     showToast('Visit logged ✓'); closeModal('modalVisit'); renderDetail();
