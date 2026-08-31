@@ -1416,7 +1416,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   document.getElementById('ptoAddModalClose').addEventListener('click', function(){ closeModal('modalPTOAdd'); });
   document.getElementById('ptoAddCancelBtn').addEventListener('click', function(){ closeModal('modalPTOAdd'); });
-  document.getElementById('ptoAddSaveBtn').addEventListener('click', savePTOEntry);
+  document.getElementById('ptoAddSaveBtn').addEventListener('click', function(){ guardedSave(savePTOEntry); });
   document.getElementById('ptoDeleteBtn').addEventListener('click', deletePTOEntry);
   document.getElementById('companyBackBtn').addEventListener('click', function(){ goToTerritorySelect(); });
   document.getElementById('companyTabProspect').addEventListener('click', function(){ switchCompanyTab('prospect'); });
@@ -1439,14 +1439,14 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   document.getElementById('postMessageModalClose').addEventListener('click', function(){ closeModal('modalPostMessage'); });
   document.getElementById('postMessageCancelBtn').addEventListener('click', function(){ closeModal('modalPostMessage'); });
-  document.getElementById('postMessageSaveBtn').addEventListener('click', postMessage);
+  document.getElementById('postMessageSaveBtn').addEventListener('click', function(){ guardedSave(postMessage); });
   document.getElementById('addImportantDateBtn').addEventListener('click', function(){
     if (!checkManagerPin('add an important date')) return;
     document.getElementById('modalAddDate').classList.add('open');
   });
   document.getElementById('addDateModalClose').addEventListener('click', function(){ closeModal('modalAddDate'); });
   document.getElementById('addDateCancelBtn').addEventListener('click', function(){ closeModal('modalAddDate'); });
-  document.getElementById('addDateSaveBtn').addEventListener('click', addImportantDate);
+  document.getElementById('addDateSaveBtn').addEventListener('click', function(){ guardedSave(addImportantDate); });
   document.getElementById('companyRankingsBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyMachinesBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyRankingsScope').addEventListener('change', renderCompanyRankingsView);
@@ -1482,7 +1482,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('visitCalBtn').addEventListener('click', function(){ addFollowupToOutlook(visitFormToObj(), false); });
   document.getElementById('visitCalPrepBtn').addEventListener('click', function(){ addFollowupToOutlook(visitFormToObj(), true); });
   document.getElementById('visitIcsBtn').addEventListener('click', function(){ downloadFollowupIcs(visitFormToObj()); });
-  document.getElementById('visitSaveBtn').addEventListener('click', saveVisit);
+  document.getElementById('visitSaveBtn').addEventListener('click', function(){ guardedSave(saveVisit); });
   document.getElementById('weeklyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(false); });
   document.getElementById('rankingsViewBtn').addEventListener('click', openRankingsView);
   document.getElementById('machinesViewBtn').addEventListener('click', openMachinesView);
@@ -1518,7 +1518,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('newListBtn').addEventListener('click', openNewListModal);
   document.getElementById('newListModalClose').addEventListener('click', function(){ closeModal('modalNewList'); });
   document.getElementById('newListCancel').addEventListener('click', function(){ closeModal('modalNewList'); });
-  document.getElementById('newListSave').addEventListener('click', saveNewList);
+  document.getElementById('newListSave').addEventListener('click', function(){ guardedSave(saveNewList); });
   document.getElementById('addToListClose').addEventListener('click', function(){ closeModal('modalAddToList'); });
   document.getElementById('addToListCancel').addEventListener('click', function(){ closeModal('modalAddToList'); });
   document.getElementById('bulkCancelBtn').addEventListener('click', exitSelectMode);
@@ -1527,21 +1527,21 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('newTuBtn').addEventListener('click', function(){ openTuModal(null); });
   document.getElementById('tuEditClose').addEventListener('click', function(){ closeModal('modalTuEdit'); });
   document.getElementById('tuEditCancel').addEventListener('click', function(){ closeModal('modalTuEdit'); });
-  document.getElementById('tuEditSave').addEventListener('click', saveTerritoryUpdate);
+  document.getElementById('tuEditSave').addEventListener('click', function(){ guardedSave(saveTerritoryUpdate); });
   document.getElementById('visitEditClose').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
   document.getElementById('visitEditCancel').addEventListener('click', function(){ closeModal('modalVisitEdit'); });
-  document.getElementById('visitEditSave').addEventListener('click', saveVisitEdit);
+  document.getElementById('visitEditSave').addEventListener('click', function(){ guardedSave(saveVisitEdit); });
   document.getElementById('visitEditEmailBtn').addEventListener('click', function(){ emailVisit(_editingVisitId); });
   document.getElementById('visitEditCalBtn').addEventListener('click', function(){ addFollowupToOutlook(_editingVisitId, false); });
   document.getElementById('visitEditCalPrepBtn').addEventListener('click', function(){ addFollowupToOutlook(_editingVisitId, true); });
   document.getElementById('visitEditIcsBtn').addEventListener('click', function(){ downloadFollowupIcs(_editingVisitId); });
   document.getElementById('activityLogClose').addEventListener('click', function(){ closeModal('modalActivityLog'); });
   document.getElementById('activityLogCancel').addEventListener('click', function(){ closeModal('modalActivityLog'); });
-  document.getElementById('activityLogSave').addEventListener('click', saveActivityLog);
+  document.getElementById('activityLogSave').addEventListener('click', function(){ guardedSave(saveActivityLog); });
   document.getElementById('personnelModalClose').addEventListener('click', function(){ closeModal('modalPersonnel'); });
   document.getElementById('personnelCancel').addEventListener('click', function(){ closeModal('modalPersonnel'); });
-  document.getElementById('personnelSave').addEventListener('click', savePersonnel);
-  document.getElementById('bulkAddBtn').addEventListener('click', bulkAddSelectedToList);
+  document.getElementById('personnelSave').addEventListener('click', function(){ guardedSave(savePersonnel); });
+  document.getElementById('bulkAddBtn').addEventListener('click', function(){ guardedSave(bulkAddSelectedToList); });
   document.querySelectorAll('.subfilter-btn').forEach(function(btn){
     if (btn.closest('#screenCompanyView')) return; // wired separately for company-wide filtering
     btn.addEventListener('click', function(){
@@ -1775,6 +1775,26 @@ function showToast(msg, type) {
   t.textContent = msg;
   t.className = 'toast' + (type==='error' ? ' error' : '') + ' show';
   setTimeout(function(){ t.className='toast'; }, 3000);
+}
+
+// (2026-08-31) Prevents duplicate rows from a double-tapped Save button. None
+// of the save/add actions in this app show any spinner or disable their
+// button while the Sheets API write is in flight — a rep gets zero visual
+// feedback for a second or two, which on a touchscreen invites a second tap.
+// Two taps means two concurrent calls to the same save function, both of
+// which succeed, both of which append/update a row — an "automatic" duplicate
+// visit, contact, activity log entry, etc. that the rep never meant to create.
+// One shared in-flight flag is enough to stop that: a second tap while a save
+// is already running is just ignored instead of starting a second write.
+var _saveInFlight = false;
+async function guardedSave(fn) {
+  if (_saveInFlight) return;
+  _saveInFlight = true;
+  try {
+    await fn();
+  } finally {
+    _saveInFlight = false;
+  }
 }
 
 // One-time migration: "Other 1" used to be a free-text role slot; now it's a
@@ -2979,7 +2999,7 @@ function renderDetail() {
   document.querySelectorAll('[data-action="save-product"]').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      saveProductDetails(btn.dataset.pkey);
+      guardedSave(function(){ return saveProductDetails(btn.dataset.pkey); });
     });
   });
   document.querySelectorAll('.add-part-btn').forEach(function(btn){
@@ -2992,7 +3012,7 @@ function renderDetail() {
   document.querySelectorAll('.save-part-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      addProductPart(btn.dataset.pkey);
+      guardedSave(function(){ return addProductPart(btn.dataset.pkey); });
     });
   });
   document.querySelectorAll('.remove-part-btn').forEach(function(btn){
@@ -3011,7 +3031,7 @@ function renderDetail() {
   document.querySelectorAll('.save-edited-part-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      saveEditedPart(btn.dataset.partId);
+      guardedSave(function(){ return saveEditedPart(btn.dataset.partId); });
     });
   });
   // Explicit close button — discards any unsaved status change and collapses the panel
@@ -6178,7 +6198,7 @@ function openAddToList(account) {
       '</button>';
     }).join('');
     opts.querySelectorAll('button:not([disabled])').forEach(function(btn){
-      btn.addEventListener('click', function(){ addAccountToList(account, btn.dataset.lid); });
+      btn.addEventListener('click', function(){ guardedSave(function(){ return addAccountToList(account, btn.dataset.lid); }); });
     });
   }
   document.getElementById('modalAddToList').classList.add('open');
@@ -6975,7 +6995,7 @@ function openEditModal(section) {
     btn.addEventListener('click', function(){ deletePersonnelFromModal(btn.dataset.pid); });
   });
 
-  document.getElementById('editSaveBtn').onclick = saveAccount;
+  document.getElementById('editSaveBtn').onclick = function(){ guardedSave(saveAccount); };
   document.getElementById('modalEdit').classList.add('open');
 
   // Scroll to the requested section after modal renders
@@ -6996,7 +7016,7 @@ function openNewAccount() {
   currentAccount.account_id = 'ACC'+Date.now();
   openEditModal();
   document.getElementById('editModalTitle').textContent = 'Add New Account';
-  document.getElementById('editSaveBtn').onclick = saveNewAccount;
+  document.getElementById('editSaveBtn').onclick = function(){ guardedSave(saveNewAccount); };
 }
 
 function collectEditFields() {
