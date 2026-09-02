@@ -232,6 +232,7 @@
   .pill-active   { background: #1a3d25; color: #5dba7d; }
   .type-dealer  { background: var(--gray-2); color: var(--gray-4); font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; text-transform:uppercase; letter-spacing:0.3px; }
   .type-indep   { background: var(--gold-dim); color: var(--gold); font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; text-transform:uppercase; letter-spacing:0.3px; }
+  .type-fleet   { background: #1d3a5f; color: #7ab8ff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; text-transform:uppercase; letter-spacing:0.3px; }
   .subfilter-row { display:flex; gap:6px; margin-bottom:14px; }
   .recap-category-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
   .category-chip {
@@ -704,6 +705,7 @@
       <button class="subfilter-btn active" data-type="all">All</button>
       <button class="subfilter-btn" data-type="Dealer">Dealer</button>
       <button class="subfilter-btn" data-type="Independent">Independent</button>
+      <button class="subfilter-btn" data-type="Fleet">Fleet</button>
     </div>
     <div class="search-row">
       <div class="search-wrap">
@@ -783,8 +785,8 @@
       </button>
     </div>
     <div class="tab-row">
-      <button class="tab active" id="tabProspect">🔍 Prospective</button>
-      <button class="tab" id="tabActive">✅ Active Clients</button>
+      <button class="tab" id="tabProspect">🔍 Prospective</button>
+      <button class="tab active" id="tabActive">✅ Active Clients</button>
       <button class="tab" id="tabTerritoryUpdates">📌 Territory Updates</button>
       <button class="tab" id="tabMyLists" style="margin-left:auto">📋 My Lists</button>
     </div>
@@ -792,6 +794,8 @@
       <button type="button" class="subfilter-btn active" data-type="all">All</button>
       <button type="button" class="subfilter-btn" data-type="Dealer">Dealers</button>
       <button type="button" class="subfilter-btn" data-type="Independent">Independents</button>
+      <button type="button" class="subfilter-btn" data-type="Fleet">Fleet</button>
+      <button type="button" class="subfilter-btn" id="hotLeadsToggle" style="display:none">🔥 Hot Leads Only</button>
     </div>
     <div class="search-row">
       <div class="search-wrap">
@@ -1096,9 +1100,10 @@
       <div class="form-row"><label>Role</label><input type="text" id="personnelRole" placeholder="e.g. Service Advisor, Parts Manager..."></div>
       <div class="form-row"><label>Name</label><input type="text" id="personnelName"></div>
       <div class="form-grid-2">
-        <div class="form-row"><label>Phone</label><input type="text" id="personnelPhone"></div>
-        <div class="form-row"><label>Email</label><input type="text" id="personnelEmail"></div>
+        <div class="form-row"><label>Work Phone</label><input type="text" id="personnelPhone"></div>
+        <div class="form-row"><label>Cell Phone</label><input type="text" id="personnelCell"></div>
       </div>
+      <div class="form-row"><label>Email</label><input type="text" id="personnelEmail"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="personnelCancel">Cancel</button>
@@ -1160,11 +1165,11 @@ const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
 // full official list comes in from management.
 const DEALER_GROUPS = [
   'Albrecht','Autofair','Balise','Berlin City','Bernardi','Bertera','Best','Bill Dodge','Bill Dube',
-  'Central','Colonial','Copeland','Darling','Empire','Falmouth','Firestone','First','Flood','Goodwin',
-  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kelly','Key','Langway',
+  'Central','Colonial','Copeland','Darling','DSR Motor Group','Empire','Falmouth','Firestone','First','Flood','Goodwin',
+  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kaplan Auto Group','Kelly','Key','Langway',
   'Lia','Liberty','Long','Lundgren','Marty','Mastria','Mcfarland','Mcgee','Mcgovern','Meineke','Midas',
   'NE Tire','Nucar','Ocean','Patrick','Paul Masse','Pep Boys','Premier','Pride','Quirk','Ron Bouchard',
-  'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Tulley'
+  'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Thompson','Tulley'
 ];
 
 // Company Dashboard reads from this ONE spreadsheet instead of hitting all
@@ -1228,6 +1233,7 @@ const BG_PRODUCTS = [
   {key:'bg_moa_efl',label:'MOA / EFL'},{key:'bg_epr',label:'EPR'},
   {key:'bg_battery',label:'Battery'},{key:'bg_fuel',label:'Fuel Pour-in'},
   {key:'bg_diesel',label:'Diesel'},{key:'bg_misc',label:'Misc'},
+  {key:'bg_pvp',label:'PVP'},{key:'bg_power_steering',label:'Power Steering'},
 ];
 const STORE_FIELDS = [
   {key:'mpi',             label:'MPI',                    type:'yn'},
@@ -1286,7 +1292,20 @@ const COL = {
   dealer_group:178,
   pm_name:179,pm_phone:180,pm_email:181,
   fod_name:182,fod_phone:183,fod_email:184,
-  efl:185,efl_notes:186
+  efl:185,efl_notes:186,
+  bg_power_steering:187,bg_power_steering_status:188,bg_power_steering_carrying:189,
+  bg_power_steering_profile_pricing:190,bg_power_steering_training:191,bg_power_steering_part_number:192,
+  bg_power_steering_part_notes:193,bg_power_steering_spiff:194,bg_power_steering_cp_ro_pct:195,
+  dms:196,
+  sm_cell:197,owner_cell:198,gm_cell:199,fod_cell:200,pm_cell:201,other2_cell:202,
+  bg_transmission_cp_ro_pct:203,bg_coolant_cp_ro_pct:204,bg_diff_cp_ro_pct:205,bg_induction_cp_ro_pct:206,
+  bg_injection_cp_ro_pct:207,bg_gdi_cp_ro_pct:208,bg_brake_cp_ro_pct:209,bg_ac_cp_ro_pct:210,
+  bg_moa_efl_cp_ro_pct:211,bg_epr_cp_ro_pct:212,bg_battery_cp_ro_pct:213,bg_fuel_cp_ro_pct:214,
+  bg_diesel_cp_ro_pct:215,bg_misc_cp_ro_pct:216,
+  bg_pvp:217,bg_pvp_status:218,bg_pvp_carrying:219,bg_pvp_profile_pricing:220,bg_pvp_training:221,
+  bg_pvp_part_number:222,bg_pvp_part_notes:223,bg_pvp_spiff:224,bg_pvp_cp_ro_pct:225,
+  authorize_share_personal_info:226,
+  inactive:227
 };
 
 function colLetter(idx) {
@@ -1314,12 +1333,16 @@ const TRACKED_FIELDS = {
   personnel_added:'Contact Added',
   personnel_changed:'Contact Updated',
   // Personnel (SM/Owner on Accounts sheet)
-  sm_name:'SM Name', sm_phone:'SM Phone', sm_email:'SM Email',
-  owner_name:'Owner Name', owner_phone:'Owner Phone', owner_email:'Owner Email',
+  sm_name:'SM Name', sm_phone:'SM Work Phone', sm_cell:'SM Cell Phone', sm_email:'SM Email',
+  owner_name:'Owner Name', owner_phone:'Owner Work Phone', owner_cell:'Owner Cell Phone', owner_email:'Owner Email',
+  dms:'DMS',
+  authorize_share_personal_info:'Authorized to Share Personal Info',
+  inactive:'Inactive Account',
   gm_name:'General Manager Name',
-  gm_phone:'General Manager Phone', gm_email:'General Manager Email',
-  pm_name:'Parts Manager Name', pm_phone:'Parts Manager Phone', pm_email:'Parts Manager Email',
-  fod_name:'FOD Name', fod_phone:'FOD Phone', fod_email:'FOD Email',
+  gm_phone:'General Manager Work Phone', gm_cell:'General Manager Cell Phone', gm_email:'General Manager Email',
+  pm_name:'Parts Manager Name', pm_phone:'Parts Manager Work Phone', pm_cell:'Parts Manager Cell Phone', pm_email:'Parts Manager Email',
+  fod_name:'FOD Name', fod_phone:'FOD Work Phone', fod_cell:'FOD Cell Phone', fod_email:'FOD Email',
+  other2_cell:'Other Contact Cell Phone',
   efl:'EFL', efl_notes:'EFL Notes',
   // Store Information (includes Smoke and Burns + LPP Training)
   mpi:'MPI', mpi_notes:'MPI Notes',
@@ -1348,6 +1371,7 @@ BG_PRODUCTS.forEach(function(p){
   TRACKED_FIELDS[p.key+'_part_number']     = p.label + ' — Part Number';
   TRACKED_FIELDS[p.key+'_part_notes']      = p.label + ' — Notes';
   TRACKED_FIELDS[p.key+'_spiff']           = p.label + ' — Spiff';
+  TRACKED_FIELDS[p.key+'_cp_ro_pct']       = p.label + ' — CP Ro%';
 });
 
 // Fields shown in Weekly Recap Key Field Changes — everything else is
@@ -1379,7 +1403,7 @@ const ACTIVITY_FIELDS = [
 let gapiReady=false, gisReady=false, tokenClient;
 let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={}, allAliases=[], allProductParts=[], partRowMap={};
 let allActivityLog=[], allPersonnel=[];
-let currentTerritory='', currentTab='prospect', currentAccount=null, selectedRating=null;
+let currentTerritory='', currentTab='active', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
 let allRankings=[], allMachines=[];
 
@@ -1544,11 +1568,17 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('bulkAddBtn').addEventListener('click', function(){ guardedSave(bulkAddSelectedToList); });
   document.querySelectorAll('.subfilter-btn').forEach(function(btn){
     if (btn.closest('#screenCompanyView')) return; // wired separately for company-wide filtering
+    if (btn.id === 'hotLeadsToggle') return; // wired separately, not a type filter
     btn.addEventListener('click', function(){
       currentSubfilter = btn.dataset.type;
-      document.querySelectorAll('.subfilter-btn').forEach(function(b){ if(!b.closest('#screenCompanyView')) b.classList.toggle('active', b.dataset.type===currentSubfilter); });
+      document.querySelectorAll('.subfilter-btn').forEach(function(b){ if(!b.closest('#screenCompanyView') && b.id!=='hotLeadsToggle') b.classList.toggle('active', b.dataset.type===currentSubfilter); });
       renderList();
     });
+  });
+  document.getElementById('hotLeadsToggle').addEventListener('click', function(){
+    hotLeadsOnly = !hotLeadsOnly;
+    this.classList.toggle('active', hotLeadsOnly);
+    renderList();
   });
   document.querySelectorAll('.metric-card, .big-box').forEach(function(card){
     if (card.closest('#screenCompanyView')) return; // wired separately to openCompanyMetricFilter
@@ -1649,24 +1679,13 @@ function isRetryableError(e) {
 // Retries a Sheets API call (or any promise-returning function) on rate-limit
 // or timeout errors, with a short growing delay between attempts, and a hard
 // per-call timeout so a stuck request can never hang the whole operation.
-function withRetry(fn, retries, authRetried) {
+function withRetry(fn, retries) {
   retries = retries === undefined ? 3 : retries;
-  authRetried = authRetried === undefined ? false : authRetried;
   return withTimeout(fn).catch(function(e){
     if (retries > 0 && isRetryableError(e)) {
       var delay = (4 - retries) * 800 + 400; // 400ms, 1200ms, 2000ms
       return new Promise(function(resolve){ setTimeout(resolve, delay); }).then(function(){
-        return withRetry(fn, retries - 1, authRetried);
-      });
-    }
-    // A 401/expired-credential error means the token went stale mid-session
-    // despite the proactive refresh (e.g. Safari ITP silently blocked the
-    // cookies Google's silent refresh needs — a known iPad-specific failure
-    // mode, see ensureFreshToken above). Force one real refresh and retry the
-    // same call once before surfacing "session expired" and losing the save.
-    if (isAuthError(e) && !authRetried) {
-      return ensureFreshToken().then(function(){
-        return withRetry(fn, retries, true);
+        return withRetry(fn, retries - 1);
       });
     }
     throw e;
@@ -1802,10 +1821,6 @@ async function guardedSave(fn) {
   if (_saveInFlight) return;
   _saveInFlight = true;
   try {
-    // Access tokens expire ~hourly. Every save button routes through here, so
-    // refreshing first covers the common "sat idle, then hit Log Visit" case
-    // before the write itself ever gets a chance to fail with a stale token.
-    await ensureFreshToken();
     await fn();
   } finally {
     _saveInFlight = false;
@@ -1903,7 +1918,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:GE','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:H','Product Part Numbers!A:I']
+      spreadsheetId: sid, ranges: ['Accounts!A:HT','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:I','Product Part Numbers!A:I']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -1946,7 +1961,7 @@ async function fetchData() {
     // Personnel — territory-scoped
     allPersonnel = perRows.slice(1).filter(function(r){ return r[3]===currentTerritory; }).map(function(r){
       return { personnel_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
-               role:r[4]||'', name:r[5]||'', phone:r[6]||'', email:r[7]||'' };
+               role:r[4]||'', name:r[5]||'', phone:r[6]||'', email:r[7]||'', cell:r[8]||'' };
     });
 
   } catch(e) {
@@ -2280,7 +2295,7 @@ function computeMetrics(accountsList, changesList) {
 function updateStats() {
   var active   = allAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allAccounts.filter(function(a){ return a.status==='prospect'; }).length;
-  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; }).length;
+  var hot      = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; }).length;
   document.getElementById('metricActive').querySelector('.big-box-num').textContent   = active;
   document.getElementById('metricProspect').querySelector('.big-box-num').textContent = prospect;
   document.getElementById('metricHot').querySelector('.big-box-num').textContent      = hot;
@@ -2328,9 +2343,9 @@ function openMetricFilter(metricKey) {
     subtitle = prospectAccts.length + ' prospect'+(prospectAccts.length!==1?'s':'');
     accounts = prospectAccts;
   } else if (metricKey === 'hot_accounts') {
-    var hotAccts = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status!=='deleted' && a.status!=='disqualified'; });
+    var hotAccts = allAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; });
     title = 'Hot Accounts (4–5★)';
-    subtitle = hotAccts.length + ' account'+(hotAccts.length!==1?'s':'')+' rated 4 or 5 stars';
+    subtitle = hotAccts.length + ' prospect'+(hotAccts.length!==1?'s':'')+' rated 4 or 5 stars';
     accounts = hotAccts;
   } else if (metricKey === 'ytd_conversions') {
     title = 'Converted to Active — Year to Date';
@@ -2398,6 +2413,11 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tabProspect').classList.toggle('active', tab==='prospect');
   document.getElementById('tabActive').classList.toggle('active',   tab==='active');
+  var hotBtn = document.getElementById('hotLeadsToggle');
+  if (hotBtn) {
+    hotBtn.style.display = tab==='prospect' ? '' : 'none';
+    if (tab!=='prospect' && hotLeadsOnly) { hotLeadsOnly = false; hotBtn.classList.remove('active'); }
+  }
   updateSortOptions();
   renderList();
 }
@@ -2415,6 +2435,7 @@ function updateSortOptions() {
 }
 
 var currentSubfilter = 'all';
+var hotLeadsOnly = false;
 var currentSort = 'alpha';
 
 function renderList() {
@@ -2426,6 +2447,7 @@ function renderList() {
     if (a.status==='deleted' || a.status==='disqualified') return false;
     if (a.status!==currentTab) return false;
     if (currentSubfilter!=='all' && a.account_type!==currentSubfilter) return false;
+    if (hotLeadsOnly && currentTab==='prospect' && (parseInt(a.rating)||0) < 4) return false;
     if (!q) return true;
     return a.business_name.toLowerCase().includes(q) || a.town.toLowerCase().includes(q) ||
            a.owner_name.toLowerCase().includes(q) || a.sm_name.toLowerCase().includes(q);
@@ -2465,7 +2487,8 @@ function renderList() {
   document.getElementById('accountList').innerHTML = filtered.map(function(a){
     var r=parseInt(a.rating)||0;
     var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
-    var typeBadge = a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':'';
+    var typeBadge = a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':a.account_type==='Fleet'?'<span class="type-fleet">Fleet</span>':'';
+    if (a.inactive==='Yes') typeBadge += ' <span class="type-dealer" style="background:#5a2b2b;color:#ff9b9b">Inactive</span>';
     var lastVisitStr = a.last_visit?'Last visit: '+a.last_visit:'No visits logged';
     var selectState = selectMode ? (window._selectedAccountIds||{})[a.account_id] : null;
     var isExisting  = selectState === 'existing';   // already in the list
@@ -2538,6 +2561,7 @@ function openAccount(id) {
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fv(v) { return v ? '<span class="field-value">'+esc(v)+'</span>' : '<span class="field-value empty">—</span>'; }
+function fvEmail(v) { return v ? '<span class="field-value"><a href="mailto:'+esc(v)+'" style="color:var(--white)">'+esc(v)+'</a></span>' : '<span class="field-value empty">—</span>'; }
 function fmtNum(v) {
   var n = parseFloat(v);
   if (isNaN(n)) return esc(v);
@@ -2683,8 +2707,11 @@ function renderDetail() {
   html += '<div class="cards-grid">'+
     '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center"><span>🏢 Business Information</span><button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="business" style="padding:3px 8px;font-size:11px">✏️ Edit</button></div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">Address</span>'+fv([a.address,a.town,a.state].filter(Boolean).join(', '))+'</div>'+
-    '<div class="field-row"><span class="field-label">Account Type</span>'+(a.account_type?'<span class="field-value '+(a.account_type==='Dealer'?'':'')+'">'+(a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':'<span class="type-indep">Independent</span>')+'</span>':'<span class="field-value empty">—</span>')+'</div>'+
+    '<div class="field-row"><span class="field-label">Account Type</span>'+(a.account_type?'<span class="field-value">'+(a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':'<span class="type-fleet">Fleet</span>')+'</span>':'<span class="field-value empty">—</span>')+'</div>'+
     '<div class="field-row"><span class="field-label">Dealer Group</span>'+fv(a.dealer_group)+'</div>'+
+    '<div class="field-row"><span class="field-label">DMS</span>'+fv(a.dms)+'</div>'+
+    '<div class="field-row"><span class="field-label">Authorized to Share Personal Info</span>'+fv(a.authorize_share_personal_info)+'</div>'+
+    '<div class="field-row"><span class="field-label">Inactive Account</span>'+fv(a.inactive==='Yes'?'Yes':'')+'</div>'+
     '<div class="field-row"><span class="field-label">Website</span>'+fv(a.website)+'</div>'+
     '<div class="field-row"><span class="field-label">Bays</span>'+fv(a.bays)+'</div>'+
     '<div class="field-row"><span class="field-label">Advisors</span>'+fv(a.advisors)+'</div>'+
@@ -2701,28 +2728,33 @@ function renderDetail() {
       '<button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="personnel" style="font-size:11px;padding:4px 10px">✏️ Edit</button>'+
     '</div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">Owner Phone</span>'+fv(a.owner_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Owner Email</span>'+fv(a.owner_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Work Phone</span>'+fv(a.owner_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Cell Phone</span>'+fv(a.owner_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Email</span>'+fvEmail(a.owner_email)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Name</span>'+fv(a.gm_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">GM Phone</span>'+fv(a.gm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">GM Email</span>'+fv(a.gm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Work Phone</span>'+fv(a.gm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Cell Phone</span>'+fv(a.gm_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Email</span>'+fvEmail(a.gm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">FOD Name</span>'+fv(a.fod_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">FOD Phone</span>'+fv(a.fod_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">FOD Email</span>'+fv(a.fod_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Work Phone</span>'+fv(a.fod_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Cell Phone</span>'+fv(a.fod_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Email</span>'+fvEmail(a.fod_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Name</span>'+fv(a.sm_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">Service Manager Phone</span>'+fv(a.sm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fv(a.sm_email)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Work Phone</span>'+fv(a.sm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Cell Phone</span>'+fv(a.sm_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fvEmail(a.sm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Parts Manager Name</span>'+fv(a.pm_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">Parts Manager Phone</span>'+fv(a.pm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fv(a.pm_email)+'</div>'+
-    (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+'</div></div>':'')+
+    '<div class="field-row"><span class="field-label">Parts Manager Work Phone</span>'+fv(a.pm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Cell Phone</span>'+fv(a.pm_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fvEmail(a.pm_email)+'</div>'+
+    (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+(a.other2_cell?' <span style="color:var(--gray-3);font-size:12px">(cell) '+esc(a.other2_cell)+'</span>':'')+'</div></div>':'')+
     function(){
       var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
       if (!extraPersonnel.length) return '';
       return extraPersonnel.map(function(p){
         return '<div class="field-row"><span class="field-label">'+(p.role||'Other')+'</span>'+
           '<div style="flex:1;display:flex;align-items:center;justify-content:space-between">'+
-          '<div>'+fv(p.name)+(p.phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.phone)+'</span>':'')+
+          '<div>'+fv(p.name)+(p.phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.phone)+'</span>':'')+(p.cell?' <span style="color:var(--gray-3);font-size:12px">(cell) '+esc(p.cell)+'</span>':'')+
           (p.email?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.email)+'</span>':'')+'</div>'+
           '<button type="button" class="btn btn-danger btn-sm personnel-delete-btn" data-pid="'+p.personnel_id+'" style="padding:3px 8px;font-size:11px">✕</button>'+
           '</div></div>';
@@ -2838,6 +2870,7 @@ function renderDetail() {
               '</select></div>'+
               '<div class="product-detail-field"><label>Part Number</label><input type="text" id="pf_'+p.key+'_part_number" value="'+esc(a[p.key+'_part_number'])+'"></div>'+
               '<div class="product-detail-field"><label>Spiff ($)</label><input type="number" step="0.01" min="0" id="pf_'+p.key+'_spiff" value="'+esc(a[p.key+'_spiff'])+'" placeholder="0"></div>'+
+              '<div class="product-detail-field"><label>CP Ro%</label><input type="number" step="0.1" min="0" max="100" id="pf_'+p.key+'_cp_ro_pct" value="'+esc(a[p.key+'_cp_ro_pct'])+'" placeholder="0"></div>'+
             '</div>'+
             function(){
               var extraParts = allProductParts.filter(function(pp){ return pp.account_id===a.account_id && pp.product_key===p.key; });
@@ -3147,13 +3180,16 @@ async function saveProductDetails(pkey) {
 
   var before = {
     pricing: a[pkey+'_profile_pricing'], training: a[pkey+'_training'],
-    partNum: a[pkey+'_part_number'], partNotes: a[pkey+'_part_notes'], spiff: a[pkey+'_spiff']
+    partNum: a[pkey+'_part_number'], partNotes: a[pkey+'_part_notes'], spiff: a[pkey+'_spiff'],
+    cpRoPct: a[pkey+'_cp_ro_pct']
   };
   var pricing  = document.getElementById('pf_'+pkey+'_profile_pricing').value;
   var training = document.getElementById('pf_'+pkey+'_training').value;
   var partNum  = document.getElementById('pf_'+pkey+'_part_number').value;
   var partNotes= document.getElementById('pf_'+pkey+'_part_notes').value;
   var spiff    = document.getElementById('pf_'+pkey+'_spiff').value;
+  var cpRoPctEl = document.getElementById('pf_'+pkey+'_cp_ro_pct');
+  var cpRoPct  = cpRoPctEl ? cpRoPctEl.value : (a[pkey+'_cp_ro_pct']||'');
 
   if (statusAfter === 'red' && !partNotes.trim()) {
     showToast('Please note what the objection was before saving a Declined product','error');
@@ -3165,11 +3201,12 @@ async function saveProductDetails(pkey) {
   a[pkey+'_part_number'] = partNum;
   a[pkey+'_part_notes'] = partNotes;
   a[pkey+'_spiff'] = spiff;
+  a[pkey+'_cp_ro_pct'] = cpRoPct;
   a[pkey+'_carrying'] = carryingAfter;
 
   var rowNum = sheetRowMap[a.account_id];
   if (rowNum) {
-    var fields = [pkey+'_profile_pricing', pkey+'_training', pkey+'_part_number', pkey+'_part_notes', pkey+'_spiff', pkey+'_status', pkey+'_carrying'];
+    var fields = [pkey+'_profile_pricing', pkey+'_training', pkey+'_part_number', pkey+'_part_notes', pkey+'_spiff', pkey+'_cp_ro_pct', pkey+'_status', pkey+'_carrying'];
     var data = fields.map(function(f){
       return { range: 'Accounts!'+colLetter(COL[f])+rowNum, values: [[a[f]||'']] };
     });
@@ -3182,6 +3219,7 @@ async function saveProductDetails(pkey) {
       await logFieldChange(a, pkey+'_part_number',     before.partNum,   partNum);
       await logFieldChange(a, pkey+'_part_notes',      before.partNotes, partNotes);
       await logFieldChange(a, pkey+'_spiff',           before.spiff,     spiff);
+      await logFieldChange(a, pkey+'_cp_ro_pct',       before.cpRoPct,   cpRoPct);
       if (statusBefore !== statusAfter) await logFieldChange(a, pkey+'_status', statusBefore, statusAfter);
       if (carryingBefore !== carryingAfter) await logFieldChange(a, pkey+'_carrying', carryingBefore, carryingAfter);
       if (window._productStatusSnapshot) delete window._productStatusSnapshot[pkey];
@@ -3306,6 +3344,7 @@ function openPersonnelModal(personnelId) {
   document.getElementById('personnelRole').value  = existing ? existing.role  : '';
   document.getElementById('personnelName').value  = existing ? existing.name  : '';
   document.getElementById('personnelPhone').value = existing ? existing.phone : '';
+  document.getElementById('personnelCell').value  = existing ? existing.cell  : '';
   document.getElementById('personnelEmail').value = existing ? existing.email : '';
   document.getElementById('modalPersonnel').classList.add('open');
 }
@@ -3314,25 +3353,26 @@ async function savePersonnel() {
   var role  = document.getElementById('personnelRole').value.trim();
   var name  = document.getElementById('personnelName').value.trim();
   var phone = document.getElementById('personnelPhone').value.trim();
+  var cell  = document.getElementById('personnelCell').value.trim();
   var email = document.getElementById('personnelEmail').value.trim();
   if (!name) { showToast('Please enter a name','error'); return; }
   var pid = _editingPersonnelId || ('PER'+Date.now());
   var row = [pid, currentAccount.account_id, currentAccount.business_name,
-             currentTerritory, role, name, phone, email];
+             currentTerritory, role, name, phone, email, cell];
   try {
     if (_editingPersonnelId) {
       var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
-        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
+        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:I'
       }); })).result.values || [];
       for (var i=1; i<allRows.length; i++) {
         if (allRows[i][0]===_editingPersonnelId) {
           await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A'+(i+1)+':H'+(i+1),
+            spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A'+(i+1)+':I'+(i+1),
             valueInputOption:'RAW', resource:{values:[row]}
           }); });
           var p = allPersonnel.find(function(x){ return x.personnel_id===_editingPersonnelId; });
           var oldName = p ? (p.name+(p.role?' ('+p.role+')':'')) : '';
-          if (p) { p.role=role; p.name=name; p.phone=phone; p.email=email; }
+          if (p) { p.role=role; p.name=name; p.phone=phone; p.email=email; p.cell=cell; }
           await logFieldChange(currentAccount, 'personnel_changed',
             oldName, name+(role?' ('+role+')':''));
           break;
@@ -3340,12 +3380,12 @@ async function savePersonnel() {
       }
     } else {
       await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H',
+        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:I',
         valueInputOption:'RAW', resource:{values:[row]}
       }); });
       allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
         account_name:currentAccount.business_name, territory:currentTerritory,
-        role:role, name:name, phone:phone, email:email});
+        role:role, name:name, phone:phone, email:email, cell:cell});
       await logFieldChange(currentAccount, 'personnel_added',
         '', name+(role?' ('+role+')':''));
     }
@@ -3361,7 +3401,7 @@ async function deletePersonnel(personnelId) {
     var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
     var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
     var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:I'
     }); })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===personnelId) {
@@ -4898,7 +4938,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:GE','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:HT','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -4936,7 +4976,7 @@ async function pullAllTerritoriesForMaster() {
     while (out.length < width) out.push('');
     return out;
   }
-  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 187 — matches Accounts!A:GE
+  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 228 — matches Accounts!A:HT
 
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
@@ -5025,7 +5065,7 @@ async function openCompanyView() {
 
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:GE','Change Log!A:H','Rankings!A:K','Meta!A:B']
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:HT','Change Log!A:H','Rankings!A:K','Meta!A:B']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -5092,7 +5132,7 @@ function updateCompanySortOptions() {
 function updateCompanyStats() {
   var active   = allManagerAccounts.filter(function(a){ return a.status==='active'; }).length;
   var prospect = allManagerAccounts.filter(function(a){ return a.status==='prospect'; }).length;
-  var hot      = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; }).length;
+  var hot      = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; }).length;
   document.getElementById('companyMetricActive').querySelector('.big-box-num').textContent   = active;
   document.getElementById('companyMetricProspect').querySelector('.big-box-num').textContent = prospect;
   document.getElementById('companyMetricHot').querySelector('.big-box-num').textContent      = hot;
@@ -5162,7 +5202,7 @@ function renderCompanyList() {
   document.getElementById('companyAccountList').innerHTML = filtered.map(function(a){
     var r=parseInt(a.rating)||0;
     var rc = r>=5?'r5':r>=4?'r4':r>=3?'r3':'';
-    var typeBadge = a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':'';
+    var typeBadge = a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':a.account_type==='Fleet'?'<span class="type-fleet">Fleet</span>':'';
     var lastVisitStr = a.last_visit?'Last visit: '+a.last_visit:'No visits logged';
     return '<div class="account-row" data-id="'+esc(a.account_id)+'" data-terr="'+esc(a.territory)+'">'+
       '<div style="flex:1"><div class="name">'+esc(a.business_name)+' '+typeBadge+'</div>'+
@@ -5204,9 +5244,9 @@ function openCompanyMetricFilter(metricKey) {
     title = 'Prospective Accounts (Company-Wide)';
     subtitle = accounts.length + ' prospect'+(accounts.length!==1?'s':'');
   } else if (metricKey === 'hot_accounts') {
-    accounts = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4; });
+    accounts = allManagerAccounts.filter(function(a){ return parseInt(a.rating)>=4 && a.status==='prospect'; });
     title = 'Hot Accounts (4–5★, Company-Wide)';
-    subtitle = accounts.length + ' account'+(accounts.length!==1?'s':'')+' rated 4 or 5 stars';
+    subtitle = accounts.length + ' prospect'+(accounts.length!==1?'s':'')+' rated 4 or 5 stars';
   } else if (metricKey === 'ytd_conversions') {
     title = 'Converted to Active — Year to Date (Company-Wide)';
     subtitle = m.conversionCount + ' account'+(m.conversionCount!==1?'s':'')+' converted in '+thisYear();
@@ -5984,7 +6024,7 @@ function renderListStops() {
   }
   el.innerHTML = items.map(function(item, idx){
     var acc = allAccounts.find(function(a){ return a.account_id===item.account_id; });
-    var typeBadge = acc&&acc.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':acc&&acc.account_type==='Independent'?'<span class="type-indep">Independent</span>':'';
+    var typeBadge = acc&&acc.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':acc&&acc.account_type==='Independent'?'<span class="type-indep">Independent</span>':acc&&acc.account_type==='Fleet'?'<span class="type-fleet">Fleet</span>':'';
     var lastVisit = acc&&acc.last_visit?'Last visit: '+acc.last_visit:'No visits';
     var addr = acc?[acc.address,acc.town,acc.state].filter(Boolean).join(', '):'';
     return '<div class="card" style="margin-bottom:10px" data-item-lid="'+item.list_id+'" data-item-aid="'+item.account_id+'">'+
@@ -6472,7 +6512,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:GE','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:HT','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -6488,7 +6528,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}); }),
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:GE'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:HT'}); }),
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}); }),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
@@ -6665,6 +6705,34 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
       '</div></div>';
   }
 
+  if (!conversionsOnly) {
+    var highlightCount = visits.filter(function(v){ return (v.is_highlight||'').toLowerCase()==='yes'; }).length;
+    html += '<div class="visit-card">'+
+      '<div class="visit-card-header"><span>📅 Visit Log ('+fmtDate(start)+' – '+fmtDate(end)+')</span>'+
+      '<span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+(highlightCount?' · '+highlightCount+' highlighted':'')+'</span></div>';
+
+    if (!visits.length) {
+      html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged in this period.</div>';
+    } else {
+      html += visits.map(function(v){
+        var isStar = (v.is_highlight||'').toLowerCase()==='yes';
+        var typeTag = v.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
+                    : v.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
+        return '<div class="visit-entry recap-acct-link'+(isStar?' highlighted':'')+'" data-aid="'+v.account_id+'" style="cursor:pointer" title="Open '+esc(v.account_name)+'">'+
+          '<div class="visit-entry-top">'+
+            '<div class="visit-date">'+(isStar?'⭐ ':'')+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+
+            (territory==='ALL'?' <span style="color:var(--gold)">· '+esc(v.territory)+'</span>':'')+'</div>'+
+            '<span style="color:var(--gold);font-size:16px">›</span>'+
+          '</div>'+
+          '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+typeTag+'</div>'+
+          '<div class="visit-notes" style="margin-top:4px">'+esc(v.notes||'—')+'</div>'+
+          (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
+        '</div>';
+      }).join('');
+    }
+    html += '</div>';
+  }
+
   html += '<div class="card" style="margin-bottom:16px">'+
     '<div class="card-header">'+(conversionsOnly?'🎉 Conversions & Reversions':'📋 Key Field Changes')+' ('+fmtDate(start)+' – '+fmtDate(end)+')'+
     (territory==='ALL'?' — All Territories':' — '+territory)+
@@ -6715,34 +6783,6 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
     }).join('');
   }
   html += '</div></div>';
-
-  if (!conversionsOnly) {
-    var highlightCount = visits.filter(function(v){ return (v.is_highlight||'').toLowerCase()==='yes'; }).length;
-    html += '<div class="visit-card">'+
-      '<div class="visit-card-header"><span>📅 Visit Log ('+fmtDate(start)+' – '+fmtDate(end)+')</span>'+
-      '<span style="font-size:11px;opacity:0.7">'+visits.length+' visit'+(visits.length!==1?'s':'')+(highlightCount?' · '+highlightCount+' highlighted':'')+'</span></div>';
-
-    if (!visits.length) {
-      html += '<div style="padding:20px;text-align:center;color:var(--gray-3);font-size:13px">No visits logged in this period.</div>';
-    } else {
-      html += visits.map(function(v){
-        var isStar = (v.is_highlight||'').toLowerCase()==='yes';
-        var typeTag = v.account_status==='active' ? '<span class="account-type-tag type-active">Active</span>'
-                    : v.account_status==='prospect' ? '<span class="account-type-tag type-prospect">Prospect</span>' : '';
-        return '<div class="visit-entry recap-acct-link'+(isStar?' highlighted':'')+'" data-aid="'+v.account_id+'" style="cursor:pointer" title="Open '+esc(v.account_name)+'">'+
-          '<div class="visit-entry-top">'+
-            '<div class="visit-date">'+(isStar?'⭐ ':'')+(v.visit_date||'Date not recorded')+(v.attendees?' · '+v.attendees:'')+
-            (territory==='ALL'?' <span style="color:var(--gold)">· '+esc(v.territory)+'</span>':'')+'</div>'+
-            '<span style="color:var(--gold);font-size:16px">›</span>'+
-          '</div>'+
-          '<div style="font-weight:600;font-size:12px;color:var(--gray-4);margin-top:2px">'+esc(v.account_name)+typeTag+'</div>'+
-          '<div class="visit-notes" style="margin-top:4px">'+esc(v.notes||'—')+'</div>'+
-          (v.followup_date||v.followup_notes?'<div class="visit-followup">📌 '+(v.followup_date||'')+(v.followup_notes?' — '+v.followup_notes:'')+'</div>':'')+
-        '</div>';
-      }).join('');
-    }
-    html += '</div>';
-  }
 
   document.getElementById('recapContent').innerHTML = html;
 
@@ -6893,7 +6933,9 @@ function openEditModal(section) {
       '<div class="form-row" style="margin-bottom:0"><label>Role</label><input type="text" class="per-role" value="'+esc(p.role)+'" placeholder="Role..."></div>'+
       '<div class="form-row" style="margin-bottom:0"><label>Name</label><input type="text" class="per-name" value="'+esc(p.name)+'"></div></div>'+
       '<div class="form-grid-2" style="margin-bottom:4px">'+
-      '<div class="form-row" style="margin-bottom:0"><label>Phone</label><input type="text" class="per-phone" value="'+esc(p.phone)+'" placeholder="Phone..."></div>'+
+      '<div class="form-row" style="margin-bottom:0"><label>Work Phone</label><input type="text" class="per-phone" value="'+esc(p.phone)+'" placeholder="Work phone..."></div>'+
+      '<div class="form-row" style="margin-bottom:0"><label>Cell Phone</label><input type="text" class="per-cell" value="'+esc(p.cell)+'" placeholder="Cell phone..."></div></div>'+
+      '<div class="form-grid-2" style="margin-bottom:4px">'+
       '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" class="per-email" value="'+esc(p.email)+'" placeholder="Email..."></div></div>'+
       '<div style="text-align:right;margin-bottom:12px"><button type="button" class="btn btn-danger btn-sm per-delete-btn" data-pid="'+p.personnel_id+'" style="font-size:11px;padding:3px 8px">Remove</button></div>';
   }).join('');
@@ -6952,11 +6994,22 @@ function openEditModal(section) {
     '<option value=""'+((!a.account_type)?' selected':'')+'>— Not set</option>'+
     '<option value="Independent"'+(a.account_type==='Independent'?' selected':'')+'>Independent</option>'+
     '<option value="Dealer"'+(a.account_type==='Dealer'?' selected':'')+'>Dealer</option>'+
+    '<option value="Fleet"'+(a.account_type==='Fleet'?' selected':'')+'>Fleet</option>'+
     '</select></div>'+
     '<div class="form-row"><label>Dealer Group</label><select id="e_dealer_group">'+
       '<option value=""'+(!a.dealer_group?' selected':'')+'>— Unassigned —</option>'+
       (a.dealer_group && DEALER_GROUPS.indexOf(a.dealer_group)===-1 ? '<option value="'+esc(a.dealer_group)+'" selected>'+esc(a.dealer_group)+' (not yet on the standard list)</option>' : '')+
       DEALER_GROUPS.map(function(g){ return '<option value="'+esc(g)+'"'+(a.dealer_group===g?' selected':'')+'>'+esc(g)+'</option>'; }).join('')+
+    '</select></div>'+
+    '<div class="form-row"><label>DMS</label><input type="text" id="e_dms" value="'+esc(a.dms)+'" placeholder="e.g. CDK, Reynolds &amp; Reynolds..."></div>'+
+    '<div class="form-row"><label>Authorized to Share Personal Info</label><select id="e_authorize_share_personal_info">'+
+      '<option value=""'+(!a.authorize_share_personal_info?' selected':'')+'>—</option>'+
+      '<option value="Yes"'+(a.authorize_share_personal_info==='Yes'?' selected':'')+'>Yes</option>'+
+      '<option value="No"'+(a.authorize_share_personal_info==='No'?' selected':'')+'>No</option>'+
+    '</select></div>'+
+    '<div class="form-row"><label>Inactive Account</label><select id="e_inactive">'+
+      '<option value=""'+(!a.inactive?' selected':'')+'>No</option>'+
+      '<option value="Yes"'+(a.inactive==='Yes'?' selected':'')+'>Yes</option>'+
     '</select></div>'+
     '<div class="form-grid-2"><div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="'+esc(a.bays)+'"></div>'+
     '<div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="'+esc(a.advisors)+'"></div></div>'+
@@ -6968,24 +7021,30 @@ function openEditModal(section) {
     '<div class="form-section" id="edit-section-store"><div class="form-section-title">Store Information</div>'+storeInfoHtml+'</div>'+
     '<div class="form-section" id="edit-section-personnel"><div class="form-section-title">Key Personnel</div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Owner Name</label><input type="text" id="e_owner_name" value="'+esc(a.owner_name)+'"></div>'+
-    '<div class="form-row"><label>Owner Phone</label><input type="text" id="e_owner_phone" value="'+esc(a.owner_phone)+'"></div></div>'+
-    '<div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="'+esc(a.owner_email)+'"></div>'+
+    '<div class="form-row"><label>Owner Work Phone</label><input type="text" id="e_owner_phone" value="'+esc(a.owner_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Owner Cell Phone</label><input type="text" id="e_owner_cell" value="'+esc(a.owner_cell)+'"></div>'+
+    '<div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="'+esc(a.owner_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>GM Name</label><input type="text" id="e_gm_name" value="'+esc(a.gm_name)+'"></div>'+
-    '<div class="form-row"><label>GM Phone</label><input type="text" id="e_gm_phone" value="'+esc(a.gm_phone)+'"></div></div>'+
-    '<div class="form-row"><label>GM Email</label><input type="text" id="e_gm_email" value="'+esc(a.gm_email)+'"></div>'+
+    '<div class="form-row"><label>GM Work Phone</label><input type="text" id="e_gm_phone" value="'+esc(a.gm_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>GM Cell Phone</label><input type="text" id="e_gm_cell" value="'+esc(a.gm_cell)+'"></div>'+
+    '<div class="form-row"><label>GM Email</label><input type="text" id="e_gm_email" value="'+esc(a.gm_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>FOD Name</label><input type="text" id="e_fod_name" value="'+esc(a.fod_name)+'"></div>'+
-    '<div class="form-row"><label>FOD Phone</label><input type="text" id="e_fod_phone" value="'+esc(a.fod_phone)+'"></div></div>'+
-    '<div class="form-row"><label>FOD Email</label><input type="text" id="e_fod_email" value="'+esc(a.fod_email)+'"></div>'+
+    '<div class="form-row"><label>FOD Work Phone</label><input type="text" id="e_fod_phone" value="'+esc(a.fod_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>FOD Cell Phone</label><input type="text" id="e_fod_cell" value="'+esc(a.fod_cell)+'"></div>'+
+    '<div class="form-row"><label>FOD Email</label><input type="text" id="e_fod_email" value="'+esc(a.fod_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Service Manager Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
-    '<div class="form-row"><label>Service Manager Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
-    '<div class="form-row"><label>Service Manager Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div>'+
+    '<div class="form-row"><label>Service Manager Work Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Service Manager Cell Phone</label><input type="text" id="e_sm_cell" value="'+esc(a.sm_cell)+'"></div>'+
+    '<div class="form-row"><label>Service Manager Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Parts Manager Name</label><input type="text" id="e_pm_name" value="'+esc(a.pm_name)+'"></div>'+
-    '<div class="form-row"><label>Parts Manager Phone</label><input type="text" id="e_pm_phone" value="'+esc(a.pm_phone)+'"></div></div>'+
-    '<div class="form-row"><label>Parts Manager Email</label><input type="text" id="e_pm_email" value="'+esc(a.pm_email)+'"></div>'+
+    '<div class="form-row"><label>Parts Manager Work Phone</label><input type="text" id="e_pm_phone" value="'+esc(a.pm_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Parts Manager Cell Phone</label><input type="text" id="e_pm_cell" value="'+esc(a.pm_cell)+'"></div>'+
+    '<div class="form-row"><label>Parts Manager Email</label><input type="text" id="e_pm_email" value="'+esc(a.pm_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Other Contact Name</label><input type="text" id="e_other2_name" value="'+esc(a.other2_name)+'"></div>'+
     '<div class="form-row"><label>Other Contact Role</label><input type="text" id="e_other2_role" value="'+esc(a.other2_role)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Other Contact Phone</label><input type="text" id="e_other2_phone" value="'+esc(a.other2_phone)+'"></div>'+
-    '<div class="form-row"><label>Other Contact Email</label><input type="text" id="e_other2_email" value="'+esc(a.other2_email)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Other Contact Work Phone</label><input type="text" id="e_other2_phone" value="'+esc(a.other2_phone)+'"></div>'+
+    '<div class="form-row"><label>Other Contact Cell Phone</label><input type="text" id="e_other2_cell" value="'+esc(a.other2_cell)+'"></div></div>'+
+    '<div class="form-row"><label>Other Contact Email</label><input type="text" id="e_other2_email" value="'+esc(a.other2_email)+'"></div>'+
     (personnelRows.length ? '<div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 8px">Additional Contacts</div>'+personnelRows : '')+
     '<div id="newPersonnelArea" style="border:1px dashed var(--gray-2);border-radius:6px;padding:12px;margin-top:8px">'+
     '<div style="font-size:12px;color:var(--gray-3);margin-bottom:8px">Add new contact</div>'+
@@ -6993,8 +7052,9 @@ function openEditModal(section) {
     '<div class="form-row" style="margin-bottom:0"><label>Role</label><input type="text" id="new_per_role" placeholder="e.g. Finance Manager..."></div>'+
     '<div class="form-row" style="margin-bottom:0"><label>Name</label><input type="text" id="new_per_name" placeholder="Full name..."></div></div>'+
     '<div class="form-grid-2">'+
-    '<div class="form-row" style="margin-bottom:0"><label>Phone</label><input type="text" id="new_per_phone"></div>'+
-    '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" id="new_per_email"></div></div></div></div>'+
+    '<div class="form-row" style="margin-bottom:0"><label>Work Phone</label><input type="text" id="new_per_phone"></div>'+
+    '<div class="form-row" style="margin-bottom:0"><label>Cell Phone</label><input type="text" id="new_per_cell"></div></div>'+
+    '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" id="new_per_email"></div></div></div>'+
     '<div class="form-section"><div class="form-section-title">Account Rating</div>'+
     '<div class="rating-input">'+[1,2,3,4,5].map(function(n){ return '<div class="rating-opt'+(selectedRating===n?' selected':'')+'" data-val="'+n+'">'+n+' ★</div>'; }).join('')+'</div>'+
     '<div style="font-size:11px;color:var(--gray-3);margin-top:6px">1=Low priority · 3=Good prospect · 5=High priority</div></div>'+
@@ -7036,13 +7096,13 @@ function openNewAccount() {
 
 function collectEditFields() {
   var a = currentAccount;
-  var fields = ['business_name','address','town','state','website','account_type','dealer_group','bays','advisors',
+  var fields = ['business_name','address','town','state','website','account_type','dealer_group','dms','authorize_share_personal_info','inactive','bays','advisors',
     'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
-    'sm_name','sm_phone','sm_email','owner_name','owner_phone','owner_email',
-    'gm_name','gm_phone','gm_email',
-    'fod_name','fod_phone','fod_email',
-    'pm_name','pm_phone','pm_email',
-    'other2_name','other2_role','other2_phone','other2_email',
+    'sm_name','sm_phone','sm_cell','sm_email','owner_name','owner_phone','owner_cell','owner_email',
+    'gm_name','gm_phone','gm_cell','gm_email',
+    'fod_name','fod_phone','fod_cell','fod_email',
+    'pm_name','pm_phone','pm_cell','pm_email',
+    'other2_name','other2_role','other2_phone','other2_cell','other2_email',
     'general_notes'];
   fields.forEach(function(f){ var el=document.getElementById('e_'+f); if(el) a[f]=el.value; });
   STORE_FIELDS.forEach(function(f){
@@ -7064,7 +7124,7 @@ async function deletePersonnelFromModal(pid) {
     var sheetMeta = await withRetry(function(){ return gapi.client.sheets.spreadsheets.get({spreadsheetId:territorySheetId(currentTerritory)}); });
     var perSheet = sheetMeta.result.sheets.find(function(s){ return s.properties.title==='Personnel'; });
     var allRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H'
+      spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:I'
     }); })).result.values || [];
     for (var i=1; i<allRows.length; i++) {
       if (allRows[i][0]===pid) {
@@ -7104,6 +7164,7 @@ async function saveAccount() {
       role:  (document.getElementById('new_per_role')||{value:''}).value.trim(),
       name:  newPerName.value.trim(),
       phone: (document.getElementById('new_per_phone')||{value:''}).value.trim(),
+      cell:  (document.getElementById('new_per_cell')||{value:''}).value.trim(),
       email: (document.getElementById('new_per_email')||{value:''}).value.trim(),
     };
   }
@@ -7154,15 +7215,15 @@ async function saveAccount() {
       var pid = 'PER'+Date.now();
       var pRow = [pid, currentAccount.account_id, currentAccount.business_name,
                   currentTerritory, newPersonnel.role, newPersonnel.name,
-                  newPersonnel.phone, newPersonnel.email];
+                  newPersonnel.phone, newPersonnel.email, newPersonnel.cell];
       await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:H',
+        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:I',
         valueInputOption:'RAW', resource:{values:[pRow]}
       }); });
       allPersonnel.push({personnel_id:pid, account_id:currentAccount.account_id,
         account_name:currentAccount.business_name, territory:currentTerritory,
         role:newPersonnel.role, name:newPersonnel.name,
-        phone:newPersonnel.phone, email:newPersonnel.email});
+        phone:newPersonnel.phone, email:newPersonnel.email, cell:newPersonnel.cell});
       // Log personnel addition to Change Log
       await logFieldChange(currentAccount, 'personnel_added',
         '', newPersonnel.role ? newPersonnel.name+' ('+newPersonnel.role+')' : newPersonnel.name);
@@ -7179,7 +7240,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:GE',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:HT',
       valueInputOption:'RAW', resource:{values:[vals]}
     }); });
     allAccounts.push(currentAccount);
