@@ -1053,6 +1053,7 @@
     </div>
     <div class="modal-body">
       <div class="form-row"><label>Visit Date</label><input type="date" id="visitEditDate"></div>
+      <div class="form-row"><label>Rep *</label><select id="visitEditRepSelect"><option value="">Select rep...</option></select></div>
       <div class="form-row"><label>Attendees</label><input type="text" id="visitEditAttendees"></div>
       <div class="form-row"><label>Visit Notes</label><textarea id="visitEditNotes" style="min-height:80px"></textarea></div>
       <div class="form-grid-2">
@@ -1135,6 +1136,7 @@
     </div>
     <div class="modal-body">
       <div class="form-row"><label>Visit Date</label><input type="date" id="visitDate"></div>
+      <div class="form-row"><label>Rep *</label><select id="visitRepSelect"><option value="">Select rep...</option></select></div>
       <div class="form-row"><label>Attendees</label><input type="text" id="visitAttendees" placeholder="Who was present?"></div>
       <div class="form-row"><label>Visit Notes</label><textarea id="visitNotes" placeholder="What was discussed?"></textarea></div>
       <div class="form-grid-2">
@@ -1164,6 +1166,24 @@ const SHEET_ID  = '1juYkIPEVznsWV8J-ivcs60yU5NsrL4xXmx4C2AtctHA';
 // Confirmed multi-location dealer groups, from an initial pass across all
 // territories' real account names. Not exhaustive — update this list as the
 // full official list comes in from management.
+// Field reps by territory, for the Attendees dropdown on the visit log form.
+// This is a convenience shortcut, not the source of truth — the existing
+// free-text Attendees field is left in place and still gets saved; picking
+// a name here just fills/appends into that field so reps don't have to type
+// their own name every time.
+const REPS_BY_TERRITORY = {
+  'Route 101': ['Scott','Tyler'],
+  'Route 102': ['Dietrich'],
+  'Route 105': ['Jay','Rob'],
+  'Route 111': ['Brian','Jorge'],
+  'Route 112': ['Zac'],
+  'Route 135': ['Cody'],
+  'Route 137': ['John','Darren'],
+  'Route 141': ['Jeremy'],
+  'Route 143': ['Eric'],
+  'Route 147': ['Nate'],
+};
+
 const DEALER_GROUPS = [
   'Albrecht','Autofair','Balise','Berlin City','Bernardi','Bertera','Best','Bill Dodge','Bill Dube',
   'Central','Colonial','Copeland','Darling','DSR Motor Group','Empire','Falmouth','Firestone','First','Flood','Goodwin',
@@ -2631,6 +2651,51 @@ function openAccount(id) {
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// Populates a Rep <select> with the field reps for the current territory,
+// then wires it so picking a name fills/appends into the given Attendees
+// text input rather than replacing it as the stored value — the dropdown is
+// just a fast, typo-proof way to fill that field in, not a separate field.
+//
+// Only shown/required for territories with more than one rep — a
+// single-rep territory has no ambiguity about who made the visit, so the
+// dropdown would just be a redundant click.
+function populateRepSelect(selectId, attendeesInputId) {
+  var sel = document.getElementById(selectId);
+  var row = sel.closest('.form-row');
+  var reps = REPS_BY_TERRITORY[currentTerritory] || [];
+
+  if (reps.length <= 1) {
+    row.style.display = 'none';
+    sel.removeAttribute('required');
+    return;
+  }
+  row.style.display = '';
+
+  sel.innerHTML = '<option value="">Select rep...</option>' +
+    reps.map(function(name){ return '<option value="'+esc(name)+'">'+esc(name)+'</option>'; }).join('');
+  sel.onchange = function() {
+    if (!sel.value) return;
+    var input = document.getElementById(attendeesInputId);
+    var current = input.value.trim();
+    var names = current ? current.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    if (names.indexOf(sel.value) === -1) names.push(sel.value);
+    input.value = names.join(', ');
+    sel.value = ''; // reset so the same dropdown can be used again to add a second rep
+  };
+}
+
+// Checks whether the visit's Attendees field contains at least one recognized
+// rep name for the current territory. Only enforced on territories with more
+// than one rep — single-rep territories have no dropdown to require in the
+// first place. Matching is case-insensitive and tolerant of the attendees
+// field also containing other free-text names (e.g. "Scott, GM Mike").
+function attendeesIncludesRep(attendeesValue) {
+  var reps = REPS_BY_TERRITORY[currentTerritory] || [];
+  if (reps.length <= 1) return true; // not required for single-rep territories
+  var lower = (attendeesValue||'').toLowerCase();
+  return reps.some(function(name){ return lower.indexOf(name.toLowerCase()) !== -1; });
+}
+
 // Formats a raw phone number string for DISPLAY only (detail view, read-only
 // contexts) — does not mutate stored data. 10 digits -> (XXX) XXX-XXXX; an
 // 11-digit number starting with 1 -> same, with the leading 1 dropped, since
@@ -3661,6 +3726,7 @@ function openVisitEdit(vid) {
   document.getElementById('visitEditFollowupNotes').value= v.followup_notes||'';
   document.getElementById('visitEditFollowupPrep').value = v.followup_prep_date||'';
   document.getElementById('visitEditHighlight').checked  = (v.is_highlight||'').toLowerCase()==='yes';
+  populateRepSelect('visitEditRepSelect', 'visitEditAttendees');
   document.getElementById('modalVisitEdit').classList.add('open');
 }
 
@@ -3676,6 +3742,7 @@ async function saveVisitEdit() {
   var hl      = document.getElementById('visitEditHighlight').checked ? 'Yes' : '';
   if (!notes) { showToast('Visit notes cannot be empty','error'); return; }
   if (!date)  { showToast('Please enter a visit date','error'); return; }
+  if (!attendeesIncludesRep(attend)) { showToast('Please select which rep made this visit','error'); return; }
 
   v.visit_date=date; v.attendees=attend; v.notes=notes;
   v.followup_date=fu; v.followup_notes=fuN; v.is_highlight=hl; v.followup_prep_date=fuPrep;
@@ -7365,6 +7432,7 @@ function openVisitModal() {
   document.getElementById('visitFollowup').value = '';
   document.getElementById('visitFollowupNotes').value = '';
   document.getElementById('visitFollowupPrep').value = '';
+  populateRepSelect('visitRepSelect', 'visitAttendees');
   document.getElementById('modalVisit').classList.add('open');
 }
 
@@ -7379,6 +7447,7 @@ async function saveVisit() {
   var hl     = document.getElementById('visitHighlight').checked ? 'Yes' : '';
   if (!notes) { showToast('Please add visit notes','error'); return; }
   if (!date)  { showToast('Please select a visit date','error'); return; }
+  if (!attendeesIncludesRep(attend)) { showToast('Please select which rep made this visit','error'); return; }
   var vid = 'VIS'+Date.now();
   try {
     var appendRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
