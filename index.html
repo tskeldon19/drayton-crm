@@ -156,6 +156,7 @@
     #tabMyLists { margin-left: 0 !important; }
     .subfilter-row { flex-wrap: wrap; row-gap: 6px; }
     .search-row { flex-wrap: wrap; row-gap: 8px; }
+    .search-wrap { flex: 1 1 100%; }
 
     /* Metric cards: two per row instead of an uneven cramped wrap */
     .metric-card { min-width: calc(50% - 5px); }
@@ -1100,8 +1101,8 @@
       <div class="form-row"><label>Role</label><input type="text" id="personnelRole" placeholder="e.g. Service Advisor, Parts Manager..."></div>
       <div class="form-row"><label>Name</label><input type="text" id="personnelName"></div>
       <div class="form-grid-2">
-        <div class="form-row"><label>Work Phone</label><input type="text" id="personnelPhone"></div>
-        <div class="form-row"><label>Cell Phone</label><input type="text" id="personnelCell"></div>
+        <div class="form-row"><label>Work Phone</label><input type="text" id="personnelPhone" class="phone-field"></div>
+        <div class="form-row"><label>Cell Phone</label><input type="text" id="personnelCell" class="phone-field"></div>
       </div>
       <div class="form-row"><label>Email</label><input type="text" id="personnelEmail"></div>
     </div>
@@ -2204,6 +2205,12 @@ function renderAgendaScreen() {
         '</div>'+
         '<div style="font-size:12px;color:var(--gray-3);margin-top:2px">'+esc(it.subtitle)+'</div>'+
         (it.notes ? '<div style="font-size:12px;color:var(--white);margin-top:6px;padding-top:6px;border-top:1px solid var(--gray-2)">'+esc(it.notes)+'</div>' : '')+
+        '<div style="margin-top:8px;text-align:right">'+
+          '<button type="button" class="btn btn-secondary btn-sm complete-followup-btn" '+
+            'data-account-id="'+esc(it.account_id)+'" data-source="'+esc(it.source)+'" '+
+            (it.visit_id ? 'data-visit-id="'+esc(it.visit_id)+'" ' : '')+
+            'style="font-size:11px;padding:4px 10px">✅ Complete</button>'+
+        '</div>'+
       '</div></div>';
     }).join('');
   }
@@ -2211,12 +2218,75 @@ function renderAgendaScreen() {
     _agendaSortDir = _agendaSortDir==='asc' ? 'desc' : 'asc';
     renderAgendaScreen();
   });
+  document.querySelectorAll('.complete-followup-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      guardedSave(function(){ return completeFollowup(btn.dataset.accountId, btn.dataset.source, btn.dataset.visitId); });
+    });
+  });
   document.querySelectorAll('.agenda-list-item').forEach(function(el){
     el.addEventListener('click', function(){
       var acc = allAccounts.find(function(a){ return a.account_id===el.dataset.accountId; });
       if (acc) { currentAccount = acc; previousScreen = 'screenAgenda'; renderDetail(); showScreen('screenDetail'); }
     });
   });
+}
+
+// Marks a follow-up "complete" without deleting the note that's attached to
+// it — clears only the date field driving the agenda/overdue calculation,
+// so the item disappears from Overdue/This Week/Next Week immediately, but
+// the rep's original note stays intact on the visit record for history.
+//
+// 'account' source: clears the account's next_followup (the field driving
+// the Overdue Follow-Ups bucket) and, if the matching visit's followup_date
+// equals it, clears that too — leaving followup_notes untouched.
+// 'visit' source: clears that specific visit's followup_prep_date only.
+async function completeFollowup(accountId, source, visitId) {
+  if (source === 'account') {
+    var acc = allAccounts.find(function(a){ return a.account_id === accountId; });
+    if (!acc) { showToast('Account not found','error'); return; }
+    var oldDate = acc.next_followup;
+    var rowNum = sheetRowMap[accountId];
+    if (rowNum) {
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: territorySheetId(currentTerritory),
+        range: 'Accounts!'+colLetter(COL.next_followup)+rowNum,
+        valueInputOption:'RAW', resource:{values:[['']]}
+      }); });
+      acc.next_followup = '';
+      await logFieldChange(acc, 'next_followup', oldDate, '');
+    }
+    // Clear the matching visit's followup_date too (same one buildAgendaItems
+    // used to pull in the notes) so it doesn't resurface via that link, but
+    // leave followup_notes exactly as the rep wrote it.
+    var matchingVisit = allVisits.find(function(v){ return v.account_id === accountId && v.followup_date === oldDate; });
+    if (matchingVisit) {
+      var vRowNum = visitRowMap[matchingVisit.visit_id];
+      if (vRowNum) {
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: territorySheetId(currentTerritory),
+          range: 'Visits!'+colLetter(VCOL.followup_date)+vRowNum,
+          valueInputOption:'RAW', resource:{values:[['']]}
+        }); });
+        matchingVisit.followup_date = '';
+      }
+    }
+  } else if (source === 'visit') {
+    var v = allVisits.find(function(x){ return x.visit_id === visitId; });
+    if (!v) { showToast('Visit not found','error'); return; }
+    var vRowNum2 = visitRowMap[visitId];
+    if (vRowNum2) {
+      await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: territorySheetId(currentTerritory),
+        range: 'Visits!'+colLetter(VCOL.followup_prep_date)+vRowNum2,
+        valueInputOption:'RAW', resource:{values:[['']]}
+      }); });
+      v.followup_prep_date = '';
+    }
+  }
+  showToast('Follow-up marked complete','success');
+  renderAgendaScreen();
+  updateStats();
 }
 
 function computeMetrics(accountsList, changesList) {
@@ -2560,6 +2630,39 @@ function openAccount(id) {
 }
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Formats a raw phone number string for DISPLAY only (detail view, read-only
+// contexts) — does not mutate stored data. 10 digits -> (XXX) XXX-XXXX; an
+// 11-digit number starting with 1 -> same, with the leading 1 dropped, since
+// that's just the US country code. Anything else (partial numbers, extensions,
+// international numbers, old free-text data) is returned unchanged rather
+// than mangled by a format that doesn't fit it.
+function formatPhoneDisplay(raw) {
+  if (!raw) return raw;
+  var digits = String(raw).replace(/\D/g, '');
+  if (digits.length === 11 && digits[0] === '1') digits = digits.slice(1);
+  if (digits.length !== 10) return raw;
+  return '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+}
+function fvPhone(v) { return v ? '<span class="field-value">'+esc(formatPhoneDisplay(v))+'</span>' : '<span class="field-value empty">—</span>'; }
+
+// Live-formats a phone <input> as the rep types, e.g. "5085551234" becomes
+// "(508) 555-1234" incrementally. Caps at 10 digits (ignores anything typed
+// beyond that, rather than sliding into an 11-digit format) since these are
+// domestic contact numbers.
+function formatPhoneInputLive(el) {
+  var digits = el.value.replace(/\D/g, '').slice(0, 10);
+  var formatted = digits;
+  if (digits.length > 6) formatted = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+  else if (digits.length > 3) formatted = '(' + digits.slice(0,3) + ') ' + digits.slice(3);
+  else if (digits.length > 0) formatted = '(' + digits;
+  el.value = formatted;
+}
+document.addEventListener('input', function(e){
+  if (e.target && e.target.classList && e.target.classList.contains('phone-field')) {
+    formatPhoneInputLive(e.target);
+  }
+});
 function fv(v) { return v ? '<span class="field-value">'+esc(v)+'</span>' : '<span class="field-value empty">—</span>'; }
 function fvEmail(v) { return v ? '<span class="field-value"><a href="mailto:'+esc(v)+'" style="color:var(--white)">'+esc(v)+'</a></span>' : '<span class="field-value empty">—</span>'; }
 function fmtNum(v) {
@@ -2728,33 +2831,33 @@ function renderDetail() {
       '<button type="button" class="btn btn-secondary btn-sm edit-section-btn" data-section="personnel" style="font-size:11px;padding:4px 10px">✏️ Edit</button>'+
     '</div><div class="card-body">'+
     '<div class="field-row"><span class="field-label">Owner Name</span>'+fv(a.owner_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">Owner Work Phone</span>'+fv(a.owner_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Owner Cell Phone</span>'+fv(a.owner_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Work Phone</span>'+fvPhone(a.owner_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Owner Cell Phone</span>'+fvPhone(a.owner_cell)+'</div>'+
     '<div class="field-row"><span class="field-label">Owner Email</span>'+fvEmail(a.owner_email)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Name</span>'+fv(a.gm_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">GM Work Phone</span>'+fv(a.gm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">GM Cell Phone</span>'+fv(a.gm_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Work Phone</span>'+fvPhone(a.gm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">GM Cell Phone</span>'+fvPhone(a.gm_cell)+'</div>'+
     '<div class="field-row"><span class="field-label">GM Email</span>'+fvEmail(a.gm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">FOD Name</span>'+fv(a.fod_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">FOD Work Phone</span>'+fv(a.fod_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">FOD Cell Phone</span>'+fv(a.fod_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Work Phone</span>'+fvPhone(a.fod_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">FOD Cell Phone</span>'+fvPhone(a.fod_cell)+'</div>'+
     '<div class="field-row"><span class="field-label">FOD Email</span>'+fvEmail(a.fod_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Name</span>'+fv(a.sm_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">Service Manager Work Phone</span>'+fv(a.sm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Service Manager Cell Phone</span>'+fv(a.sm_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Work Phone</span>'+fvPhone(a.sm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Service Manager Cell Phone</span>'+fvPhone(a.sm_cell)+'</div>'+
     '<div class="field-row"><span class="field-label">Service Manager Email</span>'+fvEmail(a.sm_email)+'</div>'+
     '<div class="field-row"><span class="field-label">Parts Manager Name</span>'+fv(a.pm_name)+'</div>'+
-    '<div class="field-row"><span class="field-label">Parts Manager Work Phone</span>'+fv(a.pm_phone)+'</div>'+
-    '<div class="field-row"><span class="field-label">Parts Manager Cell Phone</span>'+fv(a.pm_cell)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Work Phone</span>'+fvPhone(a.pm_phone)+'</div>'+
+    '<div class="field-row"><span class="field-label">Parts Manager Cell Phone</span>'+fvPhone(a.pm_cell)+'</div>'+
     '<div class="field-row"><span class="field-label">Parts Manager Email</span>'+fvEmail(a.pm_email)+'</div>'+
-    (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(a.other2_phone)+'</span>':'')+(a.other2_cell?' <span style="color:var(--gray-3);font-size:12px">(cell) '+esc(a.other2_cell)+'</span>':'')+'</div></div>':'')+
+    (a.other2_name?'<div class="field-row"><span class="field-label">'+(a.other2_role||'Other')+'</span><div style="flex:1">'+fv(a.other2_name)+(a.other2_phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(formatPhoneDisplay(a.other2_phone))+'</span>':'')+(a.other2_cell?' <span style="color:var(--gray-3);font-size:12px">(cell) '+esc(formatPhoneDisplay(a.other2_cell))+'</span>':'')+'</div></div>':'')+
     function(){
       var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
       if (!extraPersonnel.length) return '';
       return extraPersonnel.map(function(p){
         return '<div class="field-row"><span class="field-label">'+(p.role||'Other')+'</span>'+
           '<div style="flex:1;display:flex;align-items:center;justify-content:space-between">'+
-          '<div>'+fv(p.name)+(p.phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.phone)+'</span>':'')+(p.cell?' <span style="color:var(--gray-3);font-size:12px">(cell) '+esc(p.cell)+'</span>':'')+
+          '<div>'+fv(p.name)+(p.phone?' <span style="color:var(--gray-3);font-size:12px">'+esc(formatPhoneDisplay(p.phone))+'</span>':'')+(p.cell?' <span style="color:var(--gray-3);font-size:12px">(cell) '+esc(formatPhoneDisplay(p.cell))+'</span>':'')+
           (p.email?' <span style="color:var(--gray-3);font-size:12px">'+esc(p.email)+'</span>':'')+'</div>'+
           '<button type="button" class="btn btn-danger btn-sm personnel-delete-btn" data-pid="'+p.personnel_id+'" style="padding:3px 8px;font-size:11px">✕</button>'+
           '</div></div>';
@@ -6933,8 +7036,8 @@ function openEditModal(section) {
       '<div class="form-row" style="margin-bottom:0"><label>Role</label><input type="text" class="per-role" value="'+esc(p.role)+'" placeholder="Role..."></div>'+
       '<div class="form-row" style="margin-bottom:0"><label>Name</label><input type="text" class="per-name" value="'+esc(p.name)+'"></div></div>'+
       '<div class="form-grid-2" style="margin-bottom:4px">'+
-      '<div class="form-row" style="margin-bottom:0"><label>Work Phone</label><input type="text" class="per-phone" value="'+esc(p.phone)+'" placeholder="Work phone..."></div>'+
-      '<div class="form-row" style="margin-bottom:0"><label>Cell Phone</label><input type="text" class="per-cell" value="'+esc(p.cell)+'" placeholder="Cell phone..."></div></div>'+
+      '<div class="form-row" style="margin-bottom:0"><label>Work Phone</label><input type="text" class="per-phone phone-field" value="'+esc(p.phone)+'" placeholder="Work phone..."></div>'+
+      '<div class="form-row" style="margin-bottom:0"><label>Cell Phone</label><input type="text" class="per-cell phone-field" value="'+esc(p.cell)+'" placeholder="Cell phone..."></div></div>'+
       '<div class="form-grid-2" style="margin-bottom:4px">'+
       '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" class="per-email" value="'+esc(p.email)+'" placeholder="Email..."></div></div>'+
       '<div style="text-align:right;margin-bottom:12px"><button type="button" class="btn btn-danger btn-sm per-delete-btn" data-pid="'+p.personnel_id+'" style="font-size:11px;padding:3px 8px">Remove</button></div>';
@@ -7021,29 +7124,29 @@ function openEditModal(section) {
     '<div class="form-section" id="edit-section-store"><div class="form-section-title">Store Information</div>'+storeInfoHtml+'</div>'+
     '<div class="form-section" id="edit-section-personnel"><div class="form-section-title">Key Personnel</div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Owner Name</label><input type="text" id="e_owner_name" value="'+esc(a.owner_name)+'"></div>'+
-    '<div class="form-row"><label>Owner Work Phone</label><input type="text" id="e_owner_phone" value="'+esc(a.owner_phone)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Owner Cell Phone</label><input type="text" id="e_owner_cell" value="'+esc(a.owner_cell)+'"></div>'+
+    '<div class="form-row"><label>Owner Work Phone</label><input type="text" id="e_owner_phone" class="phone-field" value="'+esc(a.owner_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Owner Cell Phone</label><input type="text" id="e_owner_cell" class="phone-field" value="'+esc(a.owner_cell)+'"></div>'+
     '<div class="form-row"><label>Owner Email</label><input type="text" id="e_owner_email" value="'+esc(a.owner_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>GM Name</label><input type="text" id="e_gm_name" value="'+esc(a.gm_name)+'"></div>'+
-    '<div class="form-row"><label>GM Work Phone</label><input type="text" id="e_gm_phone" value="'+esc(a.gm_phone)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>GM Cell Phone</label><input type="text" id="e_gm_cell" value="'+esc(a.gm_cell)+'"></div>'+
+    '<div class="form-row"><label>GM Work Phone</label><input type="text" id="e_gm_phone" class="phone-field" value="'+esc(a.gm_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>GM Cell Phone</label><input type="text" id="e_gm_cell" class="phone-field" value="'+esc(a.gm_cell)+'"></div>'+
     '<div class="form-row"><label>GM Email</label><input type="text" id="e_gm_email" value="'+esc(a.gm_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>FOD Name</label><input type="text" id="e_fod_name" value="'+esc(a.fod_name)+'"></div>'+
-    '<div class="form-row"><label>FOD Work Phone</label><input type="text" id="e_fod_phone" value="'+esc(a.fod_phone)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>FOD Cell Phone</label><input type="text" id="e_fod_cell" value="'+esc(a.fod_cell)+'"></div>'+
+    '<div class="form-row"><label>FOD Work Phone</label><input type="text" id="e_fod_phone" class="phone-field" value="'+esc(a.fod_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>FOD Cell Phone</label><input type="text" id="e_fod_cell" class="phone-field" value="'+esc(a.fod_cell)+'"></div>'+
     '<div class="form-row"><label>FOD Email</label><input type="text" id="e_fod_email" value="'+esc(a.fod_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Service Manager Name</label><input type="text" id="e_sm_name" value="'+esc(a.sm_name)+'"></div>'+
-    '<div class="form-row"><label>Service Manager Work Phone</label><input type="text" id="e_sm_phone" value="'+esc(a.sm_phone)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Service Manager Cell Phone</label><input type="text" id="e_sm_cell" value="'+esc(a.sm_cell)+'"></div>'+
+    '<div class="form-row"><label>Service Manager Work Phone</label><input type="text" id="e_sm_phone" class="phone-field" value="'+esc(a.sm_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Service Manager Cell Phone</label><input type="text" id="e_sm_cell" class="phone-field" value="'+esc(a.sm_cell)+'"></div>'+
     '<div class="form-row"><label>Service Manager Email</label><input type="text" id="e_sm_email" value="'+esc(a.sm_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Parts Manager Name</label><input type="text" id="e_pm_name" value="'+esc(a.pm_name)+'"></div>'+
-    '<div class="form-row"><label>Parts Manager Work Phone</label><input type="text" id="e_pm_phone" value="'+esc(a.pm_phone)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Parts Manager Cell Phone</label><input type="text" id="e_pm_cell" value="'+esc(a.pm_cell)+'"></div>'+
+    '<div class="form-row"><label>Parts Manager Work Phone</label><input type="text" id="e_pm_phone" class="phone-field" value="'+esc(a.pm_phone)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Parts Manager Cell Phone</label><input type="text" id="e_pm_cell" class="phone-field" value="'+esc(a.pm_cell)+'"></div>'+
     '<div class="form-row"><label>Parts Manager Email</label><input type="text" id="e_pm_email" value="'+esc(a.pm_email)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Other Contact Name</label><input type="text" id="e_other2_name" value="'+esc(a.other2_name)+'"></div>'+
     '<div class="form-row"><label>Other Contact Role</label><input type="text" id="e_other2_role" value="'+esc(a.other2_role)+'"></div></div>'+
-    '<div class="form-grid-2"><div class="form-row"><label>Other Contact Work Phone</label><input type="text" id="e_other2_phone" value="'+esc(a.other2_phone)+'"></div>'+
-    '<div class="form-row"><label>Other Contact Cell Phone</label><input type="text" id="e_other2_cell" value="'+esc(a.other2_cell)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label>Other Contact Work Phone</label><input type="text" id="e_other2_phone" class="phone-field" value="'+esc(a.other2_phone)+'"></div>'+
+    '<div class="form-row"><label>Other Contact Cell Phone</label><input type="text" id="e_other2_cell" class="phone-field" value="'+esc(a.other2_cell)+'"></div></div>'+
     '<div class="form-row"><label>Other Contact Email</label><input type="text" id="e_other2_email" value="'+esc(a.other2_email)+'"></div>'+
     (personnelRows.length ? '<div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 8px">Additional Contacts</div>'+personnelRows : '')+
     '<div id="newPersonnelArea" style="border:1px dashed var(--gray-2);border-radius:6px;padding:12px;margin-top:8px">'+
@@ -7052,8 +7155,8 @@ function openEditModal(section) {
     '<div class="form-row" style="margin-bottom:0"><label>Role</label><input type="text" id="new_per_role" placeholder="e.g. Finance Manager..."></div>'+
     '<div class="form-row" style="margin-bottom:0"><label>Name</label><input type="text" id="new_per_name" placeholder="Full name..."></div></div>'+
     '<div class="form-grid-2">'+
-    '<div class="form-row" style="margin-bottom:0"><label>Work Phone</label><input type="text" id="new_per_phone"></div>'+
-    '<div class="form-row" style="margin-bottom:0"><label>Cell Phone</label><input type="text" id="new_per_cell"></div></div>'+
+    '<div class="form-row" style="margin-bottom:0"><label>Work Phone</label><input type="text" id="new_per_phone" class="phone-field"></div>'+
+    '<div class="form-row" style="margin-bottom:0"><label>Cell Phone</label><input type="text" id="new_per_cell" class="phone-field"></div></div>'+
     '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" id="new_per_email"></div></div></div>'+
     '<div class="form-section"><div class="form-section-title">Account Rating</div>'+
     '<div class="rating-input">'+[1,2,3,4,5].map(function(n){ return '<div class="rating-opt'+(selectedRating===n?' selected':'')+'" data-val="'+n+'">'+n+' ★</div>'; }).join('')+'</div>'+
@@ -7087,7 +7190,6 @@ function openNewAccount() {
   Object.keys(COL).forEach(function(k){ currentAccount[k]=''; });
   currentAccount.territory = currentTerritory;
   currentAccount.status    = currentTab;
-  currentAccount.state     = 'RI';
   currentAccount.account_id = 'ACC'+Date.now();
   openEditModal();
   document.getElementById('editModalTitle').textContent = 'Add New Account';
