@@ -639,6 +639,21 @@
   </div>
 </div>
 
+<div class="screen" id="screenCompanyVMA">
+  <div class="account-detail">
+    <button class="back-btn" id="companyVmaBackBtn">← Back to Company Dashboard</button>
+    <div class="detail-header">
+      <div><h2>Company VMA Reports</h2><div class="meta" id="companyVmaMeta"></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="companyVmaScope" style="min-width:180px"><option value="ALL">Full Company</option></select>
+        <input type="text" id="companyVmaSearch" placeholder="Search stores...">
+      </div>
+    </div>
+    <div id="companyVmaStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
+    <div id="companyVmaContent"><div class="loading"><div class="spinner"></div>Loading VMA data across all territories...</div></div>
+  </div>
+</div>
+
 <div class="screen" id="screenCompanyView">
   <div class="dashboard">
     <div class="territory-bar" style="flex-direction:column;align-items:stretch;gap:10px">
@@ -651,10 +666,12 @@
         <button class="btn btn-gold btn-sm" id="companyRefreshBtn" style="flex:1" title="Manager PIN required">Refresh Company Data</button>
         <button class="btn btn-gold btn-sm" id="uploadRankingsBtn" style="flex:1" title="Upload ranking files">Upload Ranking</button>
         <button class="btn btn-gold btn-sm" id="uploadMachinesBtn" style="flex:1" title="Upload machine report">Upload Machines</button>
+        <button class="btn btn-gold btn-sm" id="uploadVmaBtn" style="flex:1" title="Upload VMA+DMS report">Upload VMA</button>
       </div>
       <div class="company-btn-row" style="display:flex;gap:8px;width:100%">
         <button class="btn btn-primary btn-sm" id="companyRankingsBtn" style="flex:1">Rankings</button>
         <button class="btn btn-primary btn-sm" id="companyMachinesBtn" style="flex:1">Machine Reports</button>
+        <button class="btn btn-primary btn-sm" id="companyVmaBtn" style="flex:1">VMA Reports</button>
         <button class="btn btn-primary btn-sm" id="companyRecapBtn" style="flex:1">Weekly Report</button>
         <button class="btn btn-secondary btn-sm" id="companyRepLibraryBtn" style="flex:1" title="Templates and reference docs">📁 File Library</button>
         <button class="btn btn-secondary btn-sm" id="companyPtoCalendarBtn" style="flex:1" title="See who's out">🗓 PTO Calendar</button>
@@ -666,6 +683,7 @@
       </div>
       <input type="file" id="rankingsFileInput" accept=".xls,.xlsx" multiple style="display:none">
       <input type="file" id="machinesFileInput" accept=".xls,.xlsx" style="display:none">
+      <input type="file" id="vmaFileInput" accept=".xls,.xlsx" style="display:none">
     </div>
     <div class="big-box-row">
       <button type="button" class="big-box" id="companyMetricActive" data-metric="active_accounts">
@@ -743,6 +761,7 @@
       <button class="btn btn-primary btn-sm" id="weeklyRecapBtn">📊 Weekly Recap</button>
       <button class="btn btn-primary btn-sm" id="rankingsViewBtn">🏆 Rankings</button>
       <button class="btn btn-primary btn-sm" id="machinesViewBtn">⚙️ Machines</button>
+      <button class="btn btn-primary btn-sm" id="vmaViewBtn">📋 VMA</button>
       <button class="btn btn-secondary btn-sm" id="repLibraryBtn" title="Templates and reference docs">📁 File Library</button>
       <button class="btn btn-secondary btn-sm" id="ptoCalendarBtn" title="See who's out">🗓 PTO Calendar</button>
     </div>
@@ -855,6 +874,7 @@
           <input type="date" id="recapEndDate">
         </div>
         <button class="btn btn-gold btn-sm" id="recapRunBtn">Run Report</button>
+        <button class="btn btn-secondary btn-sm" id="funnelReportBtn">📝 Generate Funnel Report</button>
       </div>
     </div>
     <div class="recap-preset-row" id="recapPresetRow">
@@ -989,6 +1009,20 @@
   </div>
 </div>
 
+<div class="screen" id="screenVMA">
+  <div class="account-detail">
+    <button class="back-btn" id="vmaBackBtn">← Back to dashboard</button>
+    <div class="detail-header">
+      <div><h2>📋 VMA Reports</h2><div class="meta" id="vmaMeta"></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="vmaSearch" placeholder="Search stores..." style="width:180px">
+      </div>
+    </div>
+    <div id="vmaStatsRow" class="big-box-row" style="margin-bottom:16px"></div>
+    <div id="vmaContent"><div class="loading"><div class="spinner"></div>Loading VMA data...</div></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalUploadPreview">
   <div class="modal" style="max-width:700px">
     <div class="modal-header">
@@ -999,6 +1033,24 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" id="uploadPreviewCancel">Cancel</button>
       <button class="btn btn-gold" id="uploadPreviewConfirm">Confirm Upload</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalFunnelReport">
+  <div class="modal" style="max-width:650px">
+    <div class="modal-header">
+      <h3>📝 Weekly Funnel Report</h3>
+      <button class="modal-close" id="funnelReportClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="meta" style="margin-bottom:10px">Review below, edit anything you'd like, then send to management.</div>
+      <textarea id="funnelReportText" style="width:100%;min-height:420px;font-family:inherit;font-size:13px;line-height:1.5;padding:12px;border:1px solid var(--gray-4,#ccc);border-radius:6px;resize:vertical"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="funnelReportCloseBtn">Close</button>
+      <button class="btn btn-secondary" id="funnelReportCopyBtn">📋 Copy to Clipboard</button>
+      <button class="btn btn-gold" id="funnelReportMailBtn">📧 Open in Outlook</button>
     </div>
   </div>
 </div>
@@ -1187,7 +1239,7 @@ const REPS_BY_TERRITORY = {
 const DEALER_GROUPS = [
   'Albrecht','Autofair','Balise','Berlin City','Bernardi','Bertera','Best','Bill Dodge','Bill Dube',
   'Central','Colonial','Copeland','Darling','DSR Motor Group','Empire','Falmouth','Firestone','First','Flood','Goodwin',
-  'Grieco','Haddad','Herb','Holloway','Imperial','Inskip','Ira','Irwin','Jack','Kaplan Auto Group','Kelly','Key','Langway',
+  'Grieco','Haddad','Herb','Holloway','ICL Group','Imperial','Inskip','Ira','Irwin','Jack','Kaplan Auto Group','Kelly','Key','Langway',
   'Lia','Liberty','Long','Lundgren','Marty','Mastria','Mcfarland','Mcgee','Mcgovern','Meineke','Midas',
   'NE Tire','Nucar','Ocean','Patrick','Paul Masse','Pep Boys','Premier','Pride','Quirk','Ron Bouchard',
   'Rowe','Stateline','Sullivan Brothers','Sullivan Tire','Tasca','Thompson','Tulley'
@@ -1326,7 +1378,8 @@ const COL = {
   bg_pvp:217,bg_pvp_status:218,bg_pvp_carrying:219,bg_pvp_profile_pricing:220,bg_pvp_training:221,
   bg_pvp_part_number:222,bg_pvp_part_notes:223,bg_pvp_spiff:224,bg_pvp_cp_ro_pct:225,
   authorize_share_personal_info:226,
-  inactive:227
+  inactive:227,
+  vma_code:228
 };
 
 function colLetter(idx) {
@@ -1357,6 +1410,7 @@ const TRACKED_FIELDS = {
   sm_name:'SM Name', sm_phone:'SM Work Phone', sm_cell:'SM Cell Phone', sm_email:'SM Email',
   owner_name:'Owner Name', owner_phone:'Owner Work Phone', owner_cell:'Owner Cell Phone', owner_email:'Owner Email',
   dms:'DMS',
+  vma_code:'VMA Code',
   authorize_share_personal_info:'Authorized to Share Personal Info',
   inactive:'Inactive Account',
   gm_name:'General Manager Name',
@@ -1426,7 +1480,7 @@ let allAccounts=[], allVisits=[], allChangeLog=[], sheetRowMap={}, visitRowMap={
 let allActivityLog=[], allPersonnel=[];
 let currentTerritory='', currentTab='active', currentAccount=null, selectedRating=null;
 let recapTerritory='', recapStart='', recapEnd='';
-let allRankings=[], allMachines=[];
+let allRankings=[], allMachines=[], allVMAData=[];
 
 // ── Wire up all buttons via addEventListener — no inline onclick ──────────────
 document.addEventListener('DOMContentLoaded', function() {
@@ -1472,6 +1526,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('companyTerritoryFilter').addEventListener('change', renderCompanyList);
   document.getElementById('companyRankingsBtn').addEventListener('click', openCompanyRankings);
   document.getElementById('companyMachinesBtn').addEventListener('click', openCompanyMachines);
+  document.getElementById('companyVmaBtn').addEventListener('click', openCompanyVMA);
   document.getElementById('companyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(true); });
   document.getElementById('companyRepLibraryBtn').addEventListener('click', function(){
     if (REP_LIBRARY_DRIVE_URL === 'REPLACE_WITH_SHAREPOINT_OR_DRIVE_URL') { showToast('File library not set up yet','error'); return; }
@@ -1494,12 +1549,15 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('addDateSaveBtn').addEventListener('click', function(){ guardedSave(addImportantDate); });
   document.getElementById('companyRankingsBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyMachinesBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
+  document.getElementById('companyVmaBackBtn').addEventListener('click', function(){ showScreen('screenCompanyView'); });
   document.getElementById('companyRankingsScope').addEventListener('change', renderCompanyRankingsView);
   document.getElementById('companyRankingsGroupFilter').addEventListener('change', renderCompanyRankingsView);
   document.getElementById('companyRankingsSearch').addEventListener('input', renderCompanyRankingsView);
   document.getElementById('companyMachinesScope').addEventListener('change', renderCompanyMachinesView);
+  document.getElementById('companyVmaScope').addEventListener('change', renderCompanyVMAView);
   document.getElementById('companyMachinesTypeFilter').addEventListener('change', renderCompanyMachinesView);
   document.getElementById('companyMachinesSearch').addEventListener('input', renderCompanyMachinesView);
+  document.getElementById('companyVmaSearch').addEventListener('input', renderCompanyVMAView);
   document.querySelectorAll('#screenCompanyView .subfilter-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       companySubfilter = btn.dataset.type;
@@ -1531,12 +1589,17 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('weeklyRecapBtn').addEventListener('click', function(){ openWeeklyRecap(false); });
   document.getElementById('rankingsViewBtn').addEventListener('click', openRankingsView);
   document.getElementById('machinesViewBtn').addEventListener('click', openMachinesView);
+  document.getElementById('vmaViewBtn').addEventListener('click', openVMAView);
   document.getElementById('uploadRankingsBtn').addEventListener('click', function(){ if (checkManagerPin('upload a ranking report')) document.getElementById('rankingsFileInput').click(); });
   document.getElementById('uploadMachinesBtn').addEventListener('click', function(){ if (checkManagerPin('upload a machine report')) document.getElementById('machinesFileInput').click(); });
+  document.getElementById('uploadVmaBtn').addEventListener('click', function(){ if (checkManagerPin('upload a VMA report')) document.getElementById('vmaFileInput').click(); });
   document.getElementById('rankingsFileInput').addEventListener('change', handleRankingsUpload);
   document.getElementById('machinesFileInput').addEventListener('change', handleMachinesUpload);
+  document.getElementById('vmaFileInput').addEventListener('change', handleVMAUpload);
   document.getElementById('rankingsBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
   document.getElementById('machinesBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('vmaBackBtn').addEventListener('click', function(){ showScreen('screenDashboard'); });
+  document.getElementById('vmaSearch').addEventListener('input', function(){ _vmaFocusAccountId = null; renderVMATable(); });
   document.getElementById('uploadPreviewClose').addEventListener('click', function(){ closeModal('modalUploadPreview'); });
   document.getElementById('uploadPreviewCancel').addEventListener('click', function(){ closeModal('modalUploadPreview'); });
   document.getElementById('rankingsSearch').addEventListener('input', renderRankingsTable);
@@ -1544,6 +1607,11 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('machinesTypeFilter').addEventListener('change', renderMachinesTable);
   document.getElementById('recapBackBtn').addEventListener('click', goBack);
   document.getElementById('recapRunBtn').addEventListener('click', runWeeklyRecap);
+  document.getElementById('funnelReportBtn').addEventListener('click', openFunnelReportModal);
+  document.getElementById('funnelReportClose').addEventListener('click', function(){ closeModal('modalFunnelReport'); });
+  document.getElementById('funnelReportCloseBtn').addEventListener('click', function(){ closeModal('modalFunnelReport'); });
+  document.getElementById('funnelReportCopyBtn').addEventListener('click', copyFunnelReportToClipboard);
+  document.getElementById('funnelReportMailBtn').addEventListener('click', openFunnelReportInOutlook);
   document.getElementById('recapSearchInput').addEventListener('input', applyRecapSearch);
   document.querySelectorAll('.recap-cat-cb').forEach(function(cb){
     cb.addEventListener('change', function(){
@@ -1606,6 +1674,83 @@ document.addEventListener('DOMContentLoaded', function() {
     card.addEventListener('click', function(){ openMetricFilter(card.dataset.metric); });
   });
 });
+
+// Pull-to-refresh — mainly for iPad reps using this saved to the home
+// screen, where there's no browser chrome/reload button at all. Dragging
+// down from the top of the page reloads the current territory's data and
+// forces a fresh token-refresh attempt as part of that, which is also a
+// useful manual escape hatch if the background silent refresh has failed.
+(function initPullToRefresh(){
+  var PULL_THRESHOLD = 70;
+  var startY = null, pulling = false, indicator = null;
+
+  function ensureIndicator() {
+    if (indicator) return indicator;
+    indicator = document.createElement('div');
+    indicator.id = 'pullToRefreshIndicator';
+    indicator.style.cssText = 'position:fixed;top:-60px;left:0;right:0;height:60px;'+
+      'display:flex;align-items:center;justify-content:center;font-size:13px;'+
+      'color:#666;background:transparent;z-index:9999;transition:top 0.15s ease;pointer-events:none;';
+    indicator.textContent = 'Pull to refresh';
+    document.body.appendChild(indicator);
+    return indicator;
+  }
+
+  function scrollableAtTop() {
+    return (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+  }
+
+  document.addEventListener('touchstart', function(e){
+    if (!scrollableAtTop()) { startY = null; return; }
+    startY = e.touches[0].clientY;
+    pulling = false;
+  }, {passive:true});
+
+  document.addEventListener('touchmove', function(e){
+    if (startY === null) return;
+    var dy = e.touches[0].clientY - startY;
+    if (dy <= 0) return;
+    if (!scrollableAtTop()) { startY = null; return; }
+    pulling = true;
+    var ind = ensureIndicator();
+    var pulled = Math.min(dy, PULL_THRESHOLD * 1.6);
+    ind.style.top = (pulled - 60) + 'px';
+    ind.textContent = dy >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh';
+  }, {passive:true});
+
+  document.addEventListener('touchend', function(){
+    if (!pulling) { startY = null; return; }
+    pulling = false;
+    var dy = indicator ? (parseInt(indicator.style.top, 10) + 60) : 0;
+    if (indicator) indicator.style.top = '-60px';
+    startY = null;
+    if (dy >= PULL_THRESHOLD) handlePullToRefresh();
+  }, {passive:true});
+
+  async function handlePullToRefresh() {
+    var ind = ensureIndicator();
+    ind.style.top = '10px';
+    ind.textContent = 'Refreshing…';
+    try {
+      await ensureFreshToken();
+      if (currentTerritory) {
+        delete _territoryCache[currentTerritory];
+        await fetchData();
+        await fetchRankings();
+        await fetchAliases();
+        await fetchVMAData();
+        cacheCurrentTerritoryData(currentTerritory);
+        updateSortOptions(); updateStats(); renderList();
+      }
+      showToast('Refreshed');
+    } catch (e) {
+      console.error('Pull-to-refresh failed', e);
+      showToast(isAuthError(e) ? 'Your session may have expired — try signing in again.' : 'Refresh failed', 'error');
+    } finally {
+      setTimeout(function(){ ind.style.top = '-60px'; }, 400);
+    }
+  }
+})();
 
 function doSignIn() {
   if (!gisReady || !tokenClient) { showToast('Still loading, please wait a moment','error'); return; }
@@ -1865,7 +2010,7 @@ function cacheCurrentTerritoryData(territory) {
   _territoryCache[territory] = {
     ts: Date.now(), allAccounts: allAccounts, allVisits: allVisits, allChangeLog: allChangeLog,
     allActivityLog: allActivityLog, allPersonnel: allPersonnel, allRankings: allRankings,
-    allAliases: allAliases, sheetRowMap: sheetRowMap, visitRowMap: visitRowMap
+    allAliases: allAliases, allVMAData: allVMAData, sheetRowMap: sheetRowMap, visitRowMap: visitRowMap
   };
   // Nothing used to evict old entries here, so a long session that touches
   // several territories (Company Dashboard checks, covering another route,
@@ -1888,7 +2033,7 @@ function restoreTerritoryDataFromCache(territory) {
   if (!c) return false;
   allAccounts = c.allAccounts; allVisits = c.allVisits; allChangeLog = c.allChangeLog;
   allActivityLog = c.allActivityLog; allPersonnel = c.allPersonnel; allRankings = c.allRankings;
-  allAliases = c.allAliases; sheetRowMap = c.sheetRowMap; visitRowMap = c.visitRowMap;
+  allAliases = c.allAliases; allVMAData = c.allVMAData||[]; sheetRowMap = c.sheetRowMap; visitRowMap = c.visitRowMap;
   return true;
 }
 
@@ -1912,6 +2057,7 @@ async function loadTerritory() {
     await fetchData();
     await fetchRankings();
     await fetchAliases();
+    await fetchVMAData();
     cacheCurrentTerritoryData(sel);
   }
   updateSortOptions();
@@ -1939,7 +2085,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:HT','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:I','Product Part Numbers!A:I']
+      spreadsheetId: sid, ranges: ['Accounts!A:HU','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:I','Product Part Numbers!A:I']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -2878,6 +3024,7 @@ function renderDetail() {
     '<div class="field-row"><span class="field-label">Account Type</span>'+(a.account_type?'<span class="field-value">'+(a.account_type==='Dealer'?'<span class="type-dealer">Dealer</span>':a.account_type==='Independent'?'<span class="type-indep">Independent</span>':'<span class="type-fleet">Fleet</span>')+'</span>':'<span class="field-value empty">—</span>')+'</div>'+
     '<div class="field-row"><span class="field-label">Dealer Group</span>'+fv(a.dealer_group)+'</div>'+
     '<div class="field-row"><span class="field-label">DMS</span>'+fv(a.dms)+'</div>'+
+    '<div class="field-row"><span class="field-label">VMA Code</span>'+fv(a.vma_code)+'</div>'+
     '<div class="field-row"><span class="field-label">Authorized to Share Personal Info</span>'+fv(a.authorize_share_personal_info)+'</div>'+
     '<div class="field-row"><span class="field-label">Inactive Account</span>'+fv(a.inactive==='Yes'?'Yes':'')+'</div>'+
     '<div class="field-row"><span class="field-label">Website</span>'+fv(a.website)+'</div>'+
@@ -2961,6 +3108,67 @@ function renderDetail() {
         '<div class="field-row"><span class="field-label">Underperforming</span><span class="field-value" style="color:#d47070">'+counts.underperforming+'</span></div>'+
         (acctUnderage>0?'<div class="field-row"><span class="field-label">Underage Owed</span><span class="field-value" style="color:#d47070;font-weight:700">$'+fmtNum(acctUnderage)+'</span></div>':'')+
         '<div style="padding-top:8px;margin-top:4px;border-top:1px solid var(--gray-1)"><a href="#" id="viewFullMachinesLink" style="font-size:12px;color:var(--gold)">See full machine report →</a></div>'+
+        '</div></div>';
+    }()+
+    function(){
+      var storeVMA = allVMAData.filter(function(v){ return v.account_id===a.account_id && v.is_store_total==='Yes'; })[0];
+      var advisorRows = allVMAData.filter(function(v){ return v.account_id===a.account_id && v.is_store_total!=='Yes' && v.advisor_name; });
+      if (!storeVMA && !advisorRows.length) return '';
+      var pct = function(v){ return ((parseFloat(v)||0)*100).toFixed(1)+'%'; };
+      var dollars = function(v){ return '$'+fmtNum(v); };
+      advisorRows.sort(function(x,y){ return (parseFloat(y.total_dollars)||0) - (parseFloat(x.total_dollars)||0); });
+      var CAP = 10;
+      var shown = advisorRows.slice(0, CAP);
+
+      var metricBox = function(label, val){
+        return '<div style="text-align:center;padding:12px 4px;background:var(--gray-1);border-radius:6px">'+
+          '<div style="font-size:22px;font-weight:700;color:var(--gold);line-height:1">'+val+'</div>'+
+          '<div style="font-size:10px;color:var(--gray-3);margin-top:4px;font-weight:600">'+label+'</div>'+
+        '</div>';
+      };
+
+      var storeGrid = storeVMA ? (
+        '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">'+
+          metricBox('% Presented', pct(storeVMA.pct_presented))+
+          metricBox('% Penetration', pct(storeVMA.pct_penetration))+
+          metricBox('$/Menu', dollars(storeVMA.dollars_per_menu))+
+          metricBox('Total $', dollars(storeVMA.total_dollars))+
+          metricBox('Hrs/Menu', (parseFloat(storeVMA.hrs_per_menu)||0).toFixed(2))+
+        '</div>'
+      ) : '<div class="field-row"><span class="field-label" style="color:var(--gray-3)">No store total row in latest upload</span></div>';
+
+      var advisorTable = shown.length ? (
+        '<div style="overflow-x:auto">'+
+        '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+          '<thead><tr style="border-bottom:1px solid var(--gray-1)">'+
+            '<th style="text-align:left;padding:6px 4px;color:var(--gray-3);font-weight:600">Advisor</th>'+
+            '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Presented</th>'+
+            '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Penetration</th>'+
+            '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">$/Menu</th>'+
+            '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Total $</th>'+
+            '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Hrs/Menu</th>'+
+          '</tr></thead><tbody>'+
+          shown.map(function(v){
+            return '<tr style="border-bottom:1px solid var(--gray-1)">'+
+              '<td style="padding:6px 4px">'+esc(v.advisor_name)+'</td>'+
+              '<td style="text-align:right;padding:6px 4px">'+pct(v.pct_presented)+'</td>'+
+              '<td style="text-align:right;padding:6px 4px">'+pct(v.pct_penetration)+'</td>'+
+              '<td style="text-align:right;padding:6px 4px">'+dollars(v.dollars_per_menu)+'</td>'+
+              '<td style="text-align:right;padding:6px 4px">'+dollars(v.total_dollars)+'</td>'+
+              '<td style="text-align:right;padding:6px 4px">'+(parseFloat(v.hrs_per_menu)||0).toFixed(2)+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody></table>'+
+        '</div>'+
+        (advisorRows.length>shown.length?'<div style="font-size:11px;color:var(--gray-3);margin-top:6px">+ '+(advisorRows.length-shown.length)+' more advisor'+(advisorRows.length-shown.length!==1?'s':'')+' — see full report</div>':'')
+      ) : '';
+
+      return '<div class="card"><div class="card-header">📋 VMA / Menu Sales'+
+        (storeVMA && storeVMA.uploaded_at ? '<span style="float:right;font-size:11px;font-weight:400;color:var(--gray-3)">'+vmaMtdRangeLabel(storeVMA.uploaded_at)+'</span>' : '')+
+        '</div><div class="card-body">'+
+        storeGrid+
+        (advisorTable ? '<div style="margin-top:4px;padding-top:12px;border-top:1px solid var(--gray-1)"><div style="font-size:11px;color:var(--gray-3);margin-bottom:8px;font-weight:600">By Advisor</div>'+advisorTable+'</div>' : '')+
+        '<div style="padding-top:8px;margin-top:12px;border-top:1px solid var(--gray-1)"><a href="#" id="viewFullVmaLink" style="font-size:12px;color:var(--gold)">See full VMA report →</a></div>'+
         '</div></div>';
     }()+
     '</div>';
@@ -3196,6 +3404,7 @@ function renderDetail() {
   var xb = document.getElementById('expandBtn'); if(xb) xb.addEventListener('click', toggleVisits);
   var vfr = document.getElementById('viewFullRankingLink'); if(vfr) vfr.addEventListener('click', function(e){ e.preventDefault(); viewFullRanking(currentAccount.business_name); });
   var vfm = document.getElementById('viewFullMachinesLink'); if(vfm) vfm.addEventListener('click', function(e){ e.preventDefault(); viewFullMachines(currentAccount.business_name); });
+  var vfv = document.getElementById('viewFullVmaLink'); if(vfv) vfv.addEventListener('click', function(e){ e.preventDefault(); viewFullVMA(currentAccount.business_name, currentAccount.account_id); });
 
   // Product rows — click header to expand/collapse
   document.querySelectorAll('.product-row-head').forEach(function(headEl){
@@ -4281,6 +4490,45 @@ function fuzzyMatchAccount(name, accountsList) {
   return bestScore >= 0.6 ? { account: best, confidence: bestScore } : null;
 }
 
+// When a ranking report contains legacy duplicate customer numbers for the
+// same live dealer (a re-registration under a new number, with the old one
+// still trailing in the source system), more than one row can independently
+// fuzzy-match to the same CRM account. Left alone, whichever row happens to
+// come first in upload order silently wins the account-card display, and
+// territory sales totals double-count both. This keeps only the
+// highest-confidence match per account_id and demotes the rest back to
+// unmatched, where they belong.
+function dedupeMatchesByAccount(rows, unmatched) {
+  var bestByAccount = {};
+  rows.forEach(function(r){
+    if (!r.account_id) return;
+    var prev = bestByAccount[r.account_id];
+    if (!prev || (r._matchConfidence||0) > (prev._matchConfidence||0)) bestByAccount[r.account_id] = r;
+  });
+  var demoted = 0;
+  rows.forEach(function(r){
+    if (r.account_id && bestByAccount[r.account_id] !== r) {
+      r.account_id = '';
+      unmatched.push(r.account_name);
+      demoted++;
+    }
+  });
+  return demoted;
+}
+
+// Splits an unmatched-name list into legacy "FD ..." / "GM ..." entries (old
+// Ford/GM customer-number registrations that a dealer has since been
+// re-registered under — expected noise, not something to act on) versus
+// everything else, which may be a genuinely new/missing dealer worth checking.
+function splitLegacyFD(unmatched) {
+  var fd = [], other = [];
+  unmatched.forEach(function(name){
+    if (/^\s*(fd|gm)\s/i.test(name)) fd.push(name);
+    else other.push(name);
+  });
+  return { fd: fd, other: other };
+}
+
 // Lightweight per-territory account cache used only for cross-territory
 // matching during ranking/machine uploads that cover every route at once —
 // avoids needing to actually switch the loaded territory to match each one.
@@ -4290,12 +4538,17 @@ async function getTerritoryAccountsForMatching(territory) {
   var sid = TERRITORY_SHEET_IDS[territory];
   if (!sid) { _territoryAccountsCache[territory] = []; return []; }
   try {
-    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: sid, range: 'Accounts!A:E'  // account_id, territory, status, business_name — plenty for matching
+    // Two ranges: A:E covers account_id/business_name (used by Rankings/
+    // Machine matching), HU:HU is the vma_code column on its own — far
+    // cheaper than fetching the full A:HU width just for one column.
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
+      spreadsheetId: sid, ranges: ['Accounts!A:E', 'Accounts!HU:HU']
     }); });
-    var rows = res.result.values || [];
-    var accts = rows.slice(1).map(function(r){ return { account_id: r[0]||'', business_name: r[3]||'' }; })
-                    .filter(function(a){ return a.account_id && a.business_name; });
+    var mainRows = (res.result.valueRanges[0].values) || [];
+    var vmaRows = (res.result.valueRanges[1].values) || [];
+    var accts = mainRows.slice(1).map(function(r, idx){
+      return { account_id: r[0]||'', business_name: r[3]||'', vma_code: (vmaRows[idx+1] && vmaRows[idx+1][0]) || '' };
+    }).filter(function(a){ return a.account_id && a.business_name; });
     _territoryAccountsCache[territory] = accts;
     return accts;
   } catch(e) {
@@ -4512,16 +4765,19 @@ async function handleRankingsUpload(evt) {
         var matched = 0, unmatched = [];
         res.rows.forEach(function(r){
           var m = fuzzyMatchAccount(r.account_name, matchAccts);
-          if (m) { r.account_id = m.account.account_id; matched++; }
+          if (m) { r.account_id = m.account.account_id; r._matchConfidence = m.confidence; matched++; }
           else { unmatched.push(r.account_name); }
         });
+        matched -= dedupeMatchesByAccount(res.rows, unmatched);
+        var split = splitLegacyFD(unmatched);
         _pendingRankingsUpload.push({ file: file, territory: territory, sheetId: sheetId, parsed: {rows: res.rows, reportMonth: res.reportMonth} });
         var statusColor = matched===res.rows.length ? '#5dba7d' : '#d4ac0d';
         previewRows.push('<div class="upload-preview-row">'+
           '<div><div class="filename">'+esc(file.name)+' — '+esc(territory)+'</div>'+
           '<div class="match-count">'+res.rows.length+' accounts · '+
           '<span style="color:'+statusColor+'">'+matched+' matched</span>'+
-          (unmatched.length?' · <span style="color:#d47070">'+unmatched.length+' unmatched</span>':'')+
+          (split.fd.length?' · <span style="color:#8a8a8a" title="'+esc(split.fd.join(', '))+'">'+split.fd.length+' legacy FD/GM (expected)</span>':'')+
+          (split.other.length?' · <span style="color:#d47070">'+split.other.length+' unmatched</span>':'')+
           '</div></div>'+
           '<span style="color:#5dba7d">✓ Ready</span></div>');
       }
@@ -4556,10 +4812,12 @@ async function handleRankingsUpload(evt) {
     parsed.rows.forEach(function(r){
       if (territory === currentTerritory) {
         var m = fuzzyMatchAccount(r.account_name);
-        if (m) { r.account_id = m.account.account_id; matched++; }
+        if (m) { r.account_id = m.account.account_id; r._matchConfidence = m.confidence; matched++; }
         else { unmatched.push(r.account_name); }
       }
     });
+    matched -= dedupeMatchesByAccount(parsed.rows, unmatched);
+    var split2 = splitLegacyFD(unmatched);
 
     _pendingRankingsUpload.push({ file: file, territory: territory, sheetId: sheetId, parsed: parsed });
 
@@ -4568,7 +4826,8 @@ async function handleRankingsUpload(evt) {
       '<div><div class="filename">'+esc(file.name)+'</div>'+
       '<div class="match-count">'+territory+' · '+parsed.rows.length+' accounts · '+
       '<span style="color:'+statusColor2+'">'+matched+' matched</span>'+
-      (unmatched.length?' · <span style="color:#d47070">'+unmatched.length+' unmatched</span>':'')+
+      (split2.fd.length?' · <span style="color:#8a8a8a" title="'+esc(split2.fd.join(', '))+'">'+split2.fd.length+' legacy FD/GM (expected)</span>':'')+
+      (split2.other.length?' · <span style="color:#d47070">'+split2.other.length+' unmatched</span>':'')+
       '</div></div>'+
       '<span style="color:#5dba7d">✓ Ready</span></div>');
   }
@@ -4868,6 +5127,25 @@ var _machineSortCol = 'account_name', _machineSortAsc = true;
 var _pendingMachinesUpload = null;
 var _pendingAliasWrites = [];
 
+async function fetchVMAData() {
+  try {
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: territorySheetId(currentTerritory), range: 'VMA Data!A:Y'
+    }); });
+    var rows = res.result.values || [];
+    allVMAData = rows.slice(1).map(function(r){
+      return {
+        record_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+        advisor_code:r[4]||'', advisor_name:r[5]||'', is_store_total:r[6]||'No',
+        ros:r[7]||0, presented:r[8]||0, pct_presented:r[9]||0, sold:r[10]||0, pct_penetration:r[11]||0,
+        menu_dollars:r[12]||0, alacarte_dollars:r[13]||0, total_dollars:r[14]||0, dollars_per_menu:r[15]||0,
+        elr:r[16]||0, hrs_per_menu:r[17]||0, prepaid:r[18]||0, l1:r[19]||0, l2:r[20]||0, l3:r[21]||0,
+        pct_l2_l3:r[22]||0, malac:r[23]||0, uploaded_at:r[24]||''
+      };
+    });
+  } catch(e) { console.error('Error loading VMA data', e); allVMAData = []; }
+}
+
 async function fetchMachines() {
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
@@ -4893,6 +5171,241 @@ async function fetchMachines() {
     sel.innerHTML = '<option value="ALL">All Report Types</option>'+
       types.map(function(t){ return '<option value="'+t+'">'+esc(MACHINE_REPORT_LABELS[t]||t)+'</option>'; }).join('');
   } catch(e) { console.error('Error loading machines',e); }
+}
+
+// ── VMA breakdown screens (per-territory + company-wide) ──
+// Groups flat VMA Data rows (one store-total row + N advisor rows per
+// account) into per-store objects, sorted by store name.
+function groupVMAByStore(data) {
+  var byAccount = {};
+  var order = [];
+  data.forEach(function(v){
+    if (!byAccount[v.account_id]) {
+      byAccount[v.account_id] = { account_id: v.account_id, account_name: v.account_name, territory: v.territory, storeTotal: null, advisors: [] };
+      order.push(v.account_id);
+    }
+    var g = byAccount[v.account_id];
+    if (v.is_store_total === 'Yes') g.storeTotal = v;
+    else if (v.advisor_name) g.advisors.push(v);
+  });
+  return order.map(function(id){ return byAccount[id]; })
+    .sort(function(a,b){ return a.account_name.localeCompare(b.account_name); });
+}
+
+// Shared card markup for one store — headline metrics plus a collapsible
+// advisor-level breakdown, used by both the per-territory and company-wide
+// VMA screens so they stay visually and behaviorally identical.
+function renderVMAStoreCard(store, showTerritory) {
+  var pct = function(v){ return ((parseFloat(v)||0)*100).toFixed(1)+'%'; };
+  var dollars = function(v){ return '$'+fmtNum(v); };
+  var st = store.storeTotal;
+  var advisors = store.advisors.slice().sort(function(x,y){ return (parseFloat(y.total_dollars)||0) - (parseFloat(x.total_dollars)||0); });
+  var accordionId = 'vma-acc-'+store.account_id;
+  var uploadedLabel = st && st.uploaded_at ? vmaMtdRangeLabel(st.uploaded_at) : '';
+  return '<div class="card vma-store-card" style="margin-bottom:12px">'+
+    '<div class="card-body">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'+
+        '<div>'+
+          '<div class="vma-store-name" data-aid="'+esc(store.account_id)+'" style="cursor:pointer;font-weight:600;color:var(--white);font-size:14px">'+esc(store.account_name)+
+            (showTerritory?' <span style="font-size:11px;color:var(--gray-3);font-weight:400">· '+esc(store.territory)+'</span>':'')+
+          '</div>'+
+          (uploadedLabel?'<div style="font-size:11px;color:var(--gray-3);margin-top:2px">Data covers: '+uploadedLabel+'</div>':'')+
+        '</div>'+
+        '<button type="button" class="btn btn-secondary btn-sm vma-toggle-btn" data-target="'+accordionId+'" style="font-size:11px;padding:3px 8px;flex-shrink:0">▸ '+advisors.length+' advisor'+(advisors.length!==1?'s':'')+'</button>'+
+      '</div>'+
+      (st ? (
+        '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px">'+
+          '<div><div style="font-size:10px;color:var(--gray-3)">% Presented</div><div style="font-weight:600">'+pct(st.pct_presented)+'</div></div>'+
+          '<div><div style="font-size:10px;color:var(--gray-3)">% Penetration</div><div style="font-weight:600">'+pct(st.pct_penetration)+'</div></div>'+
+          '<div><div style="font-size:10px;color:var(--gray-3)">$/Menu</div><div style="font-weight:600">'+dollars(st.dollars_per_menu)+'</div></div>'+
+          '<div><div style="font-size:10px;color:var(--gray-3)">Total $</div><div style="font-weight:600">'+dollars(st.total_dollars)+'</div></div>'+
+          '<div><div style="font-size:10px;color:var(--gray-3)">Hrs/Menu</div><div style="font-weight:600">'+(parseFloat(st.hrs_per_menu)||0).toFixed(2)+'</div></div>'+
+        '</div>'
+      ) : '<div style="font-size:11px;color:var(--gray-3);margin-top:8px">No store total row for this upload</div>')+
+      '<div id="'+accordionId+'" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-1)">'+
+        (advisors.length ? (
+          '<div style="overflow-x:auto">'+
+          '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+            '<thead><tr style="border-bottom:1px solid var(--gray-1)">'+
+              '<th style="text-align:left;padding:6px 4px;color:var(--gray-3);font-weight:600">Advisor</th>'+
+              '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Presented</th>'+
+              '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Penetration</th>'+
+              '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">$/Menu</th>'+
+              '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Total $</th>'+
+              '<th style="text-align:right;padding:6px 4px;color:var(--gray-3);font-weight:600">Hrs/Menu</th>'+
+            '</tr></thead><tbody>'+
+            advisors.map(function(v){
+              return '<tr style="border-bottom:1px solid var(--gray-1)">'+
+                '<td style="padding:6px 4px">'+esc(v.advisor_name)+'</td>'+
+                '<td style="text-align:right;padding:6px 4px">'+pct(v.pct_presented)+'</td>'+
+                '<td style="text-align:right;padding:6px 4px">'+pct(v.pct_penetration)+'</td>'+
+                '<td style="text-align:right;padding:6px 4px">'+dollars(v.dollars_per_menu)+'</td>'+
+                '<td style="text-align:right;padding:6px 4px">'+dollars(v.total_dollars)+'</td>'+
+                '<td style="text-align:right;padding:6px 4px">'+(parseFloat(v.hrs_per_menu)||0).toFixed(2)+'</td>'+
+              '</tr>';
+            }).join('')+
+            '</tbody></table>'+
+          '</div>'
+        ) : '<div style="font-size:12px;color:var(--gray-3)">No advisor-level rows.</div>')+
+      '</div>'+
+    '</div></div>';
+}
+
+function wireVMACards(containerEl) {
+  containerEl.querySelectorAll('.vma-toggle-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var target = document.getElementById(btn.dataset.target);
+      var open = target.style.display !== 'none';
+      target.style.display = open ? 'none' : 'block';
+      btn.textContent = (open ? '▸ ' : '▾ ') + btn.textContent.replace(/^[▸▾]\s*/,'');
+    });
+  });
+  containerEl.querySelectorAll('.vma-store-name').forEach(function(el){
+    el.addEventListener('click', function(){
+      if (el.dataset.aid) openAccount(el.dataset.aid);
+    });
+  });
+}
+
+// Per-territory view — reuses the same allVMAData already loaded for the
+// current territory, so it opens instantly with no extra fetch.
+var _vmaFocusAccountId = null;
+
+async function openVMAView() {
+  _vmaFocusAccountId = null;
+  showScreen('screenVMA');
+  document.getElementById('vmaSearch').value = '';
+  document.getElementById('vmaContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading VMA data...</div>';
+  renderVMAStatsRow();
+  renderVMATable();
+}
+
+// Jumps straight to one account's VMA data by account_id — not by matching
+// its name against what's stored in VMA Data, since the two can differ
+// (the CRM's own name vs. whatever the SmartVMA report called it) and a
+// text search would silently come up empty for anything not an exact match.
+async function viewFullVMA(accountName, accountId) {
+  previousScreen = 'screenDetail';
+  showScreen('screenVMA');
+  _vmaFocusAccountId = accountId || null;
+  document.getElementById('vmaSearch').value = accountName || '';
+  renderVMAStatsRow();
+  renderVMATable();
+}
+
+function vmaMtdRangeLabel(uploadedAtIso) {
+  if (!uploadedAtIso) return '';
+  var datePart = uploadedAtIso.split('T')[0];
+  var parts = datePart.split('-');
+  if (parts.length !== 3) return '';
+  var firstOfMonth = parts[0]+'-'+parts[1]+'-01';
+  return 'MTD ' + fmtDateDisplay(firstOfMonth) + ' – ' + fmtDateDisplay(datePart);
+}
+
+function vmaLastUpdatedLabel(data) {
+  var latest = data.reduce(function(max, v){ return (v.uploaded_at||'') > max ? (v.uploaded_at||'') : max; }, '');
+  if (!latest) return 'No upload yet';
+  var d = new Date(latest);
+  if (isNaN(d.getTime())) return 'Last updated ' + fmtDateDisplay(latest.split('T')[0]);
+  var dateStr = fmtDateDisplay(latest.split('T')[0]);
+  var timeStr = d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  return vmaMtdRangeLabel(latest) + ' · Last updated ' + dateStr + ' at ' + timeStr;
+}
+
+function renderVMAStatsRow() {
+  var stores = groupVMAByStore(allVMAData).filter(function(s){ return s.storeTotal; });
+  var avgPresented = stores.length ? stores.reduce(function(s,x){ return s+(parseFloat(x.storeTotal.pct_presented)||0); },0)/stores.length : 0;
+  var avgPenetration = stores.length ? stores.reduce(function(s,x){ return s+(parseFloat(x.storeTotal.pct_penetration)||0); },0)/stores.length : 0;
+  var totalDollars = stores.reduce(function(s,x){ return s+(parseFloat(x.storeTotal.total_dollars)||0); },0);
+  document.getElementById('vmaStatsRow').innerHTML =
+    '<div class="big-box"><div class="big-box-num">'+stores.length+'</div><div class="big-box-lbl">Stores Reporting</div></div>'+
+    '<div class="big-box"><div class="big-box-num">'+(avgPresented*100).toFixed(1)+'%</div><div class="big-box-lbl">Avg % Presented</div></div>'+
+    '<div class="big-box"><div class="big-box-num">'+(avgPenetration*100).toFixed(1)+'%</div><div class="big-box-lbl">Avg % Penetration</div></div>'+
+    '<div class="big-box"><div class="big-box-num">$'+fmtNum(totalDollars)+'</div><div class="big-box-lbl">Total Menu Revenue</div></div>';
+}
+
+function renderVMATable() {
+  var q = (document.getElementById('vmaSearch').value||'').toLowerCase();
+  var stores = groupVMAByStore(allVMAData).filter(function(s){
+    if (_vmaFocusAccountId) return s.account_id === _vmaFocusAccountId;
+    return !q || s.account_name.toLowerCase().indexOf(q)>=0;
+  });
+
+  document.getElementById('vmaMeta').textContent = stores.length+' store'+(stores.length!==1?'s':'')+' · '+currentTerritory+' · '+vmaLastUpdatedLabel(allVMAData);
+
+  if (!stores.length) {
+    document.getElementById('vmaContent').innerHTML =
+      '<div class="empty-state"><div>📋</div><div style="margin-top:8px">No VMA data for this territory yet. Upload a VMA report from the Company Dashboard.</div></div>';
+    return;
+  }
+  var el = document.getElementById('vmaContent');
+  el.innerHTML = stores.map(function(s){ return renderVMAStoreCard(s, false); }).join('');
+  wireVMACards(el);
+}
+
+// Company-wide view — reads from the Company Master's VMA Data tab (populated
+// by refreshMasterData()/refreshStagingMaster() alongside the other tabs),
+// same pattern as Company Machine Reports.
+var allCompanyVMAData = [];
+async function openCompanyVMA() {
+  showScreen('screenCompanyVMA');
+  document.getElementById('companyVmaMeta').textContent = 'Loading...';
+  document.getElementById('companyVmaContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading VMA data across all territories...</div>';
+  await ensureFreshToken();
+
+  var territories = Object.keys(TERRITORY_SHEET_IDS);
+  var sel = document.getElementById('companyVmaScope');
+  sel.innerHTML = '<option value="ALL">Full Company</option>'+territories.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
+
+  allCompanyVMAData = [];
+  try {
+    var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId: COMPANY_MASTER_SHEET_ID, range: 'VMA Data!A:Y'}); });
+    var rows = res.result.values||[];
+    rows.slice(1).forEach(function(r){
+      if (!r[1]) return;
+      allCompanyVMAData.push({
+        record_id:r[0]||'', account_id:r[1]||'', account_name:r[2]||'', territory:r[3]||'',
+        advisor_code:r[4]||'', advisor_name:r[5]||'', is_store_total:r[6]||'No',
+        ros:r[7]||0, presented:r[8]||0, pct_presented:r[9]||0, sold:r[10]||0, pct_penetration:r[11]||0,
+        menu_dollars:r[12]||0, alacarte_dollars:r[13]||0, total_dollars:r[14]||0, dollars_per_menu:r[15]||0,
+        elr:r[16]||0, hrs_per_menu:r[17]||0, prepaid:r[18]||0, l1:r[19]||0, l2:r[20]||0, l3:r[21]||0,
+        pct_l2_l3:r[22]||0, malac:r[23]||0, uploaded_at:r[24]||''
+      });
+    });
+  } catch(e) {
+    console.error(e);
+    showToast(describeApiError(e, 'Could not load company VMA data — has the master sheet been set up yet?'),'error');
+  }
+  renderCompanyVMAView();
+}
+
+function renderCompanyVMAView() {
+  var scope = document.getElementById('companyVmaScope').value;
+  var q = (document.getElementById('companyVmaSearch').value||'').toLowerCase();
+  var data = allCompanyVMAData.filter(function(v){ return scope==='ALL' || v.territory===scope; });
+  var stores = groupVMAByStore(data).filter(function(s){ return !q || s.account_name.toLowerCase().indexOf(q)>=0; });
+
+  document.getElementById('companyVmaMeta').textContent = stores.length+' store'+(stores.length!==1?'s':'')+(scope!=='ALL'?' · '+scope:' · All Territories')+' · '+vmaLastUpdatedLabel(data);
+
+  var withTotals = stores.filter(function(s){ return s.storeTotal; });
+  var avgPresented = withTotals.length ? withTotals.reduce(function(s,x){ return s+(parseFloat(x.storeTotal.pct_presented)||0); },0)/withTotals.length : 0;
+  var avgPenetration = withTotals.length ? withTotals.reduce(function(s,x){ return s+(parseFloat(x.storeTotal.pct_penetration)||0); },0)/withTotals.length : 0;
+  var totalDollars = withTotals.reduce(function(s,x){ return s+(parseFloat(x.storeTotal.total_dollars)||0); },0);
+  document.getElementById('companyVmaStatsRow').innerHTML =
+    '<div class="big-box"><div class="big-box-num">'+stores.length+'</div><div class="big-box-lbl">Stores Reporting</div></div>'+
+    '<div class="big-box"><div class="big-box-num">'+(avgPresented*100).toFixed(1)+'%</div><div class="big-box-lbl">Avg % Presented</div></div>'+
+    '<div class="big-box"><div class="big-box-num">'+(avgPenetration*100).toFixed(1)+'%</div><div class="big-box-lbl">Avg % Penetration</div></div>'+
+    '<div class="big-box"><div class="big-box-num">$'+fmtNum(totalDollars)+'</div><div class="big-box-lbl">Total Menu Revenue</div></div>';
+
+  if (!stores.length) {
+    document.getElementById('companyVmaContent').innerHTML =
+      '<div class="empty-state"><div>📋</div><div style="margin-top:8px">No VMA data yet — has this month\'s report been uploaded?</div></div>';
+    return;
+  }
+  var el = document.getElementById('companyVmaContent');
+  el.innerHTML = stores.map(function(s){ return renderVMAStoreCard(s, true); }).join('');
+  wireVMACards(el);
 }
 
 async function openMachinesView() {
@@ -5108,7 +5621,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:HT','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:HU','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -5146,7 +5659,7 @@ async function pullAllTerritoriesForMaster() {
     while (out.length < width) out.push('');
     return out;
   }
-  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 228 — matches Accounts!A:HT
+  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 228 — matches Accounts!A:HU
 
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
@@ -5235,7 +5748,7 @@ async function openCompanyView() {
 
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:HT','Change Log!A:H','Rankings!A:K','Meta!A:B']
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:HU','Change Log!A:H','Rankings!A:K','Meta!A:B']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -5784,6 +6297,246 @@ function renderCompanyMachinesView() {
   });
 }
 
+
+// ── VMA+DMS Report Upload ──
+// The monthly SmartVMA "All Accounts" export: one sheet, grouped by Account
+// Code (a store-level VMA code, e.g. USMA7001), with one row per advisor
+// followed by a trailing store-total row (recognizable by a blank Advisor
+// Code/Advisor). Unlike Rankings/Machine Data, this file carries NO
+// territory column at all — territory is only known once we've matched an
+// Account Code/name to a CRM account, so matching has to search across
+// every territory rather than one file section at a time.
+function parseVMAXLS(file) {
+  return new Promise(function(resolve){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, {type:'array'});
+        var sheetName = wb.SheetNames.find(function(n){ return n.toLowerCase().indexOf('hyperbi')>=0; }) || wb.SheetNames[0];
+        var rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, defval:''});
+        if (!rows.length) { resolve(null); return; }
+
+        var num = function(v){ var n = parseFloat(v); return isNaN(n) ? 0 : n; };
+        var groups = []; // one entry per Account Code, in file order
+        var byCode = {};
+
+        for (var i=1; i<rows.length; i++) { // row 0 is the header
+          var r = rows[i];
+          var code = String(r[0]||'').trim();
+          if (!code) continue;
+          var advisorCode = String(r[2]||'').trim();
+          var advisorName = String(r[3]||'').trim();
+          var isTotal = !advisorCode && !advisorName;
+
+          if (!byCode[code]) {
+            byCode[code] = { account_code: code, account_name: String(r[1]||'').trim(), rows: [] };
+            groups.push(byCode[code]);
+          }
+          byCode[code].rows.push({
+            advisor_code: advisorCode, advisor_name: advisorName, is_store_total: isTotal,
+            ros: num(r[4]), presented: num(r[5]), pct_presented: num(r[6]),
+            sold: num(r[7]), pct_penetration: num(r[8]),
+            menu_dollars: num(r[9]), alacarte_dollars: num(r[10]), total_dollars: num(r[11]),
+            dollars_per_menu: num(r[12]), elr: num(r[13]), hrs_per_menu: num(r[14]),
+            prepaid: num(r[15]), l1: num(r[16]), l2: num(r[17]), l3: num(r[18]),
+            pct_l2_l3: num(r[19]), malac: num(r[20])
+          });
+        }
+        resolve(groups.length ? groups : null);
+      } catch(err) { console.error('VMA parse error', err); resolve(null); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function handleVMAUpload(evt) {
+  var file = evt.target.files[0];
+  evt.target.value = '';
+  if (!file) return;
+  showToast('Parsing VMA report...');
+
+  var groups = await parseVMAXLS(file);
+  if (!groups) { showToast('Could not parse VMA file','error'); return; }
+
+  // Build a company-wide index up front — vma_code lookup is exact and
+  // trusted, so it always wins when present; fuzzy name-matching is the
+  // fallback for accounts that haven't had their VMA Code filled in yet.
+  var acctsByTerr = {}, vmaCodeIndex = {};
+  for (var terr in TERRITORY_SHEET_IDS) {
+    var terrAccts = (terr === currentTerritory) ? allAccounts : await getTerritoryAccountsForMatching(terr);
+    acctsByTerr[terr] = terrAccts;
+    terrAccts.forEach(function(a){
+      if (a.vma_code && a.vma_code.trim()) vmaCodeIndex[normName(a.vma_code)] = { account: a, territory: terr };
+    });
+  }
+  var terrAliases = {};
+  for (var t2 in TERRITORY_SHEET_IDS) {
+    terrAliases[t2] = (t2 === currentTerritory) ? allAliases : await getTerritoryAliasesForMatching(t2);
+  }
+
+  var matched = 0, exactCodeCount = 0, fuzzyCount = 0, unmatchedGroups = [];
+  var pendingAliases = [];
+  // Fuzzy fallback has to dedupe across territories too — two Account Code
+  // groups shouldn't both silently claim the same CRM account.
+  var claimedAccountIds = {};
+
+  groups.forEach(function(g){
+    var codeKey = normName(g.account_code);
+    var hit = vmaCodeIndex[codeKey];
+    if (hit) {
+      g.account_id = hit.account.account_id;
+      g.territory = hit.territory;
+      g.match_confidence = 1.0;
+      g.matched_business_name = hit.account.business_name;
+      exactCodeCount++; matched++;
+      return;
+    }
+    // Fall back to the alias table (fast, trusted from a prior upload), then
+    // fresh fuzzy name-matching across every territory's accounts.
+    var best = null, bestScore = 0, bestTerr = null;
+    for (var terr3 in acctsByTerr) {
+      var al = (terrAliases[terr3]||[]).find(function(a){ return normName(a.raw_name)===normName(g.account_name); });
+      if (al && al.account_id) {
+        var acctObj = acctsByTerr[terr3].find(function(a){ return a.account_id===al.account_id; });
+        if (acctObj) { best = acctObj; bestScore = 1.0; bestTerr = terr3; break; }
+      }
+      var m = fuzzyMatchAccount(g.account_name, acctsByTerr[terr3]);
+      if (m && m.confidence > bestScore) { best = m.account; bestScore = m.confidence; bestTerr = terr3; }
+    }
+    if (best && !claimedAccountIds[best.account_id]) {
+      claimedAccountIds[best.account_id] = true;
+      g.account_id = best.account_id;
+      g.territory = bestTerr;
+      g.match_confidence = bestScore;
+      g.matched_business_name = best.business_name;
+      matched++;
+      if (bestScore < 0.999) fuzzyCount++;
+      pendingAliases.push({
+        raw_name: g.account_name, account_id: best.account_id, account_name: best.business_name,
+        territory: bestTerr, status: bestScore>=0.999?'confirmed':'fuzzy', confidence: bestScore.toFixed(2)
+      });
+    } else {
+      unmatchedGroups.push(g.account_name);
+    }
+  });
+  _pendingAliasWrites = pendingAliases;
+  _pendingVMAUpload = groups.filter(function(g){ return g.account_id; });
+
+  var territorySummary = {};
+  _pendingVMAUpload.forEach(function(g){
+    if (!territorySummary[g.territory]) territorySummary[g.territory] = 0;
+    territorySummary[g.territory]++;
+  });
+
+  var previewRows = Object.entries(territorySummary).map(function(entry){
+    return '<div class="upload-preview-row"><div class="filename">'+esc(entry[0])+'</div>'+
+      '<div class="match-count">'+entry[1]+' store'+(entry[1]!==1?'s':'')+'</div></div>';
+  });
+
+  document.getElementById('uploadPreviewTitle').textContent = 'VMA Report Upload Preview';
+  document.getElementById('uploadPreviewBody').innerHTML =
+    '<p style="font-size:13px;color:var(--gray-3);margin-bottom:16px">'+groups.length+' stores in file across '+Object.keys(territorySummary).length+' territories. '+
+    '<span style="color:#5dba7d">'+matched+' matched</span>'+
+    ' ('+exactCodeCount+' by VMA Code'+(fuzzyCount?', '+fuzzyCount+' by name — check Account Aliases':'')+')'+
+    (unmatchedGroups.length?', <span style="color:#d47070">'+unmatchedGroups.length+' unmatched</span> — will NOT be uploaded (no territory to write to): '+esc(unmatchedGroups.join(', ')):'')+
+    '. Existing VMA data will be replaced.</p>'+
+    previewRows.join('');
+  document.getElementById('uploadPreviewConfirm').onclick = confirmVMAUpload;
+  document.getElementById('modalUploadPreview').classList.add('open');
+}
+
+async function confirmVMAUpload() {
+  if (!_pendingVMAUpload) return;
+  closeModal('modalUploadPreview');
+  showToast('Uploading VMA data...');
+  var now = new Date().toISOString();
+  try {
+    var byTerritory = {};
+    _pendingVMAUpload.forEach(function(g){
+      if (!byTerritory[g.territory]) byTerritory[g.territory] = [];
+      byTerritory[g.territory].push(g);
+    });
+
+    for (var terr in byTerritory) {
+      var sid = TERRITORY_SHEET_IDS[terr];
+      if (!sid) continue;
+
+      // Only the accounts actually present in THIS upload get replaced —
+      // everything else in the tab is preserved. This matters whenever an
+      // upload doesn't cover every dealer (a filtered report from a
+      // different group, a partial re-send, etc.) so it can never wipe out
+      // other stores' most recent data.
+      var newAccountIds = {};
+      byTerritory[terr].forEach(function(g){ newAccountIds[g.account_id] = true; });
+
+      var keptExisting = [];
+      try {
+        var exRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
+          spreadsheetId: sid, range: 'VMA Data!A2:Y'
+        }); });
+        keptExisting = (exRes.result.values || []).filter(function(row){ return !newAccountIds[row[1]]; });
+      } catch(readErr) { console.error('Could not read existing VMA data for '+terr+' — proceeding with new rows only', readErr); }
+
+      var rows = [];
+      byTerritory[terr].forEach(function(g){
+        g.rows.forEach(function(r){
+          rows.push([
+            'VMA'+Date.now()+Math.random().toString(36).slice(2,6),
+            g.account_id, g.matched_business_name || g.account_name, terr,
+            r.advisor_code, r.advisor_name, r.is_store_total ? 'Yes' : 'No',
+            r.ros, r.presented, r.pct_presented, r.sold, r.pct_penetration,
+            r.menu_dollars, r.alacarte_dollars, r.total_dollars, r.dollars_per_menu,
+            r.elr, r.hrs_per_menu, r.prepaid, r.l1, r.l2, r.l3, r.pct_l2_l3, r.malac,
+            now
+          ]);
+        });
+      });
+      var merged = keptExisting.concat(rows);
+      try {
+        await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.clear({
+          spreadsheetId: sid, range: 'VMA Data!A2:Y'
+        }); });
+        if (merged.length) {
+          await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId: sid, range: 'VMA Data!A2',
+            valueInputOption: 'RAW', resource: {values: merged}
+          }); });
+        }
+      } catch(terrErr) {
+        console.error('Error uploading VMA data for '+terr+' — has the VMA Data tab been created yet?', terrErr);
+      }
+    }
+
+    if (_pendingAliasWrites && _pendingAliasWrites.length) {
+      var aliasesByTerr = {};
+      _pendingAliasWrites.forEach(function(al){
+        if (!aliasesByTerr[al.territory]) aliasesByTerr[al.territory] = [];
+        aliasesByTerr[al.territory].push(al);
+      });
+      for (var aterr in aliasesByTerr) {
+        var asid = TERRITORY_SHEET_IDS[aterr];
+        if (!asid) continue;
+        var aliasRows = aliasesByTerr[aterr].map(function(al){
+          return ['AL'+Date.now()+Math.random().toString(36).slice(2,6), al.raw_name, al.account_id,
+                  al.account_name, al.territory, al.status, al.confidence, now];
+        });
+        try {
+          await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
+            spreadsheetId: asid, range: 'Account Aliases!A:H',
+            valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', resource: {values: aliasRows}
+          }); });
+        } catch(aliasErr) { console.error('Could not write VMA aliases for '+aterr, aliasErr); }
+      }
+    }
+
+    if (currentTerritory && byTerritory[currentTerritory]) { await fetchVMAData(); }
+    showToast('VMA data uploaded ✓');
+  } catch (e) {
+    console.error('VMA upload error', e);
+    showToast(isAuthError(e) ? 'Your session may have expired — try signing in again.' : 'Error uploading VMA data','error');
+  }
+}
 
 async function handleMachinesUpload(evt) {
   var file = evt.target.files[0];
@@ -6682,7 +7435,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:HT','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:HU','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -6698,7 +7451,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}); }),
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:HT'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:HU'}); }),
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}); }),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
@@ -6797,6 +7550,158 @@ function recapChangeCategory(fieldKey) {
   return null;
 }
 
+// ── Funnel Report — turns the same data already loaded for the Weekly
+// Recap into a plain-text write-up a rep can send straight to management.
+// Reuses window._recapChanges/_recapVisits/_recapTu rather than re-fetching
+// anything, so it only works after Run Report has been clicked at least
+// once — openFunnelReportModal() prompts for that if nothing's loaded yet.
+function isHighlightFlag(v) { return (v || '').toString().trim().toLowerCase() === 'yes'; }
+
+function formatRecapDate(d) {
+  if (!d) return '';
+  var datePart = d.split('T')[0];
+  var parts = datePart.split('-');
+  if (parts.length !== 3) return datePart;
+  return parts[1] + '/' + parts[2]; // M/D — short form for a scannable email
+}
+
+function openFunnelReportModal() {
+  if (!window._recapMeta) {
+    showToast('Run a report first, then generate the funnel write-up from those results', 'error');
+    return;
+  }
+  document.getElementById('funnelReportText').value = generateFunnelReportText();
+  document.getElementById('modalFunnelReport').classList.add('open');
+}
+
+function generateFunnelReportText() {
+  var changes = window._recapChanges || [];
+  var visits  = window._recapVisits  || [];
+  var tu      = window._recapTu      || [];
+  var meta    = window._recapMeta    || {};
+
+  var conversions = changes.filter(function(c){ return c.is_conversion; });
+  var reversions  = changes.filter(function(c){ return c.is_reversion; });
+  var deletions   = changes.filter(function(c){ return c.is_deletion; });
+  var carryWins   = changes.filter(function(c){ return recapChangeCategory(c.field_key)==='carry' && !c.is_conversion && !c.is_reversion && !c.is_deletion; });
+  var personnelCh = changes.filter(function(c){ return recapChangeCategory(c.field_key)==='personnel'; });
+  var storeCh     = changes.filter(function(c){ return recapChangeCategory(c.field_key)==='store'; });
+  var ratingCh    = changes.filter(function(c){ return recapChangeCategory(c.field_key)==='rating'; });
+
+  var highlightVisits = visits.filter(function(v){ return isHighlightFlag(v.is_highlight); });
+  var otherVisits     = visits.filter(function(v){ return !isHighlightFlag(v.is_highlight); });
+  var highlightTu     = tu.filter(function(u){ return isHighlightFlag(u.is_highlight); });
+
+  var lines = [];
+  var territoryLabel = meta.territory === 'ALL' ? 'All Territories' : meta.territory;
+  lines.push('WEEKLY ACTIVITY SUMMARY — ' + territoryLabel);
+  lines.push(formatRecapDate(meta.start) + ' – ' + formatRecapDate(meta.end));
+  lines.push('');
+
+  lines.push('KEY VISITS: ' + highlightVisits.length);
+  if (highlightVisits.length) {
+    highlightVisits.forEach(function(v){
+      lines.push('  • ' + formatRecapDate(v.visit_date) + ' — ' + (v.account_name||'Unknown account') +
+        (v.account_town ? ' (' + v.account_town + ')' : '') + (v.notes ? ': ' + v.notes : ''));
+      if (v.followup_date) lines.push('      Follow-up: ' + formatRecapDate(v.followup_date) + (v.followup_notes ? ' — ' + v.followup_notes : ''));
+    });
+  }
+  lines.push('');
+
+  lines.push('ROUTINE VISITS: ' + otherVisits.length);
+  if (otherVisits.length) {
+    otherVisits.forEach(function(v){
+      lines.push('  • ' + formatRecapDate(v.visit_date) + ' — ' + (v.account_name||'Unknown account') +
+        (v.account_town ? ' (' + v.account_town + ')' : '') + (v.notes ? ': ' + v.notes : ''));
+      if (v.followup_date) lines.push('      Follow-up: ' + formatRecapDate(v.followup_date) + (v.followup_notes ? ' — ' + v.followup_notes : ''));
+    });
+  }
+  lines.push('');
+
+  if (conversions.length) {
+    lines.push('NEW ACCOUNTS CONVERTED (prospect → active): ' + conversions.length);
+    conversions.forEach(function(c){ lines.push('  • ' + c.account_name + (c.account_town ? ' (' + c.account_town + ')' : '')); });
+    lines.push('');
+  }
+
+  if (carryWins.length) {
+    lines.push('PRODUCT WINS (new BG product now carried): ' + carryWins.length);
+    carryWins.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.field_label || c.field_key)); });
+    lines.push('');
+  }
+
+  if (reversions.length || deletions.length) {
+    lines.push('NEEDS ATTENTION — reversions/deletions: ' + (reversions.length + deletions.length));
+    reversions.forEach(function(c){ lines.push('  • ' + c.account_name + (c.account_town ? ' (' + c.account_town + ')' : '') + ' — reverted active → prospect'); });
+    deletions.forEach(function(c){ lines.push('  • ' + c.account_name + (c.account_town ? ' (' + c.account_town + ')' : '') + ' — marked deleted'); });
+    lines.push('');
+  }
+
+  if (ratingCh.length) {
+    lines.push('RATING CHANGES: ' + ratingCh.length);
+    ratingCh.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.old_value||'—') + ' → ' + (c.new_value||'—')); });
+    lines.push('');
+  }
+
+  if (personnelCh.length) {
+    lines.push('PERSONNEL CHANGES: ' + personnelCh.length);
+    personnelCh.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.field_label||c.field_key) + ': ' + (c.new_value||'—')); });
+    lines.push('');
+  }
+
+  if (storeCh.length) {
+    lines.push('STORE ACTIVITY (menus, VMA, training, etc.): ' + storeCh.length);
+    storeCh.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.field_label||c.field_key) + ': ' + (c.new_value||'—')); });
+    lines.push('');
+  }
+
+  if (highlightTu.length) {
+    lines.push('KEY TERRITORY UPDATES: ' + highlightTu.length);
+    highlightTu.forEach(function(u){ lines.push('  • [' + (u.category||'General') + '] ' + (u.notes||'')); });
+    lines.push('');
+  }
+
+  if (!conversions.length && !carryWins.length && !reversions.length && !deletions.length &&
+      !ratingCh.length && !personnelCh.length && !storeCh.length && !highlightTu.length && !visits.length) {
+    lines.push('No logged activity in this date range.');
+    lines.push('');
+  }
+
+  lines.push('— Generated from Drayton CRM');
+  return lines.join('\n');
+}
+
+function copyFunnelReportToClipboard() {
+  var textarea = document.getElementById('funnelReportText');
+  textarea.select();
+  navigator.clipboard.writeText(textarea.value).then(function(){
+    showToast('Copied to clipboard');
+  }).catch(function(){
+    try { document.execCommand('copy'); showToast('Copied to clipboard'); }
+    catch(e) { showToast('Could not copy — select the text manually', 'error'); }
+  });
+}
+
+// Opens a new email via mailto: — this launches whatever the device's
+// default mail handler is (Outlook if it's set as default, otherwise
+// Mail/Gmail/etc.). There's no way for a web page to specifically target
+// the Outlook app by name; mailto: is the standard, cross-platform way to
+// hand off to "whatever mail client is registered."
+//
+// mailto: links have a practical length ceiling in some clients (Outlook
+// desktop in particular can silently truncate very long bodies), so Copy
+// to Clipboard stays as a fallback for an unusually long report — paste
+// into a blank email if Outlook opens with anything cut off.
+function openFunnelReportInOutlook() {
+  var meta = window._recapMeta || {};
+  var territoryLabel = meta.territory === 'ALL' ? 'All Territories' : (meta.territory || '');
+  var dateRange = formatRecapDate(meta.start) + ' – ' + formatRecapDate(meta.end);
+  var subject = 'Funnel Report (' + dateRange + ')' + (territoryLabel ? ' — ' + territoryLabel : '');
+  var body = document.getElementById('funnelReportText').value.replace(/\n/g, '\r\n');
+  var mailto = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  window.location.href = mailto;
+}
+
 function applyRecapSearch() {
   var changes = window._recapChanges || [];
   var visits  = window._recapVisits  || [];
@@ -6851,30 +7756,9 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
 
   var html = '';
 
-  // ── Territory Updates section (always shown first when present) ──
-  if (tu && tu.length && !conversionsOnly) {
-    html += '<div class="card" style="margin-bottom:16px">'+
-      '<div class="card-header">📌 Territory Updates'+
-      (territory==='ALL'?' — All Territories':' — '+territory)+
-      '<span style="float:right;font-weight:400;opacity:0.7">'+tu.length+' update'+(tu.length!==1?'s':'')+'</span></div>'+
-      '<div class="card-body" style="padding:0">'+
-      tu.map(function(u){
-        var isStar = (u.is_highlight||'').toLowerCase()==='yes';
-        var ts = u.timestamp ? u.timestamp.split('T')[0] : '';
-        return '<div class="field-row" style="padding:10px 16px;align-items:flex-start">'+
-          '<div style="width:90px;flex-shrink:0;font-size:11px;color:var(--gray-3);padding-top:2px">'+fmtDate(ts)+
-          (territory==='ALL'?'<div style="color:var(--gold);font-weight:600;margin-top:2px">'+esc(u.territory)+'</div>':'')+
-          '</div>'+
-          '<div style="flex:1">'+
-            '<span class="tu-category '+catClass(u.category)+'">'+esc(u.category)+'</span>'+
-            (isStar?'⭐ ':'')+
-            '<span style="font-size:13px;color:var(--gray-4)">'+esc(u.notes)+'</span>'+
-          '</div>'+
-        '</div>';
-      }).join('')+
-      '</div></div>';
-  }
-
+  // ── Visit Log section (moved ahead of Territory Updates so reps' actual
+  // visit notes are the first thing management sees, not the flagged
+  // key-event highlights) ──
   if (!conversionsOnly) {
     var highlightCount = visits.filter(function(v){ return (v.is_highlight||'').toLowerCase()==='yes'; }).length;
     html += '<div class="visit-card">'+
@@ -6901,6 +7785,30 @@ function renderWeeklyRecap(changes, visits, tu, start, end, territory, conversio
       }).join('');
     }
     html += '</div>';
+  }
+
+  // ── Territory Updates section (key events) ──
+  if (tu && tu.length && !conversionsOnly) {
+    html += '<div class="card" style="margin-bottom:16px">'+
+      '<div class="card-header">📌 Territory Updates'+
+      (territory==='ALL'?' — All Territories':' — '+territory)+
+      '<span style="float:right;font-weight:400;opacity:0.7">'+tu.length+' update'+(tu.length!==1?'s':'')+'</span></div>'+
+      '<div class="card-body" style="padding:0">'+
+      tu.map(function(u){
+        var isStar = (u.is_highlight||'').toLowerCase()==='yes';
+        var ts = u.timestamp ? u.timestamp.split('T')[0] : '';
+        return '<div class="field-row" style="padding:10px 16px;align-items:flex-start">'+
+          '<div style="width:90px;flex-shrink:0;font-size:11px;color:var(--gray-3);padding-top:2px">'+fmtDate(ts)+
+          (territory==='ALL'?'<div style="color:var(--gold);font-weight:600;margin-top:2px">'+esc(u.territory)+'</div>':'')+
+          '</div>'+
+          '<div style="flex:1">'+
+            '<span class="tu-category '+catClass(u.category)+'">'+esc(u.category)+'</span>'+
+            (isStar?'⭐ ':'')+
+            '<span style="font-size:13px;color:var(--gray-4)">'+esc(u.notes)+'</span>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+      '</div></div>';
   }
 
   html += '<div class="card" style="margin-bottom:16px">'+
@@ -7099,7 +8007,8 @@ function openEditModal(section) {
   // Build Personnel section rows (existing + add new row)
   var extraPersonnel = allPersonnel.filter(function(p){ return p.account_id===a.account_id; });
   var personnelRows = extraPersonnel.map(function(p){
-    return '<div class="form-grid-2" style="margin-bottom:8px" data-pid="'+p.personnel_id+'">'+
+    return '<div class="personnel-edit-block" data-pid="'+p.personnel_id+'" style="margin-bottom:4px">'+
+      '<div class="form-grid-2" style="margin-bottom:8px">'+
       '<div class="form-row" style="margin-bottom:0"><label>Role</label><input type="text" class="per-role" value="'+esc(p.role)+'" placeholder="Role..."></div>'+
       '<div class="form-row" style="margin-bottom:0"><label>Name</label><input type="text" class="per-name" value="'+esc(p.name)+'"></div></div>'+
       '<div class="form-grid-2" style="margin-bottom:4px">'+
@@ -7107,7 +8016,8 @@ function openEditModal(section) {
       '<div class="form-row" style="margin-bottom:0"><label>Cell Phone</label><input type="text" class="per-cell phone-field" value="'+esc(p.cell)+'" placeholder="Cell phone..."></div></div>'+
       '<div class="form-grid-2" style="margin-bottom:4px">'+
       '<div class="form-row" style="margin-bottom:0"><label>Email</label><input type="text" class="per-email" value="'+esc(p.email)+'" placeholder="Email..."></div></div>'+
-      '<div style="text-align:right;margin-bottom:12px"><button type="button" class="btn btn-danger btn-sm per-delete-btn" data-pid="'+p.personnel_id+'" style="font-size:11px;padding:3px 8px">Remove</button></div>';
+      '<div style="text-align:right;margin-bottom:12px"><button type="button" class="btn btn-danger btn-sm per-delete-btn" data-pid="'+p.personnel_id+'" style="font-size:11px;padding:3px 8px">Remove</button></div>'+
+      '</div>';
   }).join('');
 
   // Build Activity Log fields for Store Information section
@@ -7172,6 +8082,7 @@ function openEditModal(section) {
       DEALER_GROUPS.map(function(g){ return '<option value="'+esc(g)+'"'+(a.dealer_group===g?' selected':'')+'>'+esc(g)+'</option>'; }).join('')+
     '</select></div>'+
     '<div class="form-row"><label>DMS</label><input type="text" id="e_dms" value="'+esc(a.dms)+'" placeholder="e.g. CDK, Reynolds &amp; Reynolds..."></div>'+
+    '<div class="form-row"><label>VMA Code</label><input type="text" id="e_vma_code" value="'+esc(a.vma_code)+'" placeholder="e.g. USMA1234 — from the SmartVMA report"></div>'+
     '<div class="form-row"><label>Authorized to Share Personal Info</label><select id="e_authorize_share_personal_info">'+
       '<option value=""'+(!a.authorize_share_personal_info?' selected':'')+'>—</option>'+
       '<option value="Yes"'+(a.authorize_share_personal_info==='Yes'?' selected':'')+'>Yes</option>'+
@@ -7265,7 +8176,7 @@ function openNewAccount() {
 
 function collectEditFields() {
   var a = currentAccount;
-  var fields = ['business_name','address','town','state','website','account_type','dealer_group','dms','authorize_share_personal_info','inactive','bays','advisors',
+  var fields = ['business_name','address','town','state','website','account_type','dealer_group','dms','vma_code','authorize_share_personal_info','inactive','bays','advisors',
     'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
     'sm_name','sm_phone','sm_cell','sm_email','owner_name','owner_phone','owner_cell','owner_email',
     'gm_name','gm_phone','gm_cell','gm_email',
@@ -7338,6 +8249,22 @@ async function saveAccount() {
     };
   }
 
+  // Collect edits made to EXISTING additional contacts (previously discarded on save)
+  var editedPersonnel = [];
+  document.querySelectorAll('#edit-section-personnel .personnel-edit-block[data-pid]').forEach(function(block){
+    var pid = block.dataset.pid;
+    var existing = allPersonnel.find(function(p){ return p.personnel_id===pid; });
+    if (!existing) return;
+    var role  = block.querySelector('.per-role').value.trim();
+    var name  = block.querySelector('.per-name').value.trim();
+    var phone = block.querySelector('.per-phone').value.trim();
+    var cell  = block.querySelector('.per-cell').value.trim();
+    var email = block.querySelector('.per-email').value.trim();
+    if (role!==existing.role || name!==existing.name || phone!==existing.phone || cell!==existing.cell || email!==existing.email) {
+      editedPersonnel.push({personnel_id:pid, role:role, name:name, phone:phone, cell:cell, email:email, before:existing});
+    }
+  });
+
   try {
     await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A'+rowNum,
@@ -7379,6 +8306,32 @@ async function saveAccount() {
         before[ae.field_key]||'', ae.date, ae.date);
     }
 
+    // Write edits to existing additional contacts
+    if (editedPersonnel.length) {
+      var allPerRows = (await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A:I'
+      }); })).result.values || [];
+      for (var ei=0; ei<editedPersonnel.length; ei++) {
+        var ep = editedPersonnel[ei];
+        for (var ri=1; ri<allPerRows.length; ri++) {
+          if (allPerRows[ri][0]===ep.personnel_id) {
+            var epRow = [ep.personnel_id, currentAccount.account_id, currentAccount.business_name,
+                         currentTerritory, ep.role, ep.name, ep.phone, ep.email, ep.cell];
+            await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.update({
+              spreadsheetId:territorySheetId(currentTerritory), range:'Personnel!A'+(ri+1)+':I'+(ri+1),
+              valueInputOption:'RAW', resource:{values:[epRow]}
+            }); });
+            var pRef = allPersonnel.find(function(x){ return x.personnel_id===ep.personnel_id; });
+            if (pRef) { pRef.role=ep.role; pRef.name=ep.name; pRef.phone=ep.phone; pRef.email=ep.email; pRef.cell=ep.cell; }
+            await logFieldChange(currentAccount, 'personnel_changed',
+              ep.before.name+(ep.before.role?' ('+ep.before.role+')':''),
+              ep.name+(ep.role?' ('+ep.role+')':''));
+            break;
+          }
+        }
+      }
+    }
+
     // Write new personnel entry
     if (newPersonnel) {
       var pid = 'PER'+Date.now();
@@ -7409,7 +8362,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:HT',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:HU',
       valueInputOption:'RAW', resource:{values:[vals]}
     }); });
     allAccounts.push(currentAccount);
