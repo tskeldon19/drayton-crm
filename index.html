@@ -7688,17 +7688,31 @@ function copyFunnelReportToClipboard() {
 // the Outlook app by name; mailto: is the standard, cross-platform way to
 // hand off to "whatever mail client is registered."
 //
-// mailto: links have a practical length ceiling in some clients (Outlook
-// desktop in particular can silently truncate very long bodies), so Copy
-// to Clipboard stays as a fallback for an unusually long report — paste
-// into a blank email if Outlook opens with anything cut off.
+// WEB-BASED mail handlers (Gmail's web mailto interceptor, Outlook's web
+// mailto interceptor) have a hard length ceiling and reject the whole link
+// outright once it's too long — unlike a real desktop client, which just
+// truncates. A full week's visit notes can easily exceed that. Rather than
+// trying to guess a safe length, the mailto link here NEVER carries the
+// body — only the subject (always short, so this can't fail) — and the
+// full report is copied to the clipboard at the same moment the email
+// opens. One paste finishes it, and this works identically regardless of
+// report length.
 function openFunnelReportInOutlook() {
   var meta = window._recapMeta || {};
   var territoryLabel = meta.territory === 'ALL' ? 'All Territories' : (meta.territory || '');
   var dateRange = formatRecapDate(meta.start) + ' – ' + formatRecapDate(meta.end);
   var subject = 'Funnel Report (' + dateRange + ')' + (territoryLabel ? ' — ' + territoryLabel : '');
-  var body = document.getElementById('funnelReportText').value.replace(/\n/g, '\r\n');
-  var mailto = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  var mailto = 'mailto:?subject=' + encodeURIComponent(subject);
+
+  var textarea = document.getElementById('funnelReportText');
+  textarea.select();
+  navigator.clipboard.writeText(textarea.value).then(function(){
+    showToast('Report copied — paste it into the email that just opened');
+  }).catch(function(){
+    try { document.execCommand('copy'); showToast('Report copied — paste it into the email that just opened'); }
+    catch(e) { showToast('Could not copy automatically — use Copy to Clipboard, then paste into the email', 'error'); }
+  });
+
   window.location.href = mailto;
 }
 
