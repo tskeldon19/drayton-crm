@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v10.0 - built 2026-07-09 -->
+<!-- Drayton CRM v10.0 - built 2026-07-09 · per-rep funnel report filter added 2026-10-16 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1045,6 +1045,11 @@
     </div>
     <div class="modal-body">
       <div class="meta" style="margin-bottom:10px">Review below, edit anything you'd like, then send to management.</div>
+      <div class="form-row" id="funnelRepRow" style="display:none;margin-bottom:10px">
+        <label for="funnelRepSelect">Whose activity?</label>
+        <select id="funnelRepSelect"></select>
+        <div class="meta" style="margin-top:4px">Picking a rep keeps only visits with their name on them (plus visits with no rep listed). Account changes can't be tied to one rep, so they stay and are marked territory-wide. Switching regenerates the text, so pick before editing.</div>
+      </div>
       <textarea id="funnelReportText" style="width:100%;min-height:420px;font-family:inherit;font-size:13px;line-height:1.5;padding:12px;border:1px solid var(--gray-4,#ccc);border-radius:6px;resize:vertical"></textarea>
     </div>
     <div class="modal-footer">
@@ -1612,6 +1617,9 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('funnelReportCloseBtn').addEventListener('click', function(){ closeModal('modalFunnelReport'); });
   document.getElementById('funnelReportCopyBtn').addEventListener('click', copyFunnelReportToClipboard);
   document.getElementById('funnelReportMailBtn').addEventListener('click', openFunnelReportInOutlook);
+  document.getElementById('funnelRepSelect').addEventListener('change', function(){
+    document.getElementById('funnelReportText').value = generateFunnelReportText();
+  });
   document.getElementById('recapSearchInput').addEventListener('input', applyRecapSearch);
   document.querySelectorAll('.recap-cat-cb').forEach(function(cb){
     cb.addEventListener('change', function(){
@@ -7570,8 +7578,53 @@ function openFunnelReportModal() {
     showToast('Run a report first, then generate the funnel write-up from those results', 'error');
     return;
   }
+  setupFunnelRepPicker();
   document.getElementById('funnelReportText').value = generateFunnelReportText();
   document.getElementById('modalFunnelReport').classList.add('open');
+}
+
+// ── Per-rep funnel filter (multi-rep territories only) ──
+// Reps in the report's territory, from REPS_BY_TERRITORY. Empty for
+// "All Territories" or single-rep routes, which hides the picker.
+function funnelTerritoryReps() {
+  var t = (window._recapMeta || {}).territory;
+  if (!t || t === 'ALL') return [];
+  var reps = REPS_BY_TERRITORY[t] || [];
+  return reps.length > 1 ? reps : [];
+}
+
+// Always opens on "Whole territory" so nobody accidentally sends a
+// filtered report thinking it's the full one.
+function setupFunnelRepPicker() {
+  var row = document.getElementById('funnelRepRow');
+  var sel = document.getElementById('funnelRepSelect');
+  var reps = funnelTerritoryReps();
+  if (!reps.length) { row.style.display = 'none'; sel.innerHTML = ''; return; }
+  sel.innerHTML = '<option value="">Whole territory (all reps)</option>' +
+    reps.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+' only</option>'; }).join('');
+  sel.value = '';
+  row.style.display = '';
+}
+
+function selectedFunnelRep() {
+  if (!funnelTerritoryReps().length) return '';
+  var sel = document.getElementById('funnelRepSelect');
+  return sel ? sel.value : '';
+}
+
+// Whole-word, case-insensitive name match, so "Rob" doesn't match "Robert".
+function textNamesRep(text, name) {
+  var safe = name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('(^|[^a-z])' + safe + '($|[^a-z])').test((text || '').toLowerCase());
+}
+
+// Keep a record when it names the chosen rep, or names none of the
+// territory's reps (older visits logged before the rep dropdown existed,
+// and blank-author updates, count as shared).
+function funnelKeepsForRep(text, rep, reps) {
+  if (!rep) return true;
+  if (textNamesRep(text, rep)) return true;
+  return !reps.some(function(n){ return textNamesRep(text, n); });
 }
 
 function generateFunnelReportText() {
@@ -7579,6 +7632,14 @@ function generateFunnelReportText() {
   var visits  = window._recapVisits  || [];
   var tu      = window._recapTu      || [];
   var meta    = window._recapMeta    || {};
+
+  var funnelRep  = selectedFunnelRep();
+  var funnelReps = funnelTerritoryReps();
+  if (funnelRep) {
+    visits = visits.filter(function(v){ return funnelKeepsForRep(v.attendees, funnelRep, funnelReps); });
+    tu     = tu.filter(function(u){ return funnelKeepsForRep(u.author, funnelRep, funnelReps); });
+  }
+  var sharedTag = funnelRep ? ' (territory-wide)' : '';
 
   var conversions = changes.filter(function(c){ return c.is_conversion; });
   var reversions  = changes.filter(function(c){ return c.is_reversion; });
@@ -7594,8 +7655,9 @@ function generateFunnelReportText() {
 
   var lines = [];
   var territoryLabel = meta.territory === 'ALL' ? 'All Territories' : meta.territory;
-  lines.push('WEEKLY ACTIVITY SUMMARY — ' + territoryLabel);
+  lines.push('WEEKLY ACTIVITY SUMMARY — ' + territoryLabel + (funnelRep ? ' — ' + funnelRep : ''));
   lines.push(formatRecapDate(meta.start) + ' – ' + formatRecapDate(meta.end));
+  if (funnelRep) lines.push('Visits filtered to ' + funnelRep + '. Account changes below are territory-wide.');
   lines.push('');
 
   lines.push('KEY VISITS: ' + highlightVisits.length);
@@ -7619,38 +7681,38 @@ function generateFunnelReportText() {
   lines.push('');
 
   if (conversions.length) {
-    lines.push('NEW ACCOUNTS CONVERTED (prospect → active): ' + conversions.length);
+    lines.push('NEW ACCOUNTS CONVERTED (prospect → active)' + sharedTag + ': ' + conversions.length);
     conversions.forEach(function(c){ lines.push('  • ' + c.account_name + (c.account_town ? ' (' + c.account_town + ')' : '')); });
     lines.push('');
   }
 
   if (carryWins.length) {
-    lines.push('PRODUCT WINS (new BG product now carried): ' + carryWins.length);
+    lines.push('PRODUCT WINS (new BG product now carried)' + sharedTag + ': ' + carryWins.length);
     carryWins.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.field_label || c.field_key)); });
     lines.push('');
   }
 
   if (reversions.length || deletions.length) {
-    lines.push('NEEDS ATTENTION — reversions/deletions: ' + (reversions.length + deletions.length));
+    lines.push('NEEDS ATTENTION — reversions/deletions' + sharedTag + ': ' + (reversions.length + deletions.length));
     reversions.forEach(function(c){ lines.push('  • ' + c.account_name + (c.account_town ? ' (' + c.account_town + ')' : '') + ' — reverted active → prospect'); });
     deletions.forEach(function(c){ lines.push('  • ' + c.account_name + (c.account_town ? ' (' + c.account_town + ')' : '') + ' — marked deleted'); });
     lines.push('');
   }
 
   if (ratingCh.length) {
-    lines.push('RATING CHANGES: ' + ratingCh.length);
+    lines.push('RATING CHANGES' + sharedTag + ': ' + ratingCh.length);
     ratingCh.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.old_value||'—') + ' → ' + (c.new_value||'—')); });
     lines.push('');
   }
 
   if (personnelCh.length) {
-    lines.push('PERSONNEL CHANGES: ' + personnelCh.length);
+    lines.push('PERSONNEL CHANGES' + sharedTag + ': ' + personnelCh.length);
     personnelCh.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.field_label||c.field_key) + ': ' + (c.new_value||'—')); });
     lines.push('');
   }
 
   if (storeCh.length) {
-    lines.push('STORE ACTIVITY (menus, VMA, training, etc.): ' + storeCh.length);
+    lines.push('STORE ACTIVITY (menus, VMA, training, etc.)' + sharedTag + ': ' + storeCh.length);
     storeCh.forEach(function(c){ lines.push('  • ' + c.account_name + ' — ' + (c.field_label||c.field_key) + ': ' + (c.new_value||'—')); });
     lines.push('');
   }
@@ -7715,7 +7777,8 @@ function openFunnelReportInOutlook() {
   var meta = window._recapMeta || {};
   var territoryLabel = meta.territory === 'ALL' ? 'All Territories' : (meta.territory || '');
   var dateRange = formatRecapDate(meta.start) + ' – ' + formatRecapDate(meta.end);
-  var subject = 'Funnel Report (' + dateRange + ')' + (territoryLabel ? ' — ' + territoryLabel : '');
+  var funnelRep = selectedFunnelRep();
+  var subject = 'Funnel Report (' + dateRange + ')' + (territoryLabel ? ' — ' + territoryLabel : '') + (funnelRep ? ' — ' + funnelRep : '');
   var textarea = document.getElementById('funnelReportText');
   var body = textarea.value.replace(/\n/g, '\r\n');
   var fullMailto = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
