@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Drayton CRM v10.0 - built 2026-07-09 · per-rep funnel report filter added 2026-10-16 -->
+<!-- Drayton CRM v10.0 - built 2026-07-09 · per-rep funnel report filter added 2026-10-16 · # of Techs field added 2026-10-20 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1384,7 +1384,8 @@ const COL = {
   bg_pvp_part_number:222,bg_pvp_part_notes:223,bg_pvp_spiff:224,bg_pvp_cp_ro_pct:225,
   authorize_share_personal_info:226,
   inactive:227,
-  vma_code:228
+  vma_code:228,
+  techs:229
 };
 
 function colLetter(idx) {
@@ -2093,7 +2094,7 @@ async function fetchData() {
   try {
     var sid = territorySheetId(currentTerritory);
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sid, ranges: ['Accounts!A:HU','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:I','Product Part Numbers!A:I']
+      spreadsheetId: sid, ranges: ['Accounts!A:HV','Visits!A:K','Change Log!A:H','Activity Log!A:H','Personnel!A:I','Product Part Numbers!A:I']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -3037,6 +3038,7 @@ function renderDetail() {
     '<div class="field-row"><span class="field-label">Inactive Account</span>'+fv(a.inactive==='Yes'?'Yes':'')+'</div>'+
     '<div class="field-row"><span class="field-label">Website</span>'+fv(a.website)+'</div>'+
     '<div class="field-row"><span class="field-label">Bays</span>'+fv(a.bays)+'</div>'+
+    '<div class="field-row"><span class="field-label">Techs</span>'+fv(a.techs)+'</div>'+
     '<div class="field-row"><span class="field-label">Advisors</span>'+fv(a.advisors)+'</div>'+
     '<div class="field-row"><span class="field-label">Monthly CP RO</span>'+fv(a.monthly_ro)+'</div>'+
     '<div class="field-row"><span class="field-label">Door Rate</span>'+fv(a.door_rate)+'</div>'+
@@ -4548,7 +4550,7 @@ async function getTerritoryAccountsForMatching(territory) {
   try {
     // Two ranges: A:E covers account_id/business_name (used by Rankings/
     // Machine matching), HU:HU is the vma_code column on its own — far
-    // cheaper than fetching the full A:HU width just for one column.
+    // cheaper than fetching the full A:HV width just for one column.
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
       spreadsheetId: sid, ranges: ['Accounts!A:E', 'Accounts!HU:HU']
     }); });
@@ -5629,7 +5631,7 @@ function describeBatchFailure(failedTerritories, allTerritories, sawAuthError) {
 async function pullAllTerritoriesForMaster() {
   var territories = Object.keys(TERRITORY_SHEET_IDS);
   var sawAuthError = false;
-  var ranges = ['Accounts!A:HU','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
+  var ranges = ['Accounts!A:HV','Change Log!A:H','Rankings!A:J','Machine Data!A:Z','Visits!A:K','Territory Updates!A:H'];
 
   var results = await Promise.all(territories.map(function(t){
     return withRetry(function(){
@@ -5667,7 +5669,7 @@ async function pullAllTerritoriesForMaster() {
     while (out.length < width) out.push('');
     return out;
   }
-  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 228 — matches Accounts!A:HU
+  var ACCOUNTS_WIDTH = Object.keys(COL).length; // 230 — matches Accounts!A:HV
 
   results.forEach(function(r){
     r.accRows.slice(1).forEach(function(row){
@@ -5756,7 +5758,7 @@ async function openCompanyView() {
 
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:HU','Change Log!A:H','Rankings!A:K','Meta!A:B']
+      spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Accounts!A:HV','Change Log!A:H','Rankings!A:K','Meta!A:B']
     }); });
     var vr = res.result.valueRanges || [];
     var accRows = (vr[0] && vr[0].values) || [];
@@ -7443,7 +7445,7 @@ async function runWeeklyRecap() {
       // same data, one spreadsheet instead of ten. Only "Refresh Company Data"
       // (PIN-gated, on Company Dashboard) still hits every territory at once.
       var mRes = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:HU','Territory Updates!A:H']
+        spreadsheetId: COMPANY_MASTER_SHEET_ID, ranges: ['Visits!A:K','Change Log!A:H','Accounts!A:HV','Territory Updates!A:H']
       }); });
       var mvr = mRes.result.valueRanges || [];
       var visRaw = ((mvr[0] && mvr[0].values) || []).slice(1);
@@ -7459,7 +7461,7 @@ async function runWeeklyRecap() {
       var results = await Promise.all([
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Visits!A:K'}); }),
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Change Log!A:H'}); }),
-        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:HU'}); }),
+        withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Accounts!A:HV'}); }),
         withRetry(function(){ return gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid, range:'Territory Updates!A:H'}); }),
       ]);
       var visRaw = (results[0].result.values||[]).slice(1);
@@ -8193,6 +8195,7 @@ function openEditModal(section) {
     '</select></div>'+
     '<div class="form-grid-2"><div class="form-row"><label># of Bays</label><input type="text" id="e_bays" value="'+esc(a.bays)+'"></div>'+
     '<div class="form-row"><label># of Advisors</label><input type="text" id="e_advisors" value="'+esc(a.advisors)+'"></div></div>'+
+    '<div class="form-grid-2"><div class="form-row"><label># of Techs</label><input type="text" id="e_techs" value="'+esc(a.techs)+'"></div><div></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Monthly CP RO</label><input type="text" id="e_monthly_ro" value="'+esc(a.monthly_ro)+'"></div>'+
     '<div class="form-row"><label>Door Rate</label><input type="text" id="e_door_rate" value="'+esc(a.door_rate)+'"></div></div>'+
     '<div class="form-grid-2"><div class="form-row"><label>Maint. Rate</label><input type="text" id="e_maint_rate" value="'+esc(a.maint_rate)+'"></div>'+
@@ -8275,7 +8278,7 @@ function openNewAccount() {
 
 function collectEditFields() {
   var a = currentAccount;
-  var fields = ['business_name','address','town','state','website','account_type','dealer_group','dms','vma_code','authorize_share_personal_info','inactive','bays','advisors',
+  var fields = ['business_name','address','town','state','website','account_type','dealer_group','dms','vma_code','authorize_share_personal_info','inactive','bays','techs','advisors',
     'monthly_ro','door_rate','maint_rate','competitor_product','competitor_name',
     'sm_name','sm_phone','sm_cell','sm_email','owner_name','owner_phone','owner_cell','owner_email',
     'gm_name','gm_phone','gm_cell','gm_email',
@@ -8461,7 +8464,7 @@ async function saveNewAccount() {
   var vals = Object.keys(COL).map(function(k){ return currentAccount[k]||''; });
   try {
     var res = await withRetry(function(){ return gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:HU',
+      spreadsheetId:territorySheetId(currentTerritory), range:'Accounts!A:HV',
       valueInputOption:'RAW', resource:{values:[vals]}
     }); });
     allAccounts.push(currentAccount);
